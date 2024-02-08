@@ -1,5 +1,5 @@
-import AudioWaveform from "./AudioWaveForm";
-// import SampleList from "./SampleList";
+import AudioWaveform from "./AudioWaveform";
+import SampleList from "./SampleList";
 
 interface EditorProps {
   audioPath: string;
@@ -14,7 +14,7 @@ export default function Editor({ audioPath }: EditorProps) {
       <AudioWaveform audioUrl={audioPath} />
 
       <div className="w-96 border border-solid border-slate-800 border-t-0 rounded-b-md p-8">
-        {/* <SampleList samples={samples} selectedSample={selectedSample} /> */}
+        <SampleList samples={[]} selectedSample={undefined} />
       </div>
     </div>
   );
