@@ -1,41 +1,37 @@
+import { formatTime } from "@/utils";
 import cls from "classnames";
 import { type Region } from "wavesurfer.js/dist/plugins/regions";
 
 interface SampleProps {
   sample: Region;
   isSelected: boolean;
+  index: number;
+  onClick: (region: Region) => void;
 }
-const formatTime = (seconds: number) =>
-  [seconds / 60, seconds % 60]
-    .map((v) => `0${Math.floor(v)}`.slice(-2))
-    .join(":");
 
-export default function Sample({ sample, isSelected }: SampleProps) {
+export default function Sample({
+  sample,
+  isSelected,
+  index,
+  onClick,
+}: SampleProps) {
+  const duration = sample.end - sample.start;
+  const handleClick = () => {
+    onClick(sample);
+  };
+
   return (
     <li
       key={sample.id}
       className={cls({
-        "bg-slate-900 rounded p-4 text-slate-300 flex flex-col gap-2": true,
-        "bg-slate-700": isSelected,
+        "rounded-md p-4 flex flex-row items-center justify-between gap-2 text-white/40 border border-solid border-white/10 cursor-pointer":
+          true,
+        "bg-white/5 border-white/20": isSelected,
       })}
+      onClick={handleClick}
     >
-      <div>
-        <div>
-          <p>
-            {`Start: ${formatTime(sample.start)} - End: ${formatTime(sample.end)}`}
-          </p>
-          <p>{`0:00/${formatTime(sample.end - sample.start)}`}</p>
-        </div>
-        <div>
-          <button
-            onClick={() => {
-              sample.play();
-            }}
-          >
-            play
-          </button>
-        </div>
-      </div>
+      <span className="m-0 text-md font-medium">{`Sample ${index + 1}`}</span>
+      <span className="m-0 text-sm">{formatTime(duration)}</span>
     </li>
   );
 }

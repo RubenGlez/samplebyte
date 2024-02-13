@@ -1,21 +1,29 @@
-import { getRegionsPlugin } from "@/utils";
 import { useCallback, useEffect } from "react";
 import WaveSurfer from "wavesurfer.js";
+import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
 interface UseShortcutsProps {
   wavesurfer?: WaveSurfer;
+  selectedRegion?: Region;
 }
 
-export const useShortcuts = ({ wavesurfer }: UseShortcutsProps) => {
+export const useShortcuts = ({
+  wavesurfer,
+  selectedRegion,
+}: UseShortcutsProps) => {
+  // const regionsPlugin = getRegionsPlugin(wavesurfer);
+
   const handlePressTab = useCallback(() => {}, []);
-  const handlePressBackspace = useCallback(() => {}, []);
+  const handlePressBackspace = useCallback(() => {
+    selectedRegion?.remove();
+  }, [selectedRegion]);
+  const handlePressEnter = useCallback(() => {
+    selectedRegion?.play();
+  }, [selectedRegion]);
   const handlePressEscape = useCallback(() => {}, []);
-  const handlePressEnter = useCallback(() => {}, []);
   const handlePressSpace = useCallback(() => {
     wavesurfer?.playPause();
   }, [wavesurfer]);
-
-  const regionsPlugin = getRegionsPlugin(wavesurfer);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

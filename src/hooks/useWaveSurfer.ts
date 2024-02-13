@@ -14,18 +14,22 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
 
   useEffect(() => {
     if (waveformRef.current && !isConfigured.current) {
-      const regionsPluginInstance = RegionsPlugin.create();
-      const timelinePluginInstance = TimelinePlugin.create({
-        style: { color: "white" },
-      });
-
       const wsInstance = WaveSurfer.create({
         container: waveformRef.current,
-        waveColor: "#1e293b",
-        progressColor: "#64748b",
-        cursorColor: "#f1f5f9",
+        waveColor: "rgba(255,255,255,0.33)",
+        progressColor: "#fff",
+        cursorColor: "#fff",
         hideScrollbar: true,
-        plugins: [regionsPluginInstance, timelinePluginInstance],
+        autoCenter: false,
+        autoplay: false,
+        autoScroll: false,
+
+        plugins: [
+          RegionsPlugin.create(),
+          TimelinePlugin.create({
+            style: { color: "white" },
+          }),
+        ],
         url: audioUrl,
       });
 
@@ -36,7 +40,6 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
     }
 
     return () => {
-      wavesurfer?.getActivePlugins().forEach((plug) => plug.unAll());
       wavesurfer?.destroy();
     };
   }, [audioUrl, wavesurfer]);

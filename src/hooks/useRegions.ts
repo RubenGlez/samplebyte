@@ -1,4 +1,3 @@
-import { ACTIVE_COLOR, INACTIVE_COLOR } from "@/config/constants";
 import { getRegionsPlugin } from "@/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type WaveSurfer from "wavesurfer.js";
@@ -8,13 +7,24 @@ interface UseRegionsProps {
   wavesurfer?: WaveSurfer;
 }
 
+const REGION_ACTIVE_ID = "region-active";
+const REGION_HANDLE_ACTIVE_ID = "region-handle-active";
+
 const toggleRegionsColor = (regions: Region[] = [], selectedRegion: Region) => {
   regions.forEach((region) => {
     const isSelected = region.id === selectedRegion.id;
-    region.setOptions({
-      ...region,
-      color: isSelected ? ACTIVE_COLOR : INACTIVE_COLOR,
-    });
+    const handles = region.element.querySelectorAll('[part*="region-handle"]');
+    if (isSelected) {
+      region.element.part.add(REGION_ACTIVE_ID);
+      handles.forEach((handle) => {
+        handle.part.add(REGION_HANDLE_ACTIVE_ID);
+      });
+    } else {
+      region.element.part.remove(REGION_ACTIVE_ID);
+      handles.forEach((handle) => {
+        handle.part.remove(REGION_HANDLE_ACTIVE_ID);
+      });
+    }
   });
 };
 
@@ -24,6 +34,8 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
   const [selectedRegion, setSelectedRegion] = useState<Region>();
 
   const regionsPlugin = getRegionsPlugin(wavesurfer);
+
+  const regions = regionsPlugin?.getRegions();
 
   const handleSelectRegion = useCallback(
     (region: Region) => {
@@ -41,7 +53,7 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
     [handleSelectRegion]
   );
 
-  const onRegionRemoved = useCallback((region: Region) => {}, []);
+  const onRegionRemoved = useCallback(() => {}, []);
 
   const onRegionUpdated = useCallback(
     (region: Region) => {
@@ -54,8 +66,9 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
     (region: Region, e: MouseEvent) => {
       e.stopPropagation();
       handleSelectRegion(region);
+      wavesurfer?.setTime(region.start);
     },
-    [handleSelectRegion]
+    [handleSelectRegion, wavesurfer]
   );
 
   const onRegionIn = useCallback(() => {}, []);
@@ -70,7 +83,7 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
 
         // Configuration
         regionsPlugin.enableDragSelection({
-          color: ACTIVE_COLOR,
+          color: "var(--region-bg)",
         });
 
         // Event listeners
@@ -98,4 +111,10 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
     regionsPlugin,
     wavesurfer,
   ]);
+
+  return {
+    selectedRegion,
+    regions,
+    handleSelectRegion,
+  };
 };

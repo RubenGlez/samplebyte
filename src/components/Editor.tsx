@@ -1,21 +1,20 @@
 import AudioWaveform from "./AudioWaveform";
-import SampleList from "./SampleList";
+import CardHeader from "./Card/CardHeader";
+import CardRoot from "./Card/CardRoot";
 
 interface EditorProps {
-  audioPath: string;
+  name: string;
+  size: number;
+  type: string;
+  path: string;
 }
-export default function Editor({ audioPath }: EditorProps) {
+
+export default function Editor({ name, path, size, type }: EditorProps) {
   return (
-    <div className="flex flex-col items-center justify-center">
-      <div className="w-96 border border-solid border-slate-800 border-b-0 rounded-t-md p-8">
-        <h1 className="text-slate-400 text-base text-center">File title</h1>
-      </div>
+    <CardRoot>
+      <CardHeader name={name} size={size} type={type} />
 
-      <AudioWaveform audioUrl={audioPath} />
-
-      <div className="w-96 border border-solid border-slate-800 border-t-0 rounded-b-md p-8">
-        <SampleList samples={[]} selectedSample={undefined} />
-      </div>
-    </div>
+      <AudioWaveform audioUrl={path} />
+    </CardRoot>
   );
 }

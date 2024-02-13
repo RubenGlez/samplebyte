@@ -20,3 +20,25 @@ html {
 body {
   margin: 0;
 }
+
+html {
+  --region-bg: rgba(34, 178, 255, 0.1);
+  --region-border-active: rgba(34, 178, 255, 0.6);
+}
+
+#waveform ::part(region):hover {
+  background-color: var(--region-bg) !important;
+}
+
+#waveform ::part(region-active) {
+  background-color: var(--region-bg) !important;
+}
+
+#waveform ::part(region-handle-active) {
+  border-color: var(--region-border-active) !important;
+}
+
+.w-600 {
+  max-width: 600px;
+  width: 100%;
+}
