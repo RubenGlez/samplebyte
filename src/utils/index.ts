@@ -34,3 +34,27 @@ export const formatTime = (seconds: number) =>
   [seconds / 60, seconds % 60]
     .map((v) => `0${Math.floor(v)}`.slice(-2))
     .join(":");
+
+export const convertBlobUrlToArrayBuffer = async (
+  blobUrl: string
+): Promise<ArrayBuffer> => {
+  try {
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    return await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(reader.result);
+        } else {
+          reject(new Error("Expected an ArrayBuffer"));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(blob); // Lee el blob como ArrayBuffer
+    });
+  } catch (error) {
+    console.error("Error converting blob URL to ArrayBuffer:", error);
+    throw error;
+  }
+};

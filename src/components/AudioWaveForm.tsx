@@ -3,7 +3,10 @@ import { useShortcuts } from "@/hooks/useShortcuts";
 import { useWavesurfer } from "@/hooks/useWaveSurfer";
 import { useZoom } from "@/hooks/useZoom";
 import SampleList from "./SampleList";
-import ExportButton from "./ExportButton";
+import Actions from "./Actions";
+import { useFileManagement } from "@/hooks/useFileManagement";
+import { useCallback } from "react";
+import { convertBlobUrlToArrayBuffer } from "@/utils";
 
 interface AudioWaveformProps {
   audioUrl: string;
@@ -17,6 +20,25 @@ const AudioWaveform = ({ audioUrl }: AudioWaveformProps) => {
   const { selectedRegion, regions, handleSelectRegion } = useRegions({
     wavesurfer,
   });
+
+  const { saveProject } = useFileManagement();
+
+  const handleSave = useCallback(async () => {
+    const song = await convertBlobUrlToArrayBuffer(audioUrl);
+
+    saveProject({
+      name: `example_${Date.now()}`,
+      regions: [
+        ...(regions?.map((region) => ({
+          start: region.start,
+          end: region.end,
+        })) || []),
+      ],
+      song,
+    });
+  }, [audioUrl, regions, saveProject]);
+
+  const handleExport = useCallback(() => {}, []);
 
   useZoom({ waveformRef, wavesurfer });
 
@@ -32,7 +54,7 @@ const AudioWaveform = ({ audioUrl }: AudioWaveformProps) => {
         onClick={handleSelectRegion}
       />
 
-      <ExportButton regions={regions} />
+      <Actions handleExport={handleExport} handleSave={handleSave} />
     </>
   );
 };

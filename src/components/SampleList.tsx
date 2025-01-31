@@ -12,18 +12,28 @@ const SampleList = ({
   selectedSample,
   onClick,
 }: SampleListProps) => {
+  const hasSamples = samples.length > 0;
+
   return (
-    <ul className="list-none grid grid-cols-2 gap-4 p-8 m-0">
-      {samples.map((sample, index) => (
-        <Sample
-          key={sample.id}
-          sample={sample}
-          isSelected={sample.id === selectedSample?.id}
-          index={index}
-          onClick={onClick}
-        />
-      ))}
-    </ul>
+    <div className="p-8">
+      {hasSamples && (
+        <div className="px-4 py-1 flex justify-between">
+          <span className="text-xs text-white/40">Name</span>
+          <span className="text-xs text-white/40">Duration</span>
+        </div>
+      )}
+      <ul className="list-none flex flex-col m-0 p-0 max-h-48 overflow-y-auto">
+        {samples.map((sample, index) => (
+          <Sample
+            key={sample.id}
+            sample={sample}
+            isSelected={sample.id === selectedSample?.id}
+            index={index}
+            onClick={onClick}
+          />
+        ))}
+      </ul>
+    </div>
   );
 };
 

@@ -20,8 +20,7 @@
     "lint:fix": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 --fix",
     "tsc": "tsc --noEmit",
     "prettier:fix": "prettier --write ./src",
-    "prettier:check": "prettier --check ./src"
-  },
+    "prettier:check": "prettier --check ./src"  },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "classnames": "^2.5.1",

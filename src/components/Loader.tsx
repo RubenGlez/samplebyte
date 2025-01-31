@@ -1,19 +1,27 @@
 import { DragEvent, useState } from "react";
 import YouTubeInput from "./YouTubeInput";
 import CardRoot from "./Card/CardRoot";
+import ProjectDialog from "./ProjectDialog";
 
 interface LoaderProps {
   onFileLoaded: (file: File) => void;
   onUrlLoaded: (url: string) => void;
   isLoading: boolean;
+  onProjectLoad: (projectName: string) => void;
+  storedProjects: string[];
+  fetchStoredProjects: () => void;
 }
 
 export default function Loader({
   onFileLoaded,
   onUrlLoaded,
   isLoading,
+  onProjectLoad,
+  storedProjects,
+  fetchStoredProjects,
 }: LoaderProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -43,6 +51,16 @@ export default function Loader({
     }
   };
 
+  const handleOpenProject = () => {
+    fetchStoredProjects();
+    setIsDialogOpen(true);
+  };
+
+  const handleSelectProject = (projectName: string) => {
+    onProjectLoad(projectName);
+    setIsDialogOpen(false);
+  };
+
   return (
     <CardRoot
       onDragEnter={handleDragEnter}
@@ -68,9 +86,20 @@ export default function Loader({
             <h2 className="text-slate-400 text-base text-center font-medium m-0">
               or drop a file
             </h2>
+            <p>
+              You can also{" "}
+              <a onClick={handleOpenProject}>open a project file</a>
+            </p>
           </div>
         )}
       </div>
+      {isDialogOpen && (
+        <ProjectDialog
+          projects={storedProjects}
+          onSelect={handleSelectProject}
+          onClose={() => setIsDialogOpen(false)}
+        />
+      )}
     </CardRoot>
   );
 }

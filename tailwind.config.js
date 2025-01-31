@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       backgroundImage: {
-        main: "url('../public/1.avif')",
+        main: "url('../1.avif')",
       },
     },
   },

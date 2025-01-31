@@ -4,14 +4,31 @@ import { ipcRenderer, contextBridge } from "electron";
 contextBridge.exposeInMainWorld("api", {
   send: (channel: string, data?: unknown) => {
     // Asegúrate de que solo se envíen a canales predefinidos por razones de seguridad
-    const validChannels = ["download-mp3"];
+    const validChannels = [
+      "downloadSong",
+      "saveProject",
+      "getStoredProjects",
+      "retrieveProject",
+      "getSessions",
+    ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
 
   receive: (channel: string, func: (...args: unknown[]) => void) => {
-    const validChannels = ["mp3-downloaded", "error"];
+    const validChannels = [
+      "downloadSongSuccess",
+      "downloadSongError",
+      "saveProjectSuccess",
+      "saveProjectError",
+      "retrieveProjectSuccess",
+      "retrieveProjectError",
+      "getSessionsSuccess",
+      "getSessionsError",
+      "getStoredProjectsSuccess",
+      "getStoredProjectsError",
+    ];
     if (validChannels.includes(channel)) {
       // Eliminar el listener existente para evitar duplicados
       ipcRenderer.removeAllListeners(channel);

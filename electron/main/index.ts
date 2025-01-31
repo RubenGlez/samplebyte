@@ -3,7 +3,7 @@ import { release } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { update } from "./update";
-
+import { createFolderStructure } from "./createFolderStructure";
 import "./audio";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -86,7 +86,10 @@ async function createWindow() {
   update(win);
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createFolderStructure();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   win = null;

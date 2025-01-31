@@ -24,9 +24,9 @@ export default function Sample({
     <li
       key={sample.id}
       className={cls({
-        "rounded-md p-4 flex flex-row items-center justify-between gap-2 text-white/40 border border-solid border-white/10 cursor-pointer":
+        "py-2 px-4 flex flex-row items-center justify-between gap-2 text-white/40 border border-solid border-white/10 border-b-0 border-x-0 last:border-b cursor-pointer":
           true,
-        "bg-white/5 border-white/20": isSelected,
+        "bg-white/5": isSelected,
       })}
       onClick={handleClick}
     >
