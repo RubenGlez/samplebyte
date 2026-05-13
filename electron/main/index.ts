@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, session, protocol, net } from 'electron'
 import { release } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,6 +17,11 @@ process.env.DIST = join(process.env.DIST_ELECTRON, '../dist')
 process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL
   ? join(process.env.DIST_ELECTRON, '../public')
   : process.env.DIST
+
+// Must be called before app.ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-file', privileges: { secure: true, supportFetchAPI: true, bypassCSP: true, stream: true } },
+])
 
 if (release().startsWith('6.1')) app.disableHardwareAcceleration()
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
@@ -58,6 +63,24 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Serve local audio files to the renderer without cross-origin restrictions
+  protocol.handle('local-file', (request) => {
+    const filePath = decodeURIComponent(request.url.slice('local-file://'.length))
+    return net.fetch(`file://${filePath}`)
+  })
+
+  if (!url) {
+    // Production-only CSP — not applied in dev so Vite HMR works
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' file:; img-src 'self' data:"],
+        },
+      })
+    })
+  }
+
   initDatabase()
   registerLibraryHandlers()
   registerAudioHandlers()

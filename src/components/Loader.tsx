@@ -35,7 +35,7 @@ export default function Loader() {
     if (!filePath) return
     setAudio({
       name: filePath.split('/').pop() ?? 'audio',
-      path: `file://${filePath}`,
+      path: `local-file://${filePath}`,
       filePath,
       size: 0,
       type: 'audio/*',

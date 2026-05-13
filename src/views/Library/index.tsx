@@ -29,7 +29,7 @@ export default function LibraryView() {
       audioRef.current.pause()
     }
 
-    const audio = new Audio(`file://${sample.filePath}`)
+    const audio = new Audio(`local-file://${sample.filePath}`)
     audio.onended = () => setPlayingId(null)
     audio.play()
     audioRef.current = audio

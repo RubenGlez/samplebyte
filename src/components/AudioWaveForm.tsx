@@ -89,6 +89,15 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
         onNameChange={updateRegionName}
       />
 
+      <div className="px-6 pb-3 flex gap-4 text-[10px] text-white/20">
+        {[['Space', 'Play / Pause'], ['Enter', 'Play region'], ['⌫', 'Delete region']].map(([key, label]) => (
+          <span key={key} className="flex items-center gap-1.5">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-white/30">{key}</kbd>
+            {label}
+          </span>
+        ))}
+      </div>
+
       <div className="p-6 pt-0 flex gap-3 justify-end">
         <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
           {isExporting ? 'Exporting…' : 'Export WAV'}

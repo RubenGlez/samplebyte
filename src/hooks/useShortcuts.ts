@@ -27,8 +27,15 @@ export const useShortcuts = ({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable)
+      ) return
+
       const key = event.key;
-      if (key === " ") handlePressSpace();
+      if (key === " ") { event.preventDefault(); handlePressSpace(); }
       if (key === "Escape") handlePressEscape();
       if (key === "Enter") handlePressEnter();
       if (key === "Backspace") handlePressBackspace();
