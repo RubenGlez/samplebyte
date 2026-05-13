@@ -278,57 +278,53 @@ function PadSlot({ slotNumber, sample, onClear }: { slotNumber: number; sample: 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
 
   return (
+    // Outer div owns the square shape only — no padding/flex so content can't stretch it
     <div
       ref={setNodeRef}
       className={cn(
-        'relative aspect-square rounded-lg border transition-all flex flex-col items-start justify-end p-2.5',
+        'relative aspect-square rounded-lg border transition-all overflow-hidden',
         sample
-          ? 'bg-accent/8 border-accent/25 shadow-[inset_0_1px_0_rgba(255,180,100,0.08)]'
+          ? 'bg-accent/8 border-accent/25'
           : 'bg-[#0E0C09] border-[rgba(255,180,100,0.06)] hover:border-border',
         isOver && 'border-accent/50 bg-accent/12 scale-[1.02]',
       )}
     >
-      {/* Pad number */}
-      <span
-        className={cn(
-          'absolute top-2 left-2.5 text-[10px] tabular-nums leading-none',
-          sample ? 'text-accent/40' : 'text-faint/60'
-        )}
-        style={{ fontFamily: 'var(--font-family-mono)' }}
-      >
-        {padLabel}
-      </span>
+      {/* All content is absolutely positioned so it can never stretch the square */}
+      <div className="absolute inset-0 p-2.5 flex flex-col justify-between">
+        {/* Top row: pad number + accent dot / clear */}
+        <div className="flex items-start justify-between">
+          <span
+            className={cn('text-[10px] tabular-nums leading-none', sample ? 'text-accent/40' : 'text-faint/60')}
+            style={{ fontFamily: 'var(--font-family-mono)' }}
+          >
+            {padLabel}
+          </span>
+          {sample && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onClear() }}
+              className="w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 rounded bg-transparent border-0 cursor-pointer opacity-0 hover:opacity-100 transition-opacity text-xs leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
-      {sample ? (
-        <>
-          {/* Filled pad */}
-          <div className="flex flex-col gap-1 w-full">
-            <p className="text-[11px] font-medium text-ink leading-tight line-clamp-2 break-all">{sample.name}</p>
+        {/* Bottom: sample info or empty hint */}
+        {sample ? (
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <p className="text-[11px] font-medium text-ink leading-tight truncate">{sample.name}</p>
             {sample.duration != null && (
-              <p
-                className="text-[10px] text-accent/50 tabular-nums"
-                style={{ fontFamily: 'var(--font-family-mono)' }}
-              >
+              <p className="text-[10px] text-accent/50 tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>
                 {formatTime(sample.duration)}
               </p>
             )}
           </div>
-          {/* Orange corner accent */}
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent/60" />
-          {/* Clear button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); onClear() }}
-            className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 hover:bg-red-500/10 rounded bg-transparent border-0 cursor-pointer opacity-0 hover:opacity-100 transition-opacity text-xs leading-none"
-            style={{ top: 6, right: 6 }}
-          >
-            ×
-          </button>
-        </>
-      ) : (
-        <span className="text-[9px] text-faint/40 leading-none w-full text-center absolute inset-0 flex items-center justify-center">
-          {isOver ? '↓' : '·'}
-        </span>
-      )}
+        ) : (
+          <span className="text-[9px] text-faint/30 self-center">
+            {isOver ? '↓' : ''}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
