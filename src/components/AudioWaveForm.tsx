@@ -1,62 +1,77 @@
-import { useRegions } from "@/hooks/useRegions";
-import { useShortcuts } from "@/hooks/useShortcuts";
-import { useWavesurfer } from "@/hooks/useWaveSurfer";
-import { useZoom } from "@/hooks/useZoom";
-import SampleList from "./SampleList";
-import Actions from "./Actions";
-import { useFileManagement } from "@/hooks/useFileManagement";
-import { useCallback } from "react";
-import { convertBlobUrlToArrayBuffer } from "@/utils";
+import { useRegions } from '@/hooks/useRegions'
+import { useShortcuts } from '@/hooks/useShortcuts'
+import { useWavesurfer } from '@/hooks/useWaveSurfer'
+import { useZoom } from '@/hooks/useZoom'
+import SampleList from './SampleList'
+import Actions from './Actions'
+import { useCallback, useState } from 'react'
 
 interface AudioWaveformProps {
-  audioUrl: string;
+  audioUrl: string
+  audioName: string
 }
 
-const AudioWaveform = ({ audioUrl }: AudioWaveformProps) => {
-  const { waveformRef, wavesurfer } = useWavesurfer({
-    audioUrl,
-  });
-
-  const { selectedRegion, regions, handleSelectRegion } = useRegions({
-    wavesurfer,
-  });
-
-  const { saveProject } = useFileManagement();
+const AudioWaveform = ({ audioUrl, audioName }: AudioWaveformProps) => {
+  const { waveformRef, wavesurfer } = useWavesurfer({ audioUrl })
+  const { selectedRegion, regions, handleSelectRegion } = useRegions({ wavesurfer })
+  const [isSaving, setIsSaving] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   const handleSave = useCallback(async () => {
-    const song = await convertBlobUrlToArrayBuffer(audioUrl);
+    if (!regions?.length) return
 
-    saveProject({
-      name: `example_${Date.now()}`,
-      regions: [
-        ...(regions?.map((region) => ({
-          start: region.start,
-          end: region.end,
-        })) || []),
-      ],
-      song,
-    });
-  }, [audioUrl, regions, saveProject]);
+    const name = prompt('Project name:', audioName.replace(/\.[^.]+$/, ''))
+    if (!name) return
 
-  const handleExport = useCallback(() => {}, []);
+    setIsSaving(true)
+    try {
+      await window.api.projects.save({
+        name,
+        sourcePath: audioUrl.startsWith('blob:') ? null : audioUrl,
+        regions: regions.map((r) => ({ start: r.start, end: r.end, name: r.id })),
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }, [audioUrl, audioName, regions])
 
-  useZoom({ waveformRef, wavesurfer });
+  const handleExport = useCallback(async () => {
+    if (!regions?.length) return
 
-  useShortcuts({ wavesurfer, selectedRegion });
+    const outputDir = await window.api.fs.pickFolder()
+    if (!outputDir) return
+
+    setIsExporting(true)
+    try {
+      const result = await window.api.audio.exportRegions({
+        regions: regions.map((r) => ({ start: r.start, end: r.end, name: r.id })),
+        sourceFilePath: audioUrl,
+        outputDir,
+        profileId: 'generic',
+      })
+      alert(`Exported ${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} to ${outputDir}`)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [audioUrl, regions])
+
+  useZoom({ waveformRef, wavesurfer })
+  useShortcuts({ wavesurfer, selectedRegion })
 
   return (
     <>
       <div id="waveform" ref={waveformRef} />
 
-      <SampleList
-        samples={regions}
-        selectedSample={selectedRegion}
-        onClick={handleSelectRegion}
+      <SampleList samples={regions} selectedSample={selectedRegion} onClick={handleSelectRegion} />
+
+      <Actions
+        handleExport={handleExport}
+        handleSave={handleSave}
+        isSaving={isSaving}
+        isExporting={isExporting}
       />
-
-      <Actions handleExport={handleExport} handleSave={handleSave} />
     </>
-  );
-};
+  )
+}
 
-export default AudioWaveform;
+export default AudioWaveform

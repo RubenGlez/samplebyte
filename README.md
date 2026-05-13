@@ -1,88 +1,153 @@
 # SampleByte
 
-> ⚠️ **Work In Progress**: This software is under active development and may contain bugs or incomplete features. Use at your own risk and feel free to report any issues you encounter.
+> A producer's sample workstation for hardware instruments.
 
-SampleByte is an open-source Digital Audio Workstation (DAW) focused on making music sampling accessible and efficient. Built with Electron and React, it allows producers to sample directly from YouTube or local audio files with a streamlined workflow.
+SampleByte is an open-source desktop app that covers the full workflow from audio discovery to hardware-ready sample packs — without the fragmented, multi-tool process producers deal with today.
 
-![SampleByte Screenshot] [Add screenshot here]
+```
+Discover → Chop → Organise → Export to your sampler
+```
 
-## Features
+---
 
-- 🎵 Direct YouTube sampling
-- 🎚️ Waveform visualization with zoom capabilities
-- ✂️ Create and manage multiple sample regions
-- 💾 Save and load projects
-- 🎹 Keyboard shortcuts for efficient workflow
-- 🎨 Modern, minimal interface
+## The Problem
+
+Loading samples onto hardware (Maschine MK3, Roland SP-404, Akai MPC) is tedious. Today's workflow looks like this:
+
+1. Find audio somewhere
+2. Download it with a separate tool
+3. Open an audio editor (Audacity, a DAW)
+4. Trim and chop manually
+5. Export individual files
+6. Rename them to match your hardware's naming convention
+7. Copy to the right folder on your SD card or USB
+
+SampleByte collapses that into one tool.
+
+---
+
+## What It Does
+
+- **Chop** — Load any local audio file or search Freesound. Draw regions on the waveform to mark your chops. Name them. Save them to your library.
+- **Library** — Browse everything you've ever sampled. Search and filter by BPM, key, or tag. Preview with a click.
+- **Packs** — Drag samples onto a visual 4×4 pad grid. Pick your hardware target. Export a ready-to-load folder of correctly formatted, correctly named files.
+
+---
+
+## Supported Hardware (Export Profiles)
+
+| Device | Format | Sample Rate | Bit Depth |
+|---|---|---|---|
+| Maschine MK3 | WAV | 44.1 kHz | 16-bit |
+| Roland SP-404 MkII | WAV | 48 kHz | 16-bit |
+| Akai MPC (generic) | WAV | 44.1 kHz | 24-bit |
+| Generic WAV | WAV | 44.1 kHz | 24-bit |
+
+Adding a new hardware target is one config object — no code changes required. See [Architecture](docs/ARCHITECTURE.md#hardware-profiles).
+
+---
+
+## Audio Sources
+
+- **Local files** — drag and drop any audio file (WAV, MP3, FLAC, AIFF, OGG)
+- **Freesound** — search 650,000+ Creative Commons sounds directly in the app
+
+No YouTube. Not because it isn't useful — the original version of this app was built around it. But building a product on top of bypassing another platform's ToS creates a ceiling the product can never escape. Freesound covers the discovery angle legally and with quality content, and local files cover everything else.
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
+
+| Phase | Focus |
+|---|---|
+| 1 — Foundation | SQLite database, typed IPC, Zustand state management |
+| 2 — Core | Chop, Library, Packs views + Freesound integration |
+| 3 — Intelligence | BPM/key detection, auto-chop on transients, pitch shift |
+| 4 — AI | Auto-tagging, stem separation, smart chop suggestions |
+
+---
+
+## Tech Stack
+
+- **Electron** + **React 18** + **TypeScript**
+- **Vite** + vite-plugin-electron
+- **Zustand** for state management
+- **better-sqlite3** for the sample library database
+- **WaveSurfer.js** for waveform visualisation
+- **fluent-ffmpeg** for audio export and conversion
+- **essentia.js** (WASM) for BPM and key detection
+- **Tailwind CSS v4** + **shadcn/ui**
+
+For the full architecture breakdown, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
+- Node.js v18+
+- npm
 
-### Installation
+### Install
 
-1. Clone the repository
+```bash
+git clone https://github.com/RubenGlez/samplebyte
+cd samplebyte
+npm install
+```
 
-### Building
+### Development
 
-To create a production build:
+```bash
+npm run dev
+```
+
+### Build
 
 ```bash
 npm run build
 ```
 
-The built application will be available in the `release` directory.
+---
 
-## Usage
+## Keyboard Shortcuts
 
-1. Launch SampleByte
-2. Either:
-   - Paste a YouTube URL to load audio
-   - Drop a local audio file into the interface
-3. Use the waveform view to create regions by clicking and dragging
-4. Save your project or export individual samples
-
-### Keyboard Shortcuts
-
-- `Space`: Play/Pause
-- `Enter`: Play selected region
-- `Backspace`: Delete selected region
-- Mouse wheel: Zoom waveform
-
-## Contributing
-
-We welcome contributions! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [WaveSurfer.js](https://wavesurfer-js.org/) for audio visualization
-- [ytdl-core](https://github.com/fent/node-ytdl-core) for YouTube download functionality
-- [Electron](https://www.electronjs.org/) for the cross-platform runtime
-- [React](https://reactjs.org/) for the UI framework
-
-## Roadmap
-
-- [ ] Export to multiple audio formats
-- [ ] Batch processing of samples
-- [ ] Effects processing
-- [ ] MIDI mapping support
-- [ ] Sample library management
-
-## Support
-
-If you find this project helpful, please consider:
-- Starring the repository
-- Reporting bugs
-- Contributing code or documentation
-- Sharing with other producers
+| Key | Action |
+|---|---|
+| `Space` | Play / Pause |
+| `Enter` | Play selected region |
+| `Backspace` | Delete selected region |
+| `Mouse wheel` | Zoom waveform |
 
 ---
 
-Built with ♥️ by @RubenGlez
+## Contributing
+
+SampleByte is in active development toward its first real MVP. Contributions are welcome.
+
+Before starting:
+1. Read the [Roadmap](docs/ROADMAP.md) to see what's planned and what's in progress
+2. Read the [Architecture](docs/ARCHITECTURE.md) to understand the codebase structure and conventions
+3. Open an issue before starting anything large
+
+---
+
+## Acknowledgments
+
+- [WaveSurfer.js](https://wavesurfer-js.org/) for waveform visualisation
+- [Freesound](https://freesound.org/) for the Creative Commons audio API
+- [essentia.js](https://mtg.github.io/essentia.js/) for audio analysis
+- [Electron](https://www.electronjs.org/) for the cross-platform runtime
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE)
+
+---
+
+Built by [@RubenGlez](https://github.com/RubenGlez)

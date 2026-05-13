@@ -1,15 +1,21 @@
-import Button from "./Button";
+import Button from './Button'
 
 type ActionProps = {
-  handleExport: () => void;
-  handleSave: () => void;
-};
+  handleExport: () => void
+  handleSave: () => void
+  isSaving?: boolean
+  isExporting?: boolean
+}
 
-export default function Actions({ handleExport, handleSave }: ActionProps) {
+export default function Actions({ handleExport, handleSave, isSaving, isExporting }: ActionProps) {
   return (
     <div className="p-8 pt-0 flex gap-8 justify-end">
-      <Button onClick={handleExport}>{"EXPORT"}</Button>
-      <Button onClick={handleSave}>{"SAVE"}</Button>
+      <Button onClick={handleExport} disabled={isExporting}>
+        {isExporting ? 'EXPORTING...' : 'EXPORT'}
+      </Button>
+      <Button onClick={handleSave} disabled={isSaving}>
+        {isSaving ? 'SAVING...' : 'SAVE'}
+      </Button>
     </div>
-  );
+  )
 }
