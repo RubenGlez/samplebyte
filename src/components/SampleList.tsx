@@ -4,11 +4,12 @@ import Sample from './Sample'
 interface SampleListProps {
   samples?: Region[]
   selectedSample?: Region
+  regionNames?: Record<string, string>
   onClick: (region: Region) => void
   onNameChange?: (regionId: string, name: string) => void
 }
 
-const SampleList = ({ samples = [], selectedSample, onClick, onNameChange }: SampleListProps) => {
+const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onNameChange }: SampleListProps) => {
   if (!samples.length) return null
 
   return (
@@ -28,6 +29,7 @@ const SampleList = ({ samples = [], selectedSample, onClick, onNameChange }: Sam
             sample={sample}
             isSelected={sample.id === selectedSample?.id}
             index={index}
+            initialName={regionNames?.[sample.id]}
             onClick={onClick}
             onNameChange={onNameChange}
           />

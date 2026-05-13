@@ -7,12 +7,13 @@ interface SampleProps {
   sample: Region
   isSelected: boolean
   index: number
+  initialName?: string
   onClick: (region: Region) => void
   onNameChange?: (regionId: string, name: string) => void
 }
 
-export default function Sample({ sample, isSelected, index, onClick, onNameChange }: SampleProps) {
-  const [name, setName] = useState(`Chop ${String(index + 1).padStart(2, '0')}`)
+export default function Sample({ sample, isSelected, index, initialName, onClick, onNameChange }: SampleProps) {
+  const [name, setName] = useState(initialName ?? `Chop ${String(index + 1).padStart(2, '0')}`)
   const [isEditing, setIsEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const duration = sample.end - sample.start

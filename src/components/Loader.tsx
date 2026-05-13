@@ -1,5 +1,6 @@
 import { DragEvent, useState } from 'react'
 import { usePlayerStore } from '@/stores/player'
+import { useProjectsStore } from '@/stores/projects'
 import CardRoot from './Card/CardRoot'
 
 const AUDIO_EXTENSIONS = /\.(wav|mp3|flac|aiff?|ogg|m4a)$/i
@@ -7,9 +8,11 @@ const FORMATS = ['WAV', 'MP3', 'FLAC', 'AIFF', 'OGG']
 
 export default function Loader() {
   const { setAudio } = usePlayerStore()
+  const { setActiveProject } = useProjectsStore()
   const [isDragging, setIsDragging] = useState(false)
 
   const loadFile = (file: File) => {
+    setActiveProject(null)
     setAudio({
       name: file.name,
       path: URL.createObjectURL(file),
@@ -34,6 +37,7 @@ export default function Loader() {
   const handlePickFile = async () => {
     const filePath = await window.api.fs.pickFile()
     if (!filePath) return
+    setActiveProject(null)
     setAudio({
       name: filePath.split('/').pop() ?? 'audio',
       path: `local-file://${filePath}`,

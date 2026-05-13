@@ -2,9 +2,11 @@ import { getRegionsPlugin } from '@/utils'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type WaveSurfer from 'wavesurfer.js'
 import type { Region } from 'wavesurfer.js/dist/plugins/regions'
+import type { ProjectRegion } from '@/types'
 
 interface UseRegionsProps {
   wavesurfer?: WaveSurfer
+  initialRegions?: ProjectRegion[]
 }
 
 const REGION_ACTIVE_ID = 'region-active'
@@ -25,7 +27,7 @@ const toggleRegionsColor = (regions: Region[] = [], selectedRegion: Region) => {
   })
 }
 
-export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
+export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
   const isConfigured = useRef(false)
   const [selectedRegion, setSelectedRegion] = useState<Region>()
   const [regionNames, setRegionNames] = useState<Record<string, string>>({})
@@ -46,17 +48,24 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
     setRegionNames((prev) => ({ ...prev, [regionId]: name }))
   }, [])
 
-  // Attach names to regions so callers get { ...region, id: name } via the id field
-  const namedRegions = regions?.map((r) => ({
-    ...r,
-    // Override `id` with the user-provided name when saving; keep original id for internal use
-    _name: regionNames[r.id] ?? '',
-  }))
-
   useEffect(() => {
     if (wavesurfer && !isConfigured.current) {
       wavesurfer.on('ready', () => {
         if (!regionsPlugin) return
+
+        // Restore saved regions before registering listeners so region-created events don't fire
+        if (initialRegions?.length) {
+          const nameMap: Record<string, string> = {}
+          initialRegions.forEach((saved) => {
+            const region = regionsPlugin.addRegion({
+              start: saved.start,
+              end: saved.end,
+              color: 'var(--region-bg)',
+            })
+            if (saved.name) nameMap[region.id] = saved.name
+          })
+          setRegionNames(nameMap)
+        }
 
         regionsPlugin.enableDragSelection({ color: 'var(--region-bg)' })
 
@@ -76,7 +85,7 @@ export const useRegions = ({ wavesurfer }: UseRegionsProps) => {
     return () => {
       wavesurfer?.getActivePlugins().forEach((plug) => plug.unAll())
     }
-  }, [handleSelectRegion, regionsPlugin, wavesurfer])
+  }, [handleSelectRegion, initialRegions, regionsPlugin, wavesurfer])
 
   return {
     selectedRegion,
