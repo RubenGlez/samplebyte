@@ -4,6 +4,7 @@ import { useShortcuts } from '@/hooks/useShortcuts'
 import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
 import { useLibraryStore } from '@/stores/library'
+import { useProjectsStore } from '@/stores/projects'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -22,14 +23,24 @@ const SHORTCUTS = [
 ]
 
 const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) => {
+  const { activeProject, saveProject, updateActiveRegions } = useProjectsStore()
+
   const { waveformRef, wavesurfer } = useWavesurfer({ audioUrl })
-  const { selectedRegion, regions, handleSelectRegion, updateRegionName } = useRegions({ wavesurfer })
+  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName } = useRegions({
+    wavesurfer,
+    initialRegions: activeProject?.regions,
+  })
   const { fetchSamples } = useLibraryStore()
 
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [projectName, setProjectName] = useState(audioName.replace(/\.[^.]+$/, ''))
+
+  const currentRegions = useCallback(() =>
+    (regions ?? []).map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
+    [regions, regionNames]
+  )
 
   const handleSaveToLibrary = useCallback(async () => {
     if (!regions?.length) return
@@ -49,16 +60,22 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
     if (!projectName.trim() || !regions?.length) return
     setIsSaving(true)
     try {
-      await window.api.projects.save({
-        name: projectName.trim(),
-        sourcePath: filePath,
-        regions: regions.map((r) => ({ start: r.start, end: r.end, name: r.id })),
-      })
+      await saveProject({ name: projectName.trim(), sourcePath: filePath, regions: currentRegions() })
       setShowSaveDialog(false)
     } finally {
       setIsSaving(false)
     }
-  }, [filePath, projectName, regions])
+  }, [filePath, projectName, regions, currentRegions, saveProject])
+
+  const handleUpdateProject = useCallback(async () => {
+    if (!regions?.length) return
+    setIsSaving(true)
+    try {
+      await updateActiveRegions(currentRegions())
+    } finally {
+      setIsSaving(false)
+    }
+  }, [regions, currentRegions, updateActiveRegions])
 
   const handleExport = useCallback(async () => {
     if (!regions?.length) return
@@ -86,11 +103,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
 
   return (
     <>
-      <div id="waveform" ref={waveformRef} className="px-0" />
+      <div id="waveform" ref={waveformRef} />
 
       <SampleList
         samples={regions}
         selectedSample={selectedRegion}
+        regionNames={regionNames}
         onClick={handleSelectRegion}
         onNameChange={updateRegionName}
       />
@@ -117,9 +135,15 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
           <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
             {isExporting ? 'Exporting…' : 'Export WAV'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
-            Save Project
-          </Button>
+          {activeProject ? (
+            <Button variant="outline" size="sm" onClick={handleUpdateProject} disabled={isSaving || !hasRegions}>
+              {isSaving ? 'Saving…' : 'Update Project'}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
+              Save Project
+            </Button>
+          )}
           <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
             {isSaving ? 'Saving…' : 'Save to Library'}
           </Button>
