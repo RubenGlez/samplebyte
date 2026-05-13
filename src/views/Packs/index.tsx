@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Download, ChevronDown } from 'lucide-react'
+import { Plus, Download, ChevronDown, Trash2 } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
+import { useToastStore } from '@/stores/toast'
 import { useLibraryStore } from '@/stores/library'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
@@ -19,7 +20,8 @@ const PROFILES = [
 ]
 
 export default function PacksView() {
-  const { packs, currentPack, slots, hardwareProfileId, fetchPacks, createPack, setCurrentPack, setSlot, clearSlot, setHardwareProfile, exportPack } = usePacksStore()
+  const { packs, currentPack, slots, hardwareProfileId, fetchPacks, createPack, setCurrentPack, setSlot, clearSlot, setHardwareProfile, exportPack, deletePack } = usePacksStore()
+  const { toast } = useToastStore()
   const { samples, fetchSamples } = useLibraryStore()
 
   const [showNewPack, setShowNewPack] = useState(false)
@@ -60,10 +62,17 @@ export default function PacksView() {
     setIsExporting(true)
     try {
       const result = await exportPack(outputDir)
-      alert(`Exported ${result.filesWritten} files to ${outputDir}`)
+      toast(`${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} exported`)
     } finally {
       setIsExporting(false)
     }
+  }
+
+  const handleDeletePack = async () => {
+    if (!currentPack) return
+    if (!confirm(`Delete pack "${currentPack.name}"?`)) return
+    await deletePack(currentPack.id)
+    toast('Pack deleted')
   }
 
   const profile = PROFILES.find((p) => p.id === hardwareProfileId) ?? PROFILES[0]
@@ -116,6 +125,11 @@ export default function PacksView() {
               <Button variant="ghost" size="icon" onClick={() => setShowNewPack(true)} title="New pack">
                 <Plus size={13} />
               </Button>
+              {currentPack && (
+                <Button variant="danger" size="icon" onClick={handleDeletePack} title="Delete pack">
+                  <Trash2 size={13} />
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">

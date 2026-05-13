@@ -1,4 +1,5 @@
 import Nav from '@/components/Nav'
+import { Toaster } from '@/components/ui/Toaster'
 import { useUiStore } from '@/stores/ui'
 import ChopView from '@/views/Chop'
 import LibraryView from '@/views/Library'
@@ -15,6 +16,7 @@ export default function App() {
         {currentView === 'library' && <LibraryView />}
         {currentView === 'packs'   && <PacksView />}
       </main>
+      <Toaster />
     </div>
   )
 }

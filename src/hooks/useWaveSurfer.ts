@@ -10,6 +10,7 @@ interface UseWavesurferProps {
 export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const [wavesurfer, setWavesurfer] = useState<WaveSurfer>();
+  const [isPlaying, setIsPlaying] = useState(false);
   const isConfigured = useRef(false);
 
   useEffect(() => {
@@ -41,6 +42,10 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
         url: audioUrl,
       });
 
+      wsInstance.on('play',   () => setIsPlaying(true));
+      wsInstance.on('pause',  () => setIsPlaying(false));
+      wsInstance.on('finish', () => setIsPlaying(false));
+
       setWavesurfer(wsInstance);
       isConfigured.current = true;
     }
@@ -50,5 +55,5 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
     };
   }, [audioUrl, wavesurfer]);
 
-  return { waveformRef, wavesurfer };
+  return { waveformRef, wavesurfer, isPlaying };
 };

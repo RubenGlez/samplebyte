@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Trash2, FolderOpen } from 'lucide-react'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
+import { useToastStore } from '@/stores/toast'
 import Loader from '@/components/Loader'
 import Editor from '@/components/Editor'
 import type { Project } from '@/types'
@@ -9,13 +10,17 @@ import type { Project } from '@/types'
 export default function ChopView() {
   const { audio, setAudio } = usePlayerStore()
   const { projects, isLoading, fetchProjects, setActiveProject, deleteProject } = useProjectsStore()
+  const { toast } = useToastStore()
 
   useEffect(() => {
     if (!audio) fetchProjects()
   }, [audio, fetchProjects])
 
   const loadProject = (project: Project) => {
-    if (!project.sourcePath) return
+    if (!project.sourcePath) {
+      toast('This project has no source file', 'error')
+      return
+    }
     setActiveProject(project)
     setAudio({
       name: project.name,
