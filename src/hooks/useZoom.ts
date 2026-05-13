@@ -3,7 +3,7 @@ import WaveSurfer from "wavesurfer.js";
 
 interface UseZoomProps {
   wavesurfer?: WaveSurfer;
-  waveformRef: RefObject<HTMLDivElement>;
+  waveformRef: RefObject<HTMLDivElement | null>;
 }
 
 export const useZoom = ({ wavesurfer, waveformRef }: UseZoomProps) => {

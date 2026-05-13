@@ -12,6 +12,7 @@ const REGION_HANDLE_ACTIVE_ID = "region-handle-active";
 
 const toggleRegionsColor = (regions: Region[] = [], selectedRegion: Region) => {
   regions.forEach((region) => {
+    if (!region.element) return;
     const isSelected = region.id === selectedRegion.id;
     const handles = region.element.querySelectorAll('[part*="region-handle"]');
     if (isSelected) {

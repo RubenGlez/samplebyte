@@ -8,7 +8,7 @@ interface UseWavesurferProps {
 }
 
 export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
-  const waveformRef = useRef<HTMLDivElement>(null);
+  const waveformRef = useRef<HTMLDivElement | null>(null);
   const [wavesurfer, setWavesurfer] = useState<WaveSurfer>();
   const isConfigured = useRef(false);
 
