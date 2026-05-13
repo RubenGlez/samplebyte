@@ -2,7 +2,8 @@ import { create } from 'zustand'
 
 type AudioSource = {
   name: string
-  path: string
+  path: string      // blob URL or file:// URL — used by WaveSurfer
+  filePath: string  // native FS path — used by ffmpeg
   size: number
   type: string
 }
@@ -15,8 +16,6 @@ type PlayerState = {
 
 export const usePlayerStore = create<PlayerState>((set) => ({
   audio: null,
-
   setAudio: (audio) => set({ audio }),
-
   clearAudio: () => set({ audio: null }),
 }))

@@ -1,27 +1,20 @@
-import Editor from './components/Editor'
-import Loader from './components/Loader'
-import Layout from './components/Layout'
-import { usePlayerStore } from './stores/player'
+import Nav from '@/components/Nav'
+import { useUiStore } from '@/stores/ui'
+import ChopView from '@/views/Chop'
+import LibraryView from '@/views/Library'
+import PacksView from '@/views/Packs'
 
 export default function App() {
-  const { audio, setAudio } = usePlayerStore()
-
-  const handleFileLoaded = (file: File) => {
-    setAudio({
-      name: file.name,
-      path: URL.createObjectURL(file),
-      size: file.size,
-      type: file.type,
-    })
-  }
+  const { currentView } = useUiStore()
 
   return (
-    <Layout>
-      {audio ? (
-        <Editor name={audio.name} size={audio.size} type={audio.type} path={audio.path} />
-      ) : (
-        <Loader onFileLoaded={handleFileLoaded} />
-      )}
-    </Layout>
+    <div className="bg-slate-950 h-dvh flex flex-col overflow-hidden">
+      <Nav />
+      <main className="flex-1 overflow-hidden">
+        {currentView === 'chop'    && <ChopView />}
+        {currentView === 'library' && <LibraryView />}
+        {currentView === 'packs'   && <PacksView />}
+      </main>
+    </div>
   )
 }

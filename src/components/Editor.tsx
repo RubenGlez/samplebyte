@@ -7,13 +7,14 @@ interface EditorProps {
   size: number
   type: string
   path: string
+  filePath: string
 }
 
-export default function Editor({ name, path, size, type }: EditorProps) {
+export default function Editor({ name, path, filePath, size, type }: EditorProps) {
   return (
     <CardRoot>
       <CardHeader name={name} size={size} type={type} />
-      <AudioWaveform audioUrl={path} audioName={name} />
+      <AudioWaveform audioUrl={path} audioName={name} filePath={filePath} />
     </CardRoot>
   )
 }

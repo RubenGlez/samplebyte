@@ -1,27 +1,22 @@
-import { type Region } from "wavesurfer.js/dist/plugins/regions";
-import Sample from "./Sample";
+import { type Region } from 'wavesurfer.js/dist/plugins/regions'
+import Sample from './Sample'
 
 interface SampleListProps {
-  samples?: Region[];
-  selectedSample?: Region;
-  onClick: (region: Region) => void;
+  samples?: Region[]
+  selectedSample?: Region
+  onClick: (region: Region) => void
+  onNameChange?: (regionId: string, name: string) => void
 }
 
-const SampleList = ({
-  samples = [],
-  selectedSample,
-  onClick,
-}: SampleListProps) => {
-  const hasSamples = samples.length > 0;
+const SampleList = ({ samples = [], selectedSample, onClick, onNameChange }: SampleListProps) => {
+  if (!samples.length) return null
 
   return (
-    <div className="p-8">
-      {hasSamples && (
-        <div className="px-4 py-1 flex justify-between">
-          <span className="text-xs text-white/40">Name</span>
-          <span className="text-xs text-white/40">Duration</span>
-        </div>
-      )}
+    <div className="px-6 pb-2">
+      <div className="px-3 py-1 flex justify-between">
+        <span className="text-xs text-white/30">Name</span>
+        <span className="text-xs text-white/30">Duration</span>
+      </div>
       <ul className="list-none flex flex-col m-0 p-0 max-h-48 overflow-y-auto">
         {samples.map((sample, index) => (
           <Sample
@@ -30,11 +25,12 @@ const SampleList = ({
             isSelected={sample.id === selectedSample?.id}
             index={index}
             onClick={onClick}
+            onNameChange={onNameChange}
           />
         ))}
       </ul>
     </div>
-  );
-};
+  )
+}
 
-export default SampleList;
+export default SampleList

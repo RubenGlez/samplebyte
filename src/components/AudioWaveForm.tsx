@@ -1,43 +1,61 @@
+import { useCallback, useState } from 'react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
+import { useLibraryStore } from '@/stores/library'
+import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
+import { Input } from '@/components/ui/Input'
 import SampleList from './SampleList'
-import Actions from './Actions'
-import { useCallback, useState } from 'react'
 
 interface AudioWaveformProps {
   audioUrl: string
   audioName: string
+  filePath: string
 }
 
-const AudioWaveform = ({ audioUrl, audioName }: AudioWaveformProps) => {
+const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) => {
   const { waveformRef, wavesurfer } = useWavesurfer({ audioUrl })
-  const { selectedRegion, regions, handleSelectRegion } = useRegions({ wavesurfer })
+  const { selectedRegion, regions, handleSelectRegion, updateRegionName } = useRegions({ wavesurfer })
+  const { fetchSamples } = useLibraryStore()
+
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [projectName, setProjectName] = useState(audioName.replace(/\.[^.]+$/, ''))
 
-  const handleSave = useCallback(async () => {
+  const handleSaveToLibrary = useCallback(async () => {
     if (!regions?.length) return
-
-    const name = prompt('Project name:', audioName.replace(/\.[^.]+$/, ''))
-    if (!name) return
-
     setIsSaving(true)
     try {
-      await window.api.projects.save({
-        name,
-        sourcePath: audioUrl.startsWith('blob:') ? null : audioUrl,
+      await window.api.library.saveChops({
+        sourceFilePath: filePath,
         regions: regions.map((r) => ({ start: r.start, end: r.end, name: r.id })),
       })
+      await fetchSamples()
     } finally {
       setIsSaving(false)
     }
-  }, [audioUrl, audioName, regions])
+  }, [filePath, regions, fetchSamples])
+
+  const handleSaveProject = useCallback(async () => {
+    if (!projectName.trim() || !regions?.length) return
+    setIsSaving(true)
+    try {
+      await window.api.projects.save({
+        name: projectName.trim(),
+        sourcePath: filePath,
+        regions: regions.map((r) => ({ start: r.start, end: r.end, name: r.id })),
+      })
+      setShowSaveDialog(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [filePath, projectName, regions])
 
   const handleExport = useCallback(async () => {
     if (!regions?.length) return
-
     const outputDir = await window.api.fs.pickFolder()
     if (!outputDir) return
 
@@ -45,7 +63,7 @@ const AudioWaveform = ({ audioUrl, audioName }: AudioWaveformProps) => {
     try {
       const result = await window.api.audio.exportRegions({
         regions: regions.map((r) => ({ start: r.start, end: r.end, name: r.id })),
-        sourceFilePath: audioUrl,
+        sourceFilePath: filePath,
         outputDir,
         profileId: 'generic',
       })
@@ -53,23 +71,56 @@ const AudioWaveform = ({ audioUrl, audioName }: AudioWaveformProps) => {
     } finally {
       setIsExporting(false)
     }
-  }, [audioUrl, regions])
+  }, [filePath, regions])
 
   useZoom({ waveformRef, wavesurfer })
   useShortcuts({ wavesurfer, selectedRegion })
+
+  const hasRegions = !!regions?.length
 
   return (
     <>
       <div id="waveform" ref={waveformRef} />
 
-      <SampleList samples={regions} selectedSample={selectedRegion} onClick={handleSelectRegion} />
-
-      <Actions
-        handleExport={handleExport}
-        handleSave={handleSave}
-        isSaving={isSaving}
-        isExporting={isExporting}
+      <SampleList
+        samples={regions}
+        selectedSample={selectedRegion}
+        onClick={handleSelectRegion}
+        onNameChange={updateRegionName}
       />
+
+      <div className="p-6 pt-0 flex gap-3 justify-end">
+        <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
+          {isExporting ? 'Exporting…' : 'Export WAV'}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
+          Save Project
+        </Button>
+        <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
+          {isSaving ? 'Saving…' : 'Save to Library'}
+        </Button>
+      </div>
+
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent>
+          <DialogTitle>Save Project</DialogTitle>
+          <Input
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="Project name"
+            onKeyDown={(e) => e.key === 'Enter' && handleSaveProject()}
+            autoFocus
+          />
+          <div className="flex justify-end gap-3 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button size="sm" onClick={handleSaveProject} disabled={isSaving || !projectName.trim()}>
+              {isSaving ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

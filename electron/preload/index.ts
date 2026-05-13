@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('api', {
 
     deleteSample: (id: string): Promise<void> =>
       ipcRenderer.invoke('library:deleteSample', id),
+
+    saveChops: (params: {
+      sourceFilePath: string
+      regions: Array<{ start: number; end: number; name: string }>
+    }): Promise<Sample[]> => ipcRenderer.invoke('library:saveChops', params),
   },
 
   projects: {

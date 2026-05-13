@@ -8,6 +8,10 @@ declare global {
         addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
         updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
         deleteSample: (id: string) => Promise<void>
+        saveChops: (params: {
+          sourceFilePath: string
+          regions: Array<{ start: number; end: number; name: string }>
+        }) => Promise<Sample[]>
       }
       projects: {
         getAll: () => Promise<Project[]>
@@ -33,6 +37,11 @@ declare global {
         export: (packId: string, outputDir: string) => Promise<{ filesWritten: number }>
       }
     }
+  }
+
+  // Electron adds .path to File objects from drag-and-drop
+  interface File {
+    path: string
   }
 }
 
