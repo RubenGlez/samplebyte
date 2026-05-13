@@ -2,46 +2,62 @@
 @import "tailwindcss/utilities.css";
 
 @theme {
-  --background-image-main: url('../public/1.avif');
+  --color-accent:         #FF5500;
+  --color-accent-bright:  #FF7733;
+  --color-base:           #090807;
+  --color-surface:        #111009;
+  --color-raised:         #191714;
+  --color-overlay:        #22201C;
+  --color-border:         rgba(255, 180, 100, 0.08);
+  --color-border-bright:  rgba(255, 180, 100, 0.18);
+  --color-ink:            #EDE8DF;
+  --color-muted:          #78726A;
+  --color-faint:          #3A3530;
+
+  --font-family-ui:    'DM Sans', system-ui, sans-serif;
+  --font-family-brand: 'Chakra Petch', system-ui, sans-serif;
+  --font-family-mono:  'JetBrains Mono', 'Fira Code', monospace;
 }
 
-*,
-*:before,
-*:after {
+*, *:before, *:after {
   box-sizing: border-box;
 }
 
 html {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-family-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
+  background: var(--color-base);
+  color: var(--color-ink);
 }
 
-html {
-  --region-bg: rgba(34, 178, 255, 0.1);
-  --region-border-active: rgba(34, 178, 255, 0.6);
+/* WaveSurfer region parts */
+:root {
+  --region-bg:            rgba(255, 100, 30, 0.10);
+  --region-border-active: rgba(255, 100, 30, 0.65);
 }
 
 #waveform ::part(region):hover {
   background-color: var(--region-bg) !important;
 }
-
 #waveform ::part(region-active) {
   background-color: var(--region-bg) !important;
 }
-
 #waveform ::part(region-handle-active) {
   border-color: var(--region-border-active) !important;
 }
 
-.w-600 {
-  max-width: 600px;
-  width: 100%;
-}
+/* Scrollbar */
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: rgba(255,180,100,0.15); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,180,100,0.28); }
+
+/* Selection */
+::selection { background: rgba(255, 85, 0, 0.3); }

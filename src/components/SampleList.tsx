@@ -12,12 +12,16 @@ const SampleList = ({ samples = [], selectedSample, onClick, onNameChange }: Sam
   if (!samples.length) return null
 
   return (
-    <div className="px-6 pb-2">
-      <div className="px-3 py-1 flex justify-between">
-        <span className="text-xs text-white/30">Name</span>
-        <span className="text-xs text-white/30">Duration</span>
+    <div className="px-5 pb-1">
+      <div className="flex justify-between items-center px-2 py-1.5">
+        <span className="text-[10px] font-medium tracking-widest uppercase text-faint" style={{ fontFamily: 'var(--font-family-brand)' }}>
+          Regions
+        </span>
+        <span className="text-[10px] text-faint" style={{ fontFamily: 'var(--font-family-mono)' }}>
+          {samples.length} chop{samples.length !== 1 ? 's' : ''}
+        </span>
       </div>
-      <ul className="list-none flex flex-col m-0 p-0 max-h-48 overflow-y-auto">
+      <ul className="list-none flex flex-col m-0 p-0 max-h-44 overflow-y-auto">
         {samples.map((sample, index) => (
           <Sample
             key={sample.id}

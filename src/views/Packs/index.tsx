@@ -48,7 +48,6 @@ export default function PacksView() {
     setActiveSample(null)
     const { active, over } = event
     if (!over || !currentPack) return
-
     const slotNumber = Number(over.id)
     const sample = samples.find((s) => s.id === active.id)
     if (sample !== undefined) setSlot(slotNumber, sample)
@@ -68,19 +67,25 @@ export default function PacksView() {
   }
 
   const profile = PROFILES.find((p) => p.id === hardwareProfileId) ?? PROFILES[0]
+  const filledSlots = Object.keys(slots).length
 
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="h-full flex overflow-hidden">
 
         {/* Library sidebar */}
-        <aside className="w-56 shrink-0 border-r border-white/10 flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/10">
-            <p className="text-xs text-white/40 font-medium uppercase tracking-wider">Library</p>
+        <aside className="w-52 shrink-0 border-r border-border flex flex-col bg-surface overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p
+              className="text-[10px] text-faint font-medium uppercase tracking-widest"
+              style={{ fontFamily: 'var(--font-family-brand)' }}
+            >
+              Library
+            </p>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-0.5">
             {samples.length === 0 ? (
-              <p className="text-white/20 text-xs p-2">No samples yet. Save some chops first.</p>
+              <p className="text-faint text-xs p-3 leading-relaxed">No samples yet. Save some chops first.</p>
             ) : (
               samples.map((sample) => (
                 <DraggableSample key={sample.id} sample={sample} />
@@ -90,11 +95,10 @@ export default function PacksView() {
         </aside>
 
         {/* Main area */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden bg-base">
 
           {/* Toolbar */}
-          <div className="flex items-center gap-3 px-6 py-3 border-b border-white/10 shrink-0">
-            {/* Pack selector */}
+          <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0 bg-surface">
             <div className="flex items-center gap-2 flex-1">
               <select
                 value={currentPack?.id ?? ''}
@@ -102,55 +106,89 @@ export default function PacksView() {
                   const pack = packs.find((p) => p.id === e.target.value)
                   setCurrentPack(pack ?? null)
                 }}
-                className="bg-white/5 border border-white/10 rounded px-3 h-8 text-sm text-white focus:outline-none focus:border-sky-500/60 cursor-pointer"
+                className="bg-base border border-border rounded px-3 h-8 text-sm text-ink focus:outline-none focus:border-accent/40 cursor-pointer appearance-none"
               >
                 <option value="" disabled>Select a pack…</option>
                 {packs.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-
               <Button variant="ghost" size="icon" onClick={() => setShowNewPack(true)} title="New pack">
-                <Plus size={14} />
+                <Plus size={13} />
               </Button>
             </div>
 
-            {/* Profile selector */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-white/30">Target:</span>
+              <span className="text-xs text-faint" style={{ fontFamily: 'var(--font-family-brand)' }}>Target</span>
               <div className="relative">
                 <select
                   value={hardwareProfileId}
                   onChange={(e) => setHardwareProfile(e.target.value)}
-                  className="appearance-none bg-white/5 border border-white/10 rounded pl-3 pr-7 h-8 text-sm text-white focus:outline-none focus:border-sky-500/60 cursor-pointer"
+                  className="appearance-none bg-base border border-border rounded pl-3 pr-7 h-8 text-sm text-ink focus:outline-none focus:border-accent/40 cursor-pointer"
                 >
                   {PROFILES.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
-                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
               </div>
             </div>
 
-            <Button size="sm" onClick={handleExport} disabled={isExporting || !currentPack || Object.keys(slots).length === 0}>
-              <Download size={14} />
-              {isExporting ? 'Exporting…' : `Export ${profile.name}`}
+            <Button
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting || !currentPack || filledSlots === 0}
+            >
+              <Download size={13} />
+              {isExporting ? 'Exporting…' : `Export`}
             </Button>
           </div>
 
           {/* Pad grid */}
-          <div className="flex-1 flex items-center justify-center p-8">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
             {currentPack ? (
-              <div className="grid grid-cols-4 gap-3" style={{ width: 'min(100%, 480px)' }}>
-                {Array.from({ length: 16 }, (_, i) => (
-                  <PadSlot key={i} slotNumber={i} sample={slots[i] ?? null} onClear={() => clearSlot(i)} />
-                ))}
-              </div>
+              <>
+                <div className="flex items-center gap-3 mb-2">
+                  <p
+                    className="text-xs text-faint tracking-widest uppercase"
+                    style={{ fontFamily: 'var(--font-family-brand)' }}
+                  >
+                    {currentPack.name}
+                  </p>
+                  <span className="text-[10px] text-faint/60" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                    {filledSlots}/16
+                  </span>
+                </div>
+                <div
+                  className="grid grid-cols-4 gap-2"
+                  style={{ width: 'min(100%, 420px)' }}
+                >
+                  {Array.from({ length: 16 }, (_, i) => (
+                    <PadSlot
+                      key={i}
+                      slotNumber={i}
+                      sample={slots[i] ?? null}
+                      onClear={() => clearSlot(i)}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-faint mt-2">
+                  {profile.name} · Drag samples from the library onto pads
+                </p>
+              </>
             ) : (
-              <div className="flex flex-col items-center gap-3 text-white/30">
-                <p className="text-sm">No pack selected.</p>
-                <Button variant="ghost" size="sm" onClick={() => setShowNewPack(true)}>
-                  <Plus size={14} /> Create a pack
+              <div className="flex flex-col items-center gap-4 text-faint">
+                <div className="w-16 h-16 rounded-xl border border-border bg-surface grid grid-cols-2 gap-1 p-2 opacity-40">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-sm bg-raised" />
+                  ))}
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-sm text-muted">No pack selected</p>
+                  <p className="text-xs text-faint">Create a pack to start loading samples</p>
+                </div>
+                <Button size="sm" onClick={() => setShowNewPack(true)}>
+                  <Plus size={13} /> New Pack
                 </Button>
               </div>
             )}
@@ -161,7 +199,7 @@ export default function PacksView() {
       {/* Drag overlay */}
       <DragOverlay>
         {activeSample && (
-          <div className="bg-slate-800 border border-sky-500/40 rounded px-3 py-2 text-sm text-white shadow-xl opacity-90">
+          <div className="bg-overlay border border-accent/40 rounded px-3 py-2 text-xs text-ink shadow-xl shadow-black/50 opacity-95">
             {activeSample.name}
           </div>
         )}
@@ -178,7 +216,7 @@ export default function PacksView() {
             onKeyDown={(e) => e.key === 'Enter' && handleCreatePack()}
             autoFocus
           />
-          <div className="flex justify-end gap-3 mt-4">
+          <div className="flex justify-end gap-2 mt-4">
             <DialogClose asChild>
               <Button variant="ghost" size="sm">Cancel</Button>
             </DialogClose>
@@ -202,14 +240,19 @@ function DraggableSample({ sample }: { sample: Sample }) {
       {...attributes}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
-        'px-3 py-2 rounded text-sm text-white/70 cursor-grab active:cursor-grabbing',
-        'bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 transition-colors',
+        'px-3 py-2 rounded text-xs text-muted cursor-grab active:cursor-grabbing transition-colors select-none',
+        'hover:bg-raised hover:text-ink',
         isDragging && 'opacity-30'
       )}
     >
-      <p className="truncate">{sample.name}</p>
+      <p className="truncate font-medium">{sample.name}</p>
       {sample.duration != null && (
-        <p className="text-xs text-white/30 mt-0.5">{formatTime(sample.duration)}</p>
+        <p
+          className="text-faint mt-0.5 tabular-nums"
+          style={{ fontFamily: 'var(--font-family-mono)', fontSize: '10px' }}
+        >
+          {formatTime(sample.duration)}
+        </p>
       )}
     </div>
   )
@@ -224,30 +267,53 @@ function PadSlot({ slotNumber, sample, onClear }: { slotNumber: number; sample: 
     <div
       ref={setNodeRef}
       className={cn(
-        'relative aspect-square rounded-lg border transition-colors flex flex-col items-center justify-center p-2 text-center',
+        'relative aspect-square rounded-lg border transition-all flex flex-col items-start justify-end p-2.5',
         sample
-          ? 'bg-sky-500/10 border-sky-500/30 text-white'
-          : 'bg-white/3 border-white/10 text-white/20',
-        isOver && 'border-sky-400/60 bg-sky-400/15',
+          ? 'bg-accent/8 border-accent/25 shadow-[inset_0_1px_0_rgba(255,180,100,0.08)]'
+          : 'bg-[#0E0C09] border-[rgba(255,180,100,0.06)] hover:border-border',
+        isOver && 'border-accent/50 bg-accent/12 scale-[1.02]',
       )}
     >
-      <span className="absolute top-1.5 left-2 text-[10px] text-white/20 tabular-nums">{padLabel}</span>
+      {/* Pad number */}
+      <span
+        className={cn(
+          'absolute top-2 left-2.5 text-[10px] tabular-nums leading-none',
+          sample ? 'text-accent/40' : 'text-faint/60'
+        )}
+        style={{ fontFamily: 'var(--font-family-mono)' }}
+      >
+        {padLabel}
+      </span>
 
       {sample ? (
         <>
-          <p className="text-xs font-medium leading-tight line-clamp-2">{sample.name}</p>
-          {sample.duration != null && (
-            <p className="text-[10px] text-white/40 mt-1">{formatTime(sample.duration)}</p>
-          )}
+          {/* Filled pad */}
+          <div className="flex flex-col gap-1 w-full">
+            <p className="text-[11px] font-medium text-ink leading-tight line-clamp-2 break-all">{sample.name}</p>
+            {sample.duration != null && (
+              <p
+                className="text-[10px] text-accent/50 tabular-nums"
+                style={{ fontFamily: 'var(--font-family-mono)' }}
+              >
+                {formatTime(sample.duration)}
+              </p>
+            )}
+          </div>
+          {/* Orange corner accent */}
+          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent/60" />
+          {/* Clear button */}
           <button
             onClick={(e) => { e.stopPropagation(); onClear() }}
-            className="absolute top-1 right-1.5 text-white/20 hover:text-red-400 bg-transparent border-0 text-xs cursor-pointer leading-none"
+            className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 hover:bg-red-500/10 rounded bg-transparent border-0 cursor-pointer opacity-0 hover:opacity-100 transition-opacity text-xs leading-none"
+            style={{ top: 6, right: 6 }}
           >
             ×
           </button>
         </>
       ) : (
-        <span className="text-[10px]">drop here</span>
+        <span className="text-[9px] text-faint/40 leading-none w-full text-center absolute inset-0 flex items-center justify-center">
+          {isOver ? '↓' : '·'}
+        </span>
       )}
     </div>
   )

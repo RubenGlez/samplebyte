@@ -3,35 +3,48 @@ import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
 
 const tabs = [
-  { id: 'chop',    label: 'Chop',    icon: Scissors  },
-  { id: 'library', label: 'Library', icon: Library   },
-  { id: 'packs',   label: 'Packs',   icon: Grid2x2   },
+  { id: 'chop',    label: 'Chop',    icon: Scissors },
+  { id: 'library', label: 'Library', icon: Library  },
+  { id: 'packs',   label: 'Packs',   icon: Grid2x2  },
 ] as const
 
 export default function Nav() {
   const { currentView, setView } = useUiStore()
 
   return (
-    <nav className="flex items-center gap-1 px-4 h-12 border-b border-white/10 shrink-0">
-      <span className="text-white/20 text-xs font-bold tracking-widest uppercase mr-4">
-        SampleByte
-      </span>
-
-      {tabs.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          onClick={() => setView(id)}
-          className={cn(
-            'flex items-center gap-2 px-3 h-8 rounded text-sm transition-colors cursor-pointer border-0',
-            currentView === id
-              ? 'bg-white/10 text-white'
-              : 'bg-transparent text-white/40 hover:text-white/70'
-          )}
+    <nav className="flex items-stretch h-11 border-b border-border shrink-0 bg-surface">
+      {/* Brand */}
+      <div className="flex items-center px-5 border-r border-border mr-2">
+        <span
+          className="text-accent text-sm font-bold tracking-[0.15em] uppercase select-none"
+          style={{ fontFamily: 'var(--font-family-brand)' }}
         >
-          <Icon size={14} />
-          {label}
-        </button>
-      ))}
+          SampleByte
+        </span>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-stretch">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setView(id)}
+            className={cn(
+              'relative flex items-center gap-2 px-4 text-xs font-medium tracking-wide uppercase transition-colors cursor-pointer border-0 bg-transparent',
+              currentView === id
+                ? 'text-ink'
+                : 'text-muted hover:text-ink'
+            )}
+            style={{ fontFamily: 'var(--font-family-brand)' }}
+          >
+            <Icon size={13} strokeWidth={currentView === id ? 2 : 1.5} />
+            {label}
+            {currentView === id && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent rounded-t-full" />
+            )}
+          </button>
+        ))}
+      </div>
     </nav>
   )
 }

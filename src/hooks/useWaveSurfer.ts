@@ -16,26 +16,32 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
     if (waveformRef.current && !isConfigured.current) {
       const wsInstance = WaveSurfer.create({
         container: waveformRef.current,
-        waveColor: "rgba(255,255,255,0.33)",
-        progressColor: "#fff",
-        cursorColor: "#fff",
+        waveColor: "rgba(240, 228, 210, 0.25)",
+        progressColor: "rgba(240, 228, 210, 0.55)",
+        cursorColor: "#FF5500",
+        cursorWidth: 2,
+        barWidth: 2,
+        barGap: 1,
+        barRadius: 2,
         hideScrollbar: true,
         autoCenter: false,
         autoplay: false,
         autoScroll: false,
-
+        height: 96,
         plugins: [
           RegionsPlugin.create(),
           TimelinePlugin.create({
-            style: { color: "white" },
+            style: {
+              color: "rgba(255,180,100,0.3)",
+              fontSize: "10px",
+              fontFamily: "'JetBrains Mono', monospace",
+            },
           }),
         ],
         url: audioUrl,
       });
 
-      // Save the instace to expose it later
       setWavesurfer(wsInstance);
-
       isConfigured.current = true;
     }
 

@@ -15,6 +15,12 @@ interface AudioWaveformProps {
   filePath: string
 }
 
+const SHORTCUTS = [
+  { key: 'Space', label: 'Play / Pause' },
+  { key: 'Enter', label: 'Play region' },
+  { key: '⌫',    label: 'Delete region' },
+]
+
 const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) => {
   const { waveformRef, wavesurfer } = useWavesurfer({ audioUrl })
   const { selectedRegion, regions, handleSelectRegion, updateRegionName } = useRegions({ wavesurfer })
@@ -80,7 +86,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
 
   return (
     <>
-      <div id="waveform" ref={waveformRef} />
+      <div id="waveform" ref={waveformRef} className="px-0" />
 
       <SampleList
         samples={regions}
@@ -89,25 +95,35 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
         onNameChange={updateRegionName}
       />
 
-      <div className="px-6 pb-3 flex gap-4 text-[10px] text-white/20">
-        {[['Space', 'Play / Pause'], ['Enter', 'Play region'], ['⌫', 'Delete region']].map(([key, label]) => (
-          <span key={key} className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-white/30">{key}</kbd>
-            {label}
-          </span>
-        ))}
-      </div>
+      {/* Bottom bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-t border-border mt-1">
+        {/* Shortcut hints */}
+        <div className="flex items-center gap-3">
+          {SHORTCUTS.map(({ key, label }) => (
+            <span key={key} className="flex items-center gap-1.5">
+              <kbd
+                className="px-1.5 py-0.5 rounded bg-raised border border-border-bright text-[10px] text-faint leading-none"
+                style={{ fontFamily: 'var(--font-family-mono)' }}
+              >
+                {key}
+              </kbd>
+              <span className="text-[10px] text-faint">{label}</span>
+            </span>
+          ))}
+        </div>
 
-      <div className="p-6 pt-0 flex gap-3 justify-end">
-        <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
-          {isExporting ? 'Exporting…' : 'Export WAV'}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
-          Save Project
-        </Button>
-        <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
-          {isSaving ? 'Saving…' : 'Save to Library'}
-        </Button>
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
+            {isExporting ? 'Exporting…' : 'Export WAV'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
+            Save Project
+          </Button>
+          <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
+            {isSaving ? 'Saving…' : 'Save to Library'}
+          </Button>
+        </div>
       </div>
 
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
@@ -120,7 +136,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
             onKeyDown={(e) => e.key === 'Enter' && handleSaveProject()}
             autoFocus
           />
-          <div className="flex justify-end gap-3 mt-4">
+          <div className="flex justify-end gap-2 mt-4">
             <DialogClose asChild>
               <Button variant="ghost" size="sm">Cancel</Button>
             </DialogClose>

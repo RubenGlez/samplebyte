@@ -12,20 +12,10 @@ interface SampleProps {
 }
 
 export default function Sample({ sample, isSelected, index, onClick, onNameChange }: SampleProps) {
-  const [name, setName] = useState(`Sample ${index + 1}`)
+  const [name, setName] = useState(`Chop ${String(index + 1).padStart(2, '0')}`)
   const [isEditing, setIsEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const duration = sample.end - sample.start
-
-  const handleClick = () => {
-    onClick(sample)
-  }
-
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsEditing(true)
-    setTimeout(() => inputRef.current?.select(), 0)
-  }
 
   const commitName = () => {
     setIsEditing(false)
@@ -35,13 +25,20 @@ export default function Sample({ sample, isSelected, index, onClick, onNameChang
   return (
     <li
       className={cn(
-        'py-2 px-3 flex flex-row items-center justify-between gap-2 text-white/50',
-        'border border-solid border-white/10 border-b-0 border-x-0 last:border-b',
-        'cursor-pointer select-none',
-        isSelected && 'bg-white/5 text-white/80'
+        'flex items-center justify-between gap-3 px-2 py-2 rounded text-sm cursor-pointer select-none transition-colors',
+        isSelected
+          ? 'bg-accent/10 text-ink'
+          : 'text-muted hover:bg-raised hover:text-ink'
       )}
-      onClick={handleClick}
+      onClick={() => onClick(sample)}
     >
+      <span
+        className="text-[10px] tabular-nums shrink-0 w-5 text-right text-faint"
+        style={{ fontFamily: 'var(--font-family-mono)' }}
+      >
+        {String(index + 1).padStart(2, '0')}
+      </span>
+
       {isEditing ? (
         <input
           ref={inputRef}
@@ -54,15 +51,33 @@ export default function Sample({ sample, isSelected, index, onClick, onNameChang
             e.stopPropagation()
           }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-transparent border-0 border-b border-sky-500 outline-none text-sm text-white flex-1 py-0 px-0"
+          className="flex-1 bg-transparent border-0 border-b border-accent/50 outline-none text-sm text-ink py-0 px-0"
           autoFocus
         />
       ) : (
-        <span className="text-sm font-medium flex-1" onDoubleClick={handleDoubleClick} title="Double-click to rename">
+        <span
+          className="flex-1 text-sm font-medium truncate"
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            setIsEditing(true)
+            setTimeout(() => inputRef.current?.select(), 0)
+          }}
+          title="Double-click to rename"
+        >
           {name}
         </span>
       )}
-      <span className="text-xs text-white/30 tabular-nums shrink-0">{formatTime(duration)}</span>
+
+      <span
+        className="text-[11px] tabular-nums shrink-0 text-faint"
+        style={{ fontFamily: 'var(--font-family-mono)' }}
+      >
+        {formatTime(duration)}
+      </span>
+
+      {isSelected && (
+        <span className="w-1 h-1 rounded-full bg-accent shrink-0" />
+      )}
     </li>
   )
 }

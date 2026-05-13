@@ -8,7 +8,7 @@ export default function App() {
   const { currentView } = useUiStore()
 
   return (
-    <div className="bg-slate-950 h-dvh flex flex-col overflow-hidden">
+    <div className="bg-base h-dvh flex flex-col overflow-hidden">
       <Nav />
       <main className="flex-1 overflow-hidden">
         {currentView === 'chop'    && <ChopView />}
