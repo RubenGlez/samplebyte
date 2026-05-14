@@ -28,7 +28,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # Skip native build scripts during install; electron-rebuild handles better-sqlite3
+      - run: npm install --ignore-scripts
+      - run: npx @electron/rebuild -f -w better-sqlite3
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,6 +45,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # libfuse2 is required by AppImage tooling (removed by default in Ubuntu 22.04+)
+      - run: sudo apt-get install -y libfuse2
       - run: npm install
       - run: npm run release
         env:
