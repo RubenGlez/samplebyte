@@ -1,6 +1,6 @@
 {
   "name": "samplebyte",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "dist-electron/main/index.js",
   "description": "An easy sample tool",
   "author": "RubenGlez",
