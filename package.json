@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
+    "release": "tsc && vite build && electron-builder --publish always",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
