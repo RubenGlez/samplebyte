@@ -54,20 +54,21 @@ export default function Loader() {
   return (
     <CardRoot>
       {/* Tab bar */}
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border bg-raised">
         {(['local', 'freesound'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              'px-4 py-2.5 text-xs font-medium transition-colors capitalize border-b-2 -mb-px',
-              tab === t
-                ? 'text-ink border-accent'
-                : 'text-faint border-transparent hover:text-muted hover:border-border-bright'
+              'relative px-5 py-3 text-xs font-medium transition-colors bg-transparent border-0 cursor-pointer',
+              tab === t ? 'text-ink' : 'text-faint hover:text-muted'
             )}
             style={{ fontFamily: 'var(--font-family-brand)' }}
           >
             {t === 'freesound' ? 'Freesound' : 'Local'}
+            {tab === t && (
+              <span className="absolute bottom-0 left-0 right-0 h-px bg-accent" />
+            )}
           </button>
         ))}
       </div>
