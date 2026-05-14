@@ -154,3 +154,84 @@ export async function analyzeAudioUrl(url: string): Promise<{ bpm: number; music
     ctx.close()
   }
 }
+
+// Onset strength is computed as positive first-order RMS energy differences.
+// Local maxima above an adaptive threshold (mean + k*std of non-zero onsets)
+// are returned as transient timestamps. k is tuned per preset:
+//   coarse → fewer, dominant hits only
+//   medium → balanced
+//   fine   → catches subtle transients
+export function detectTransients(
+  buffer: AudioBuffer,
+  preset: 'coarse' | 'medium' | 'fine' = 'medium'
+): number[] {
+  const HOP = 256
+  const FRAME = 512
+  const { sampleRate } = buffer
+
+  // Mix to mono
+  const mono = new Float32Array(buffer.length)
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const ch = buffer.getChannelData(c)
+    for (let i = 0; i < buffer.length; i++) mono[i] += ch[i]
+  }
+  for (let i = 0; i < mono.length; i++) mono[i] /= buffer.numberOfChannels
+
+  // RMS energy per hop
+  const energies: number[] = []
+  for (let i = 0; i + FRAME < mono.length; i += HOP) {
+    let sum = 0
+    for (let j = 0; j < FRAME; j++) sum += mono[i + j] ** 2
+    energies.push(Math.sqrt(sum / FRAME))
+  }
+
+  // Onset strength: positive first-order differences
+  const onset: number[] = [0]
+  for (let i = 1; i < energies.length; i++) {
+    onset.push(Math.max(0, energies[i] - energies[i - 1]))
+  }
+
+  // Adaptive threshold: mean + k * std of non-zero onset values
+  const nonzero = onset.filter((v) => v > 0)
+  if (nonzero.length === 0) return []
+  const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length
+  const std = Math.sqrt(nonzero.reduce((a, b) => a + (b - mean) ** 2, 0) / nonzero.length)
+  const K = { coarse: 2.0, medium: 1.0, fine: 0.3 }[preset]
+  const threshold = mean + std * K
+
+  // Local maxima above threshold
+  const peaks: number[] = []
+  for (let i = 1; i < onset.length - 1; i++) {
+    if (onset[i] > threshold && onset[i] >= onset[i - 1] && onset[i] >= onset[i + 1]) {
+      peaks.push((i * HOP) / sampleRate)
+    }
+  }
+
+  // Enforce 80 ms minimum gap between consecutive transients
+  const MIN_GAP = 0.08
+  const transients: number[] = []
+  let lastTime = -Infinity
+  for (const t of peaks) {
+    if (t - lastTime >= MIN_GAP) {
+      transients.push(t)
+      lastTime = t
+    }
+  }
+
+  return transients
+}
+
+export async function detectTransientsFromUrl(
+  url: string,
+  preset: 'coarse' | 'medium' | 'fine'
+): Promise<number[]> {
+  const response = await fetch(url)
+  const arrayBuffer = await response.arrayBuffer()
+  const ctx = new AudioContext()
+  try {
+    const buffer = await ctx.decodeAudioData(arrayBuffer)
+    return detectTransients(buffer, preset)
+  } finally {
+    ctx.close()
+  }
+}

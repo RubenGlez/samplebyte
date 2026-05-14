@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui
 import { Input } from '@/components/ui/Input'
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
-import { analyzeAudioUrl } from '@/lib/audioAnalysis'
+import { analyzeAudioUrl, detectTransientsFromUrl } from '@/lib/audioAnalysis'
+import { cn } from '@/lib/utils'
 import type { Sample } from '../../electron/types'
 
 interface AudioWaveformProps {
@@ -31,7 +32,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
   const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
 
   const { waveformRef, wavesurfer, isPlaying } = useWavesurfer({ audioUrl })
-  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName } = useRegions({
+  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, autoChop } = useRegions({
     wavesurfer,
     initialRegions: activeProject?.regions,
   })
@@ -41,6 +42,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
   const [isExporting, setIsExporting] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [projectName, setProjectName] = useState(audioName.replace(/\.[^.]+$/, ''))
+  const [sensitivity, setSensitivity] = useState<'coarse' | 'medium' | 'fine'>('medium')
+  const [isAutoChopping, setIsAutoChopping] = useState(false)
 
   const currentRegions = useCallback(() =>
     (regions ?? []).map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
@@ -115,6 +118,25 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
     }
   }, [filePath, regions, regionNames, toast])
 
+  const handleAutoChop = useCallback(async () => {
+    if (!wavesurfer) return
+    setIsAutoChopping(true)
+    try {
+      const transients = await detectTransientsFromUrl(audioUrl, sensitivity)
+      if (transients.length === 0) {
+        toast('No transients found — try Fine sensitivity', 'info')
+        return
+      }
+      autoChop(transients, wavesurfer.getDuration())
+      const count = transients.length + 1
+      toast(`${count} chop${count !== 1 ? 's' : ''} created`)
+    } catch {
+      toast('Auto-chop failed', 'error')
+    } finally {
+      setIsAutoChopping(false)
+    }
+  }, [audioUrl, sensitivity, wavesurfer, autoChop, toast])
+
   useZoom({ waveformRef, wavesurfer })
   useShortcuts({ wavesurfer, selectedRegion })
 
@@ -157,9 +179,30 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
             : <Play  size={11} fill="currentColor" className="translate-x-px" />
           }
         </button>
-        <span className="text-[10px] text-faint font-mono">
+        <span className="text-[10px] text-faint font-mono flex-1">
           {isPlaying ? 'Playing' : 'Paused'} · scroll to zoom
         </span>
+
+        {/* Auto-chop controls */}
+        <div className="flex items-center gap-1.5">
+          {(['coarse', 'medium', 'fine'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setSensitivity(p)}
+              className={cn(
+                'text-[10px] px-2 h-5 rounded border transition-colors cursor-pointer bg-transparent capitalize font-brand',
+                sensitivity === p
+                  ? 'border-accent/40 text-accent bg-accent/10'
+                  : 'border-border text-faint hover:text-muted hover:border-border-bright'
+              )}
+            >
+              {p}
+            </button>
+          ))}
+          <Button size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
+            {isAutoChopping ? 'Chopping…' : 'Auto-chop'}
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">

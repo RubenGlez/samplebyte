@@ -89,11 +89,25 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
     }
   }, [handleSelectRegion, initialRegions, regionsPlugin, wavesurfer])
 
+  // Replace all regions with a grid derived from detected transient timestamps.
+  // Boundaries: 0, ...transients, duration — each adjacent pair becomes one region.
+  const autoChop = useCallback((transients: number[], duration: number) => {
+    if (!regionsPlugin) return
+    regionsPlugin.getRegions().forEach((r) => r.remove())
+    setRegionNames({})
+    setSelectedRegion(undefined)
+    const boundaries = [0, ...transients, duration]
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      regionsPlugin.addRegion({ start: boundaries[i], end: boundaries[i + 1], color: 'var(--region-bg)' })
+    }
+  }, [regionsPlugin])
+
   return {
     selectedRegion,
     regions,
     regionNames,
     handleSelectRegion,
     updateRegionName,
+    autoChop,
   }
 }
