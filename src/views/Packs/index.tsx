@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Search, ChevronDown, Download } from 'lucide-react'
+import { Search, ChevronDown, Download, FolderOpen } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
 import { useLibraryStore } from '@/stores/library'
+import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
@@ -20,10 +21,14 @@ const PROFILES = [
 export default function PacksView() {
   const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, initSlots } = usePacksStore()
   const { samples, fetchSamples } = useLibraryStore()
+  const { projects } = useProjectsStore()
   const { toast } = useToastStore()
 
   const [activeSample, setActiveSample] = useState<Sample | null>(null)
   const [search, setSearch] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'local' | 'freesound'>('all')
+  const [projectFilter, setProjectFilter] = useState<string | null>(null)
+  const [activeTags, setActiveTags] = useState<string[]>([])
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExport = async () => {
@@ -39,9 +44,19 @@ export default function PacksView() {
     }
   }
 
-  const filteredSamples = search.trim()
-    ? samples.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
-    : samples
+  const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
+
+  const filteredSamples = samples.filter((s) => {
+    if (search.trim() && !s.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (sourceFilter !== 'all' && s.source !== sourceFilter) return false
+    if (projectFilter === '__none__' && s.projectId !== null) return false
+    if (projectFilter && projectFilter !== '__none__' && s.projectId !== projectFilter) return false
+    if (activeTags.length && !activeTags.some((t) => s.tags.includes(t))) return false
+    return true
+  })
+
+  const toggleTag = (tag: string) =>
+    setActiveTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])
 
   useEffect(() => {
     fetchPacks()
@@ -63,10 +78,12 @@ export default function PacksView() {
   const handleDragStart = (event: DragStartEvent) => {
     const sample = samples.find((s) => s.id === event.active.id)
     setActiveSample(sample ?? null)
+    document.body.style.cursor = 'grabbing'
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveSample(null)
+    document.body.style.cursor = ''
     const { active, over } = event
     if (!over || !currentPack) return
     const slotNumber = Number(over.id)
@@ -82,8 +99,9 @@ export default function PacksView() {
 
         {/* Library sidebar */}
         <aside className="w-52 shrink-0 border-r border-border flex flex-col bg-surface overflow-hidden">
-          <div className="h-11 flex items-center px-2 border-b border-border shrink-0">
-            <div className="relative w-full">
+          <div className="flex flex-col gap-2 px-2 pt-2 pb-2 border-b border-border shrink-0">
+            {/* Search */}
+            <div className="relative">
               <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
               <input
                 value={search}
@@ -92,6 +110,61 @@ export default function PacksView() {
                 className="w-full bg-raised border border-border rounded pl-7 pr-2 h-7 text-xs text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
               />
             </div>
+            {/* Source filter */}
+            <div className="flex gap-1">
+              {(['all', 'local', 'freesound'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSourceFilter(s)}
+                  className={cn(
+                    'flex-1 h-6 rounded text-[10px] font-medium transition-colors bg-transparent border cursor-pointer capitalize',
+                    sourceFilter === s
+                      ? 'border-accent/40 text-accent bg-accent/10'
+                      : 'border-border text-faint hover:text-muted hover:border-border-bright'
+                  )}
+                  style={{ fontFamily: 'var(--font-family-brand)' }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            {/* Project filter */}
+            {projects.length > 0 && (
+              <div className="relative">
+                <FolderOpen size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                <select
+                  value={projectFilter ?? ''}
+                  onChange={(e) => setProjectFilter(e.target.value || null)}
+                  className="w-full appearance-none bg-raised border border-border rounded pl-7 pr-5 h-7 text-xs text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
+                >
+                  <option value="">All projects</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                  <option value="__none__">No project</option>
+                </select>
+                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+              </div>
+            )}
+            {/* Tag filter */}
+            {allTags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {allTags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className={cn(
+                      'px-1.5 py-0.5 rounded text-[10px] transition-colors cursor-pointer border bg-transparent',
+                      activeTags.includes(tag)
+                        ? 'border-accent/40 text-accent bg-accent/10'
+                        : 'border-border text-faint hover:text-muted hover:border-border-bright'
+                    )}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-0.5">
             {samples.length === 0 ? (
@@ -172,6 +245,7 @@ export default function PacksView() {
                       slotNumber={i}
                       sample={slots[i] ?? null}
                       onClear={() => clearSlot(i)}
+                      isDraggingAny={!!activeSample}
                     />
                   ))}
                 </div>
@@ -196,7 +270,7 @@ export default function PacksView() {
       {/* Drag overlay */}
       <DragOverlay>
         {activeSample && (
-          <div className="bg-overlay border border-accent/40 rounded px-3 py-2 text-xs text-ink shadow-xl shadow-black/50 opacity-95">
+          <div className="bg-overlay border border-accent/40 rounded px-3 py-2 text-xs text-ink shadow-xl shadow-black/50 opacity-95" style={{ cursor: 'grabbing' }}>
             {activeSample.name}
           </div>
         )}
@@ -234,8 +308,30 @@ function DraggableSample({ sample }: { sample: Sample }) {
   )
 }
 
-function PadSlot({ slotNumber, sample, onClear }: { slotNumber: number; sample: Sample | null; onClear: () => void }) {
+function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: { slotNumber: number; sample: Sample | null; onClear: () => void; isDraggingAny: boolean }) {
   const { isOver, setNodeRef } = useDroppable({ id: slotNumber })
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  const handlePadPress = () => {
+    if (!sample) return
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    const audio = new Audio(`local-file://${sample.filePath}`)
+    audio.onended = () => setIsPlaying(false)
+    audio.play()
+    audioRef.current = audio
+    setIsPlaying(true)
+  }
+
+  const handlePadRelease = () => {
+    if (!audioRef.current) return
+    audioRef.current.pause()
+    audioRef.current.currentTime = 0
+    setIsPlaying(false)
+  }
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
 
@@ -243,12 +339,18 @@ function PadSlot({ slotNumber, sample, onClear }: { slotNumber: number; sample: 
     // Outer div owns the square shape only — no padding/flex so content can't stretch it
     <div
       ref={setNodeRef}
+      onPointerDown={handlePadPress}
+      onPointerUp={handlePadRelease}
+      onPointerLeave={handlePadRelease}
       className={cn(
         'relative aspect-square rounded-lg border transition-all overflow-hidden',
         sample
-          ? 'bg-accent/8 border-accent/25'
+          ? isPlaying
+            ? 'bg-accent/20 border-accent/60 scale-[0.97]'
+            : 'bg-accent/8 border-accent/25 hover:bg-accent/12 hover:border-accent/40 cursor-pointer active:scale-[0.97]'
           : 'bg-[#0E0C09] border-[rgba(255,180,100,0.06)] hover:border-border',
         isOver && 'border-accent/50 bg-accent/12 scale-[1.02]',
+        isDraggingAny && 'cursor-copy',
       )}
     >
       {/* All content is absolutely positioned so it can never stretch the square */}
