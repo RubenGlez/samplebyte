@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search, Trash2, Play, Square, Pencil, FolderOpen, Tag, X } from 'lucide-react'
+import { Trash2, Play, Square, Pencil, FolderOpen, Tag, X } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
+import { useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
 import type { Sample, Project } from '@/types'
 
 export default function LibraryView() {
-  const { samples, searchQuery, projectFilter, filters, isLoading, fetchSamples, deleteSample, updateSample, setSearchQuery, setProjectFilter, toggleTagFilter, setFilters } = useLibraryStore()
+  const { isLoading, fetchSamples, deleteSample, updateSample, toggleTagFilter } = useLibraryStore()
   const { projects, fetchProjects } = useProjectsStore()
   const { toast } = useToastStore()
   const [playingId, setPlayingId] = useState<string | null>(null)
@@ -21,15 +22,7 @@ export default function LibraryView() {
   }, [fetchSamples, fetchProjects])
 
   const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))
-  const activeTags = filters.tags ?? []
-
-  const filtered = samples.filter((s) => {
-    if (!s.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
-    if (projectFilter === '__none__' && s.projectId !== null) return false
-    if (projectFilter !== null && projectFilter !== '__none__' && s.projectId !== projectFilter) return false
-    if (activeTags.length > 0 && !activeTags.some((t) => s.tags.includes(t))) return false
-    return true
-  })
+  const filtered = useFilteredSamples()
 
   const togglePlay = (sample: Sample) => {
     if (playingId === sample.id) {
@@ -63,70 +56,15 @@ export default function LibraryView() {
     await updateSample(sample.id, { tags })
   }
 
-  const hasFilters = searchQuery || projectFilter || activeTags.length > 0
-
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-border shrink-0">
-        {/* Search */}
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search samples…"
-            className="w-56 bg-surface border border-border rounded pl-9 pr-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
-          />
-        </div>
-
-        {/* Project filter */}
-        {projects.length > 0 && (
-          <div className="relative">
-            <FolderOpen size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-            <select
-              value={projectFilter ?? ''}
-              onChange={(e) => setProjectFilter(e.target.value || null)}
-              className="appearance-none bg-surface border border-border rounded pl-9 pr-6 h-8 text-sm text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
-            >
-              <option value="">All projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-              <option value="__none__">No project</option>
-            </select>
-          </div>
-        )}
-
-        {/* Active tag filter chips */}
-        {activeTags.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {activeTags.map((tag) => (
-              <span key={tag} className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-accent/15 border border-accent/30 text-accent text-[11px]">
-                {tag}
-                <button onClick={() => toggleTagFilter(tag)} className="hover:text-red-400 transition-colors bg-transparent border-0 p-0 cursor-pointer leading-none">
-                  <X size={10} />
-                </button>
-              </span>
-            ))}
-            <button onClick={() => setFilters({ ...filters, tags: undefined })} className="text-[10px] text-faint/60 hover:text-faint bg-transparent border-0 cursor-pointer transition-colors">
-              clear
-            </button>
-          </div>
-        )}
-
-        <span className="text-xs text-faint ml-auto" style={{ fontFamily: 'var(--font-family-mono)' }}>
-          {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}
-        </span>
-      </div>
-
       {/* Body */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-faint text-sm">Loading…</div>
       ) : filtered.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-faint">
-          <p className="text-sm">{hasFilters ? 'No samples match your filters.' : 'No samples yet.'}</p>
-          {!hasFilters && <p className="text-xs text-faint/70">Chop some audio and save to Library.</p>}
+          <p className="text-sm">No samples yet.</p>
+          <p className="text-xs text-faint/70">Chop some audio and save to Library.</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-6">
@@ -209,12 +147,15 @@ function SampleCard({
             <p className="text-sm text-ink font-medium truncate leading-tight">{sample.name}</p>
           )}
 
-          <div className="flex items-center gap-2 mt-1.5">
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {sample.duration != null && (
               <span className="text-[11px] text-faint tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>{formatTime(sample.duration)}</span>
             )}
             {sample.bpm != null && (
               <span className="text-[10px] text-accent/70 tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>{Math.round(sample.bpm)} BPM</span>
+            )}
+            {sample.musicalKey != null && (
+              <span className="text-[10px] text-accent/60" style={{ fontFamily: 'var(--font-family-mono)' }}>{sample.musicalKey}</span>
             )}
           </div>
 

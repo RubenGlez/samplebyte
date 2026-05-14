@@ -22,7 +22,7 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
           {samples.length} chop{samples.length !== 1 ? 's' : ''}
         </span>
       </div>
-      <ul className="list-none flex flex-col m-0 p-0 max-h-44 overflow-y-auto">
+      <ul className="list-none flex flex-col m-0 p-0">
         {samples.map((sample, index) => (
           <Sample
             key={sample.id}

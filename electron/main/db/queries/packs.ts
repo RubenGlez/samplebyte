@@ -55,6 +55,10 @@ export function removeSlot(packId: string, slotNumber: number): void {
   getDb().prepare('DELETE FROM pack_slots WHERE pack_id = ? AND slot_number = ?').run(packId, slotNumber)
 }
 
+export function renamePack(id: string, name: string): void {
+  getDb().prepare('UPDATE packs SET name = ? WHERE id = ?').run(name, id)
+}
+
 export function deletePack(id: string): void {
   getDb().prepare('DELETE FROM packs WHERE id = ?').run(id)
 }

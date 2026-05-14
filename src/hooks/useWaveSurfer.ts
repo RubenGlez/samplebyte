@@ -28,7 +28,7 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
         autoCenter: false,
         autoplay: false,
         autoScroll: false,
-        height: 96,
+        height: 180,
         plugins: [
           RegionsPlugin.create(),
           TimelinePlugin.create({

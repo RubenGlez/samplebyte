@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Download, ChevronDown, Trash2 } from 'lucide-react'
+import { Search, ChevronDown, Download } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
-import { useToastStore } from '@/stores/toast'
 import { useLibraryStore } from '@/stores/library'
+import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
-import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import type { Sample } from '@/types'
 
 const PROFILES = [
@@ -20,26 +18,47 @@ const PROFILES = [
 ]
 
 export default function PacksView() {
-  const { packs, currentPack, slots, hardwareProfileId, fetchPacks, createPack, setCurrentPack, setSlot, clearSlot, setHardwareProfile, exportPack, deletePack } = usePacksStore()
-  const { toast } = useToastStore()
+  const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, initSlots } = usePacksStore()
   const { samples, fetchSamples } = useLibraryStore()
+  const { toast } = useToastStore()
 
-  const [showNewPack, setShowNewPack] = useState(false)
-  const [newPackName, setNewPackName] = useState('')
-  const [isExporting, setIsExporting] = useState(false)
   const [activeSample, setActiveSample] = useState<Sample | null>(null)
+  const [search, setSearch] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExport = async () => {
+    if (!currentPack) return
+    const outputDir = await window.api.fs.pickFolder()
+    if (!outputDir) return
+    setIsExporting(true)
+    try {
+      const result = await exportPack(outputDir)
+      toast(`${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} exported`)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const filteredSamples = search.trim()
+    ? samples.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+    : samples
 
   useEffect(() => {
     fetchPacks()
     fetchSamples()
   }, [fetchPacks, fetchSamples])
 
-  const handleCreatePack = async () => {
-    if (!newPackName.trim()) return
-    await createPack(newPackName.trim(), hardwareProfileId)
-    setNewPackName('')
-    setShowNewPack(false)
-  }
+  useEffect(() => {
+    if (!currentPack || samples.length === 0) return
+    window.api.packs.getSlots(currentPack.id).then((packSlots) => {
+      const resolved: Record<number, Sample> = {}
+      for (const slot of packSlots) {
+        const sample = samples.find((s) => s.id === slot.sampleId)
+        if (sample) resolved[slot.slotNumber] = sample
+      }
+      initSlots(resolved)
+    })
+  }, [currentPack?.id, samples.length])
 
   const handleDragStart = (event: DragStartEvent) => {
     const sample = samples.find((s) => s.id === event.active.id)
@@ -55,27 +74,6 @@ export default function PacksView() {
     if (sample !== undefined) setSlot(slotNumber, sample)
   }
 
-  const handleExport = async () => {
-    if (!currentPack) return
-    const outputDir = await window.api.fs.pickFolder()
-    if (!outputDir) return
-    setIsExporting(true)
-    try {
-      const result = await exportPack(outputDir)
-      toast(`${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} exported`)
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
-  const handleDeletePack = async () => {
-    if (!currentPack) return
-    if (!confirm(`Delete pack "${currentPack.name}"?`)) return
-    await deletePack(currentPack.id)
-    toast('Pack deleted')
-  }
-
-  const profile = PROFILES.find((p) => p.id === hardwareProfileId) ?? PROFILES[0]
   const filledSlots = Object.keys(slots).length
 
   return (
@@ -84,19 +82,24 @@ export default function PacksView() {
 
         {/* Library sidebar */}
         <aside className="w-52 shrink-0 border-r border-border flex flex-col bg-surface overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <p
-              className="text-[10px] text-faint font-medium uppercase tracking-widest"
-              style={{ fontFamily: 'var(--font-family-brand)' }}
-            >
-              Library
-            </p>
+          <div className="h-11 flex items-center px-2 border-b border-border shrink-0">
+            <div className="relative w-full">
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full bg-raised border border-border rounded pl-7 pr-2 h-7 text-xs text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
+              />
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-0.5">
             {samples.length === 0 ? (
               <p className="text-faint text-xs p-3 leading-relaxed">No samples yet. Save some chops first.</p>
+            ) : filteredSamples.length === 0 ? (
+              <p className="text-faint text-xs p-3">No matches.</p>
             ) : (
-              samples.map((sample) => (
+              filteredSamples.map((sample) => (
                 <DraggableSample key={sample.id} sample={sample} />
               ))
             )}
@@ -107,55 +110,41 @@ export default function PacksView() {
         <main className="flex-1 flex flex-col overflow-hidden bg-base">
 
           {/* Toolbar */}
-          <div className="flex items-center gap-3 px-5 py-3 border-b border-border shrink-0 bg-surface">
-            <div className="flex items-center gap-2 flex-1">
-              <select
-                value={currentPack?.id ?? ''}
-                onChange={(e) => {
-                  const pack = packs.find((p) => p.id === e.target.value)
-                  setCurrentPack(pack ?? null)
-                }}
-                className="bg-base border border-border rounded px-3 h-8 text-sm text-ink focus:outline-none focus:border-accent/40 cursor-pointer appearance-none"
-              >
-                <option value="" disabled>Select a pack…</option>
-                {packs.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <Button variant="ghost" size="icon" onClick={() => setShowNewPack(true)} title="New pack">
-                <Plus size={13} />
-              </Button>
-              {currentPack && (
-                <Button variant="danger" size="icon" onClick={handleDeletePack} title="Delete pack">
-                  <Trash2 size={13} />
-                </Button>
+          <div className="h-11 flex items-center justify-between px-5 border-b border-border shrink-0 bg-surface">
+            <div className="flex items-center gap-2">
+              {currentPack ? (
+                <>
+                  <span className="text-sm text-ink font-medium">{currentPack.name}</span>
+                  <span className="text-[11px] text-faint" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                    {filledSlots}/16
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-faint">No pack selected</span>
               )}
             </div>
-
             <div className="flex items-center gap-2">
-              <span className="text-xs text-faint" style={{ fontFamily: 'var(--font-family-brand)' }}>Target</span>
               <div className="relative">
                 <select
                   value={hardwareProfileId}
                   onChange={(e) => setHardwareProfile(e.target.value)}
-                  className="appearance-none bg-base border border-border rounded pl-3 pr-7 h-8 text-sm text-ink focus:outline-none focus:border-accent/40 cursor-pointer"
+                  className="appearance-none bg-raised border border-border rounded pl-2.5 pr-6 h-7 text-xs text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
                 >
                   {PROFILES.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
-                <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
               </div>
+              <Button
+                size="sm"
+                onClick={handleExport}
+                disabled={isExporting || !currentPack || filledSlots === 0}
+              >
+                <Download size={13} />
+                {isExporting ? 'Exporting…' : 'Export'}
+              </Button>
             </div>
-
-            <Button
-              size="sm"
-              onClick={handleExport}
-              disabled={isExporting || !currentPack || filledSlots === 0}
-            >
-              <Download size={13} />
-              {isExporting ? 'Exporting…' : `Export`}
-            </Button>
           </div>
 
           {/* Pad grid */}
@@ -187,23 +176,17 @@ export default function PacksView() {
                   ))}
                 </div>
                 <p className="text-[10px] text-faint mt-2">
-                  {profile.name} · Drag samples from the library onto pads
+                  Drag samples from the library onto pads
                 </p>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-4 text-faint">
+              <div className="flex flex-col items-center gap-3 text-faint">
                 <div className="w-16 h-16 rounded-xl border border-border bg-surface grid grid-cols-2 gap-1 p-2 opacity-40">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="rounded-sm bg-raised" />
                   ))}
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                  <p className="text-sm text-muted">No pack selected</p>
-                  <p className="text-xs text-faint">Create a pack to start loading samples</p>
-                </div>
-                <Button size="sm" onClick={() => setShowNewPack(true)}>
-                  <Plus size={13} /> New Pack
-                </Button>
+                <p className="text-sm text-muted">Select a pack from the sidebar</p>
               </div>
             )}
           </div>
@@ -219,27 +202,6 @@ export default function PacksView() {
         )}
       </DragOverlay>
 
-      {/* New pack dialog */}
-      <Dialog open={showNewPack} onOpenChange={setShowNewPack}>
-        <DialogContent>
-          <DialogTitle>New Pack</DialogTitle>
-          <Input
-            value={newPackName}
-            onChange={(e) => setNewPackName(e.target.value)}
-            placeholder="Pack name"
-            onKeyDown={(e) => e.key === 'Enter' && handleCreatePack()}
-            autoFocus
-          />
-          <div className="flex justify-end gap-2 mt-4">
-            <DialogClose asChild>
-              <Button variant="ghost" size="sm">Cancel</Button>
-            </DialogClose>
-            <Button size="sm" onClick={handleCreatePack} disabled={!newPackName.trim()}>
-              Create
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </DndContext>
   )
 }
@@ -252,21 +214,21 @@ function DraggableSample({ sample }: { sample: Sample }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      style={{ transform: CSS.Translate.toString(transform) }}
+      style={{ transform: isDragging ? undefined : CSS.Translate.toString(transform) }}
       className={cn(
-        'px-3 py-2 rounded text-xs text-muted cursor-grab active:cursor-grabbing transition-colors select-none',
+        'flex items-center gap-2 px-3 py-1 rounded text-xs text-muted cursor-grab active:cursor-grabbing transition-colors select-none',
         'hover:bg-raised hover:text-ink',
         isDragging && 'opacity-30'
       )}
     >
-      <p className="truncate font-medium">{sample.name}</p>
+      <span className="flex-1 truncate font-medium">{sample.name}</span>
       {sample.duration != null && (
-        <p
-          className="text-faint mt-0.5 tabular-nums"
+        <span
+          className="text-faint tabular-nums shrink-0"
           style={{ fontFamily: 'var(--font-family-mono)', fontSize: '10px' }}
         >
           {formatTime(sample.duration)}
-        </p>
+        </span>
       )}
     </div>
   )

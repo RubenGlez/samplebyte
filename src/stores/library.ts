@@ -5,6 +5,7 @@ type Filters = {
   bpm?: number
   key?: string
   tags?: string[]
+  source?: 'local' | 'freesound'
 }
 
 type LibraryState = {

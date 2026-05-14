@@ -18,17 +18,35 @@ export const formatBytes = (bytes: number, decimals: number = 2): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
 
+const EXT_TO_MIME: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  flac: 'audio/flac',
+  aiff: 'audio/aiff',
+  aif: 'audio/aiff',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+}
+
+export const mimeTypeFromPath = (filePath: string): string => {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
+  return EXT_TO_MIME[ext] ?? 'audio/*'
+}
+
 export const humanizeAudioType = (mimeType: string): string => {
-  const typeMap: { [key: string]: string } = {
-    "audio/mpeg": "MP3 Audio",
-    "audio/wav": "WAV Audio",
-    "audio/ogg": "OGG Audio",
-    "audio/aac": "AAC Audio",
-    "audio/mp4": "MP4 Audio",
-    "audio/flac": "FLAC Audio",
-  };
-  return typeMap[mimeType] || "Unknown Audio Format";
-};
+  const typeMap: Record<string, string> = {
+    'audio/mpeg': 'MP3',
+    'audio/mp3':  'MP3',
+    'audio/wav':  'WAV',
+    'audio/ogg':  'OGG',
+    'audio/aac':  'AAC',
+    'audio/mp4':  'M4A',
+    'audio/flac': 'FLAC',
+    'audio/aiff': 'AIFF',
+  }
+  return typeMap[mimeType] ?? 'Audio'
+}
 
 export const formatTime = (seconds: number) =>
   [seconds / 60, seconds % 60]

@@ -2,12 +2,12 @@ import { DragEvent, useEffect, useRef, useState, FormEvent } from 'react'
 import { Search, Download, Play, Square, Loader2, Key } from 'lucide-react'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
-import { useLibraryStore } from '@/stores/library'
 import { useFreesoundStore } from '@/stores/freesound'
 import { useToastStore } from '@/stores/toast'
+import { useUiStore } from '@/stores/ui'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/utils'
-import type { FreesoundResult, Sample } from '@/types'
+import { formatTime, mimeTypeFromPath } from '@/utils'
+import type { FreesoundResult } from '@/types'
 import CardRoot from './Card/CardRoot'
 
 const AUDIO_EXTENSIONS = /\.(wav|mp3|flac|aiff?|ogg|m4a)$/i
@@ -18,8 +18,8 @@ type Tab = 'local' | 'freesound'
 export default function Loader() {
   const { setAudio } = usePlayerStore()
   const { setActiveProject } = useProjectsStore()
-  const { fetchSamples } = useLibraryStore()
   const { toast } = useToastStore()
+  const { setView } = useUiStore()
   const [isDragging, setIsDragging] = useState(false)
   const [tab, setTab] = useState<Tab>('local')
 
@@ -41,14 +41,14 @@ export default function Loader() {
     const filePath = await window.api.fs.pickFile()
     if (!filePath) return
     setActiveProject(null)
-    setAudio({ name: filePath.split('/').pop() ?? 'audio', path: `local-file://${filePath}`, filePath, size: 0, type: 'audio/*' })
+    setAudio({ name: filePath.split('/').pop() ?? 'audio', path: `local-file://${filePath}`, filePath, size: 0, type: mimeTypeFromPath(filePath) })
   }
 
-  const handleImport = async (sample: Sample) => {
-    await fetchSamples()
-    toast(`"${sample.name}" added to Library`)
+  const handleFreesoundLoad = ({ name, filePath }: { name: string; filePath: string }) => {
     setActiveProject(null)
-    setAudio({ name: sample.name, path: `local-file://${sample.filePath}`, filePath: sample.filePath, size: 0, type: 'audio/mp3' })
+    setAudio({ name, path: `local-file://${filePath}`, filePath, size: 0, type: 'audio/mpeg' })
+    setView('chop')
+    toast(`"${name}" ready to chop`)
   }
 
   return (
@@ -95,8 +95,8 @@ export default function Loader() {
                 </svg>
               </div>
               <div className="flex flex-col items-center gap-1.5 text-center">
-                <p className="text-sm text-ink font-medium">Drop an audio file here</p>
-                <p className="text-xs text-faint">or</p>
+                <p className="text-sm text-ink font-medium m-0">Drop an audio file here</p>
+                <p className="text-xs text-faint m-0">or</p>
                 <button onClick={handlePickFile} className="text-accent hover:text-accent-bright text-xs font-medium underline underline-offset-2 cursor-pointer bg-transparent border-0 p-0 transition-colors">
                   Browse files
                 </button>
@@ -112,13 +112,13 @@ export default function Loader() {
           )}
         </div>
       ) : (
-        <FreesoundTab onImport={handleImport} />
+        <FreesoundTab onLoad={handleFreesoundLoad} />
       )}
     </CardRoot>
   )
 }
 
-function FreesoundTab({ onImport }: { onImport: (sample: Sample) => void }) {
+function FreesoundTab({ onLoad }: { onLoad: (file: { name: string; filePath: string }) => void }) {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [keyLoaded, setKeyLoaded] = useState(false)
 
@@ -141,7 +141,7 @@ function FreesoundTab({ onImport }: { onImport: (sample: Sample) => void }) {
     return <ApiKeySetup onSave={(k) => setApiKey(k)} />
   }
 
-  return <FreesoundSearch onImport={onImport} onClearKey={() => setApiKey(null)} />
+  return <FreesoundSearch onLoad={onLoad} onClearKey={() => setApiKey(null)} />
 }
 
 function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
@@ -190,7 +190,7 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
   )
 }
 
-function FreesoundSearch({ onImport, onClearKey }: { onImport: (sample: Sample) => void; onClearKey: () => void }) {
+function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string; filePath: string }) => void; onClearKey: () => void }) {
   const { query, results, hasMore, isSearching, isDownloading, search, loadMore } = useFreesoundStore()
   const [inputValue, setInputValue] = useState(query)
   const { toast } = useToastStore()
@@ -204,8 +204,8 @@ function FreesoundSearch({ onImport, onClearKey }: { onImport: (sample: Sample) 
   const handleDownload = async (sound: FreesoundResult) => {
     startDownload(sound.id)
     try {
-      const sample = await window.api.freesound.download(sound.id, sound.name, sound.previews['preview-hq-mp3'])
-      onImport(sample)
+      const file = await window.api.freesound.download(sound.id, sound.name, sound.previews['preview-hq-mp3'])
+      onLoad(file)
     } catch {
       toast('Download failed', 'error')
     } finally {

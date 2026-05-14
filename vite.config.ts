@@ -12,6 +12,7 @@ export default defineConfig(({ command }) => {
   const isServe = command === 'serve'
   const isBuild = command === 'build'
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
+  const electronInspectPort = process.env.ELECTRON_INSPECT_PORT ?? '0'
 
   return {
     resolve: {
@@ -29,7 +30,10 @@ export default defineConfig(({ command }) => {
             if (process.env.VSCODE_DEBUG) {
               console.log('[startup] Electron App')
             } else {
-              args.startup(['--inspect=9229', './dist-electron/main/index.js'])
+              args.startup([
+                `--inspect=${electronInspectPort}`,
+                './dist-electron/main/index.js',
+              ])
             }
           },
           vite: {

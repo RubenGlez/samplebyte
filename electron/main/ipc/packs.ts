@@ -24,12 +24,21 @@ export function registerPacksHandlers(): void {
     return packsDb.createPack(data)
   })
 
+  ipcMain.handle('packs:getSlots', (_, packId: string) => {
+    const pack = packsDb.getPackWithSlots(packId)
+    return pack ? pack.slots : []
+  })
+
   ipcMain.handle('packs:upsertSlot', (_, packId: string, slotNumber: number, sampleId: string) => {
     packsDb.upsertSlot(packId, slotNumber, sampleId)
   })
 
   ipcMain.handle('packs:removeSlot', (_, packId: string, slotNumber: number) => {
     packsDb.removeSlot(packId, slotNumber)
+  })
+
+  ipcMain.handle('packs:rename', (_, id: string, name: string) => {
+    packsDb.renamePack(id, name)
   })
 
   ipcMain.handle('packs:delete', (_, id: string) => {

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell, session, protocol, net } from 'electron'
 import { release } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { update } from './update'
 import { initDatabase } from './db/index'
 import { registerLibraryHandlers } from './ipc/library'
@@ -74,7 +74,7 @@ app.whenReady().then(() => {
   // Serve local audio files to the renderer without cross-origin restrictions
   protocol.handle('local-file', (request) => {
     const filePath = decodeURIComponent(request.url.slice('local-file://'.length))
-    return net.fetch(`file://${filePath}`)
+    return net.fetch(pathToFileURL(filePath).href)
   })
 
   if (!url) {

@@ -7,27 +7,46 @@ interface UseZoomProps {
 }
 
 export const useZoom = ({ wavesurfer, waveformRef }: UseZoomProps) => {
-  const prevZoomLevel = useRef(1);
+  const prevZoomLevel = useRef<number | null>(null);
+
+  // Initialise zoom level from actual rendered state when audio is ready
+  useEffect(() => {
+    if (!wavesurfer) return
+    const onReady = () => {
+      const container = waveformRef.current
+      const duration = wavesurfer.getDuration()
+      if (container && duration) {
+        prevZoomLevel.current = container.clientWidth / duration
+      }
+    }
+    wavesurfer.on('ready', onReady)
+    return () => { wavesurfer.un('ready', onReady) }
+  }, [wavesurfer, waveformRef])
 
   const handleWheel = useCallback(
-    ({ deltaY }: WheelEvent) => {
-      const zoomSensitivity = 0.2; // Ajusta para controlar la sensibilidad del zoom
-      const newZoomLevel = prevZoomLevel.current - deltaY * zoomSensitivity;
-      // Limita el nuevo nivel de zoom para asegurarse de que esté dentro del rango deseado
-      const limitedNewZoomLevel = Math.max(1, Math.min(1000, newZoomLevel));
-      prevZoomLevel.current = limitedNewZoomLevel;
-      wavesurfer?.zoom(limitedNewZoomLevel);
+    (e: WheelEvent) => {
+      if (!wavesurfer) return
+      e.preventDefault()
+
+      const container = waveformRef.current
+      const duration = wavesurfer.getDuration()
+      const minZoom = container && duration ? container.clientWidth / duration : 1
+
+      // Start from actual zoom if not yet set
+      if (prevZoomLevel.current === null) prevZoomLevel.current = minZoom
+
+      // Multiplicative step: ~10% per scroll tick, consistent at any zoom level
+      const factor = Math.pow(1.001, -e.deltaY)
+      const newZoom = Math.max(minZoom, Math.min(1500, prevZoomLevel.current * factor))
+      prevZoomLevel.current = newZoom
+      wavesurfer.zoom(newZoom)
     },
-    [wavesurfer]
+    [wavesurfer, waveformRef]
   );
 
   useEffect(() => {
     const container = waveformRef.current;
-
     container?.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      container?.removeEventListener("wheel", handleWheel);
-    };
+    return () => { container?.removeEventListener("wheel", handleWheel) };
   }, [handleWheel, waveformRef]);
 };

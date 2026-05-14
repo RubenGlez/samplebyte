@@ -1,5 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
-import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../types'
+import type { Sample, Pack, PackSlot, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../types'
 
 contextBridge.exposeInMainWorld('api', {
   library: {
@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('api', {
 
     delete: (id: string): Promise<void> =>
       ipcRenderer.invoke('projects:delete', id),
+
+    duplicate: (id: string): Promise<Project | null> =>
+      ipcRenderer.invoke('projects:duplicate', id),
   },
 
   audio: {
@@ -64,13 +67,16 @@ contextBridge.exposeInMainWorld('api', {
   freesound: {
     search: (query: string, page?: number): Promise<FreesoundPage> =>
       ipcRenderer.invoke('freesound:search', query, page),
-    download: (soundId: number, name: string, previewUrl: string): Promise<Sample> =>
+    download: (soundId: number, name: string, previewUrl: string): Promise<{ name: string; filePath: string }> =>
       ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
   },
 
   packs: {
     getAll: (): Promise<Pack[]> =>
       ipcRenderer.invoke('packs:getAll'),
+
+    getSlots: (packId: string): Promise<PackSlot[]> =>
+      ipcRenderer.invoke('packs:getSlots', packId),
 
     getProfiles: (): Promise<Array<{ id: string; name: string; padCount: number }>> =>
       ipcRenderer.invoke('packs:getProfiles'),
@@ -83,6 +89,9 @@ contextBridge.exposeInMainWorld('api', {
 
     removeSlot: (packId: string, slotNumber: number): Promise<void> =>
       ipcRenderer.invoke('packs:removeSlot', packId, slotNumber),
+
+    rename: (id: string, name: string): Promise<void> =>
+      ipcRenderer.invoke('packs:rename', id, name),
 
     delete: (id: string): Promise<void> =>
       ipcRenderer.invoke('packs:delete', id),

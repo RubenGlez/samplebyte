@@ -1,4 +1,4 @@
-import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../../electron/types'
+import type { Sample, Pack, PackSlot, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../../electron/types'
 
 declare global {
   interface Window {
@@ -20,6 +20,7 @@ declare global {
         save: (data: { name: string; sourcePath: string | null; regions: ProjectRegion[] }) => Promise<Project>
         update: (id: string, data: Partial<Pick<Project, 'name' | 'regions'>>) => Promise<void>
         delete: (id: string) => Promise<void>
+        duplicate: (id: string) => Promise<Project | null>
       }
       audio: {
         exportRegions: (params: ExportRegionsParams) => Promise<{ filesWritten: number }>
@@ -34,15 +35,17 @@ declare global {
       }
       freesound: {
         search: (query: string, page?: number) => Promise<FreesoundPage>
-        download: (soundId: number, name: string, previewUrl: string) => Promise<Sample>
+        download: (soundId: number, name: string, previewUrl: string) => Promise<{ name: string; filePath: string }>
       }
       packs: {
         getAll: () => Promise<Pack[]>
+        getSlots: (packId: string) => Promise<PackSlot[]>
         getProfiles: () => Promise<Array<{ id: string; name: string; padCount: number }>>
         create: (data: Pick<Pack, 'name' | 'hardwareProfile'>) => Promise<Pack>
         upsertSlot: (packId: string, slotNumber: number, sampleId: string) => Promise<void>
         removeSlot: (packId: string, slotNumber: number) => Promise<void>
         delete: (id: string) => Promise<void>
+        rename: (id: string, name: string) => Promise<void>
         export: (packId: string, outputDir: string) => Promise<{ filesWritten: number }>
       }
     }

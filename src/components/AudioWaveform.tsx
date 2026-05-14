@@ -4,36 +4,38 @@ import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
+import { useAudioAnalysis } from '@/hooks/useAudioAnalysis'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
+import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
+import { analyzeAudioUrl } from '@/lib/audioAnalysis'
+import type { Sample } from '../../electron/types'
 
 interface AudioWaveformProps {
   audioUrl: string
   audioName: string
   filePath: string
+  size: number
+  type: string
 }
 
-const SHORTCUTS = [
-  { key: 'Space', label: 'Play / Pause' },
-  { key: 'Enter', label: 'Play region' },
-  { key: '⌫',    label: 'Delete region' },
-]
 
-const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) => {
+const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWaveformProps) => {
   const { activeProject, saveProject, updateActiveRegions } = useProjectsStore()
   const { toast } = useToastStore()
+  const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
 
   const { waveformRef, wavesurfer, isPlaying } = useWavesurfer({ audioUrl })
   const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName } = useRegions({
     wavesurfer,
     initialRegions: activeProject?.regions,
   })
-  const { fetchSamples } = useLibraryStore()
+  const { fetchSamples, updateSample } = useLibraryStore()
 
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -45,21 +47,31 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
     [regions, regionNames]
   )
 
+  const analyzeAndPersist = useCallback(async (saved: Sample[]) => {
+    for (const sample of saved) {
+      try {
+        const result = await analyzeAudioUrl(`local-file://${sample.filePath}`)
+        await updateSample(sample.id, result)
+      } catch { /* non-fatal */ }
+    }
+  }, [updateSample])
+
   const handleSaveToLibrary = useCallback(async () => {
     if (!regions?.length) return
     setIsSaving(true)
     try {
-      await window.api.library.saveChops({
+      const saved = await window.api.library.saveChops({
         sourceFilePath: filePath,
         regions: regions.map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
         projectId: activeProject?.id,
       })
       await fetchSamples()
       toast(`${regions.length} chop${regions.length !== 1 ? 's' : ''} saved to Library`)
+      analyzeAndPersist(saved)
     } finally {
       setIsSaving(false)
     }
-  }, [filePath, regions, regionNames, fetchSamples, toast])
+  }, [filePath, regions, regionNames, fetchSamples, toast, analyzeAndPersist])
 
   const handleSaveProject = useCallback(async () => {
     if (!projectName.trim() || !regions?.length) return
@@ -108,12 +120,34 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
 
   const hasRegions = !!regions?.length
 
-  return (
+  const actions = (
     <>
-      <div id="waveform" ref={waveformRef} />
+      <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
+        {isExporting ? 'Exporting…' : 'Export WAV'}
+      </Button>
+      {activeProject ? (
+        <Button variant="outline" size="sm" onClick={handleUpdateProject} disabled={isSaving || !hasRegions}>
+          {isSaving ? 'Saving…' : 'Update Project'}
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
+          Save Project
+        </Button>
+      )}
+      <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
+        {isSaving ? 'Saving…' : 'Save to Library'}
+      </Button>
+    </>
+  )
+
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <CardHeader name={audioName} size={size} type={type} bpm={bpm} musicalKey={musicalKey} isAnalyzing={isAnalyzing} actions={actions} />
+
+      <div id="waveform" ref={waveformRef} className="shrink-0" />
 
       {/* Transport */}
-      <div className="flex items-center gap-3 px-5 py-2 border-b border-border">
+      <div className="flex items-center gap-3 px-5 py-2 border-b border-border shrink-0">
         <button
           onClick={() => wavesurfer?.playPause()}
           className="w-7 h-7 rounded-full flex items-center justify-center bg-raised border border-border-bright hover:border-accent/40 hover:text-accent text-muted transition-colors cursor-pointer bg-transparent"
@@ -128,47 +162,25 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
         </span>
       </div>
 
-      <SampleList
-        samples={regions}
-        selectedSample={selectedRegion}
-        regionNames={regionNames}
-        onClick={handleSelectRegion}
-        onNameChange={updateRegionName}
-      />
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <SampleList
+          samples={regions}
+          selectedSample={selectedRegion}
+          regionNames={regionNames}
+          onClick={handleSelectRegion}
+          onNameChange={updateRegionName}
+        />
+      </div>
 
-      {/* Bottom bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-        <div className="flex items-center gap-3">
-          {SHORTCUTS.map(({ key, label }) => (
-            <span key={key} className="flex items-center gap-1.5">
-              <kbd
-                className="px-1.5 py-0.5 rounded bg-raised border border-border-bright text-[10px] text-faint leading-none"
-                style={{ fontFamily: 'var(--font-family-mono)' }}
-              >
-                {key}
-              </kbd>
-              <span className="text-[10px] text-faint">{label}</span>
-            </span>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
-            {isExporting ? 'Exporting…' : 'Export WAV'}
-          </Button>
-          {activeProject ? (
-            <Button variant="outline" size="sm" onClick={handleUpdateProject} disabled={isSaving || !hasRegions}>
-              {isSaving ? 'Saving…' : 'Update Project'}
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
-              Save Project
-            </Button>
-          )}
-          <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
-            {isSaving ? 'Saving…' : 'Save to Library'}
-          </Button>
-        </div>
+      <div className="flex items-center gap-4 px-5 py-2.5 border-t border-border shrink-0">
+        {([['Space', 'Play / Pause'], ['Enter', 'Play region'], ['⌫', 'Delete region']] as const).map(([key, label]) => (
+          <span key={key} className="flex items-center gap-1.5">
+            <kbd className="px-1.5 py-0.5 rounded bg-raised border border-border-bright text-[10px] text-faint leading-none" style={{ fontFamily: 'var(--font-family-mono)' }}>
+              {key}
+            </kbd>
+            <span className="text-[10px] text-faint">{label}</span>
+          </span>
+        ))}
       </div>
 
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
@@ -191,7 +203,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 

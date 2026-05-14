@@ -10,7 +10,9 @@ type PacksState = {
 
   fetchPacks: () => Promise<void>
   createPack: (name: string, hardwareProfile: string) => Promise<Pack>
+  renamePack: (id: string, name: string) => Promise<void>
   setCurrentPack: (pack: Pack | null) => void
+  initSlots: (slots: Record<number, Sample>) => void
   setSlot: (slotNumber: number, sample: Sample) => void
   clearSlot: (slotNumber: number) => void
   setHardwareProfile: (profileId: string) => void
@@ -36,7 +38,16 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     return pack
   },
 
+  renamePack: async (id, name) => {
+    await window.api.packs.rename(id, name)
+    set((s) => ({
+      packs: s.packs.map((p) => (p.id === id ? { ...p, name } : p)),
+      currentPack: s.currentPack?.id === id ? { ...s.currentPack, name } : s.currentPack,
+    }))
+  },
+
   setCurrentPack: (currentPack) => set({ currentPack, slots: {} }),
+  initSlots: (slots) => set({ slots }),
 
   setSlot: async (slotNumber, sample) => {
     const { currentPack } = get()

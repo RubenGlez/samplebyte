@@ -53,3 +53,13 @@ export function updateProject(id: string, data: Partial<Pick<Project, 'name' | '
 export function deleteProject(id: string): void {
   getDb().prepare('DELETE FROM projects WHERE id = ?').run(id)
 }
+
+export function duplicateProject(id: string): Project | null {
+  const original = getProject(id)
+  if (!original) return null
+  return saveProject({
+    name: `${original.name} (copy)`,
+    sourcePath: original.sourcePath,
+    regions: original.regions,
+  })
+}

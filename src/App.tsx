@@ -1,4 +1,5 @@
 import Nav from '@/components/Nav'
+import AppSidebar from '@/components/AppSidebar'
 import { Toaster } from '@/components/ui/Toaster'
 import { useUiStore } from '@/stores/ui'
 import ChopView from '@/views/Chop'
@@ -11,11 +12,14 @@ export default function App() {
   return (
     <div className="bg-base h-dvh flex flex-col overflow-hidden">
       <Nav />
-      <main className="flex-1 overflow-hidden">
-        {currentView === 'chop'    && <ChopView />}
-        {currentView === 'library' && <LibraryView />}
-        {currentView === 'packs'   && <PacksView />}
-      </main>
+      <div className="flex-1 flex overflow-hidden">
+        <AppSidebar />
+        <main className="flex-1 overflow-hidden">
+          {currentView === 'chop'    && <ChopView />}
+          {currentView === 'library' && <LibraryView />}
+          {currentView === 'packs'   && <PacksView />}
+        </main>
+      </div>
       <Toaster />
     </div>
   )

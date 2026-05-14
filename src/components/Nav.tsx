@@ -9,18 +9,26 @@ const tabs = [
 ] as const
 
 export default function Nav() {
-  const { currentView, setView } = useUiStore()
+  const { currentView, setView, sidebarOpen } = useUiStore()
 
   return (
     <nav className="flex items-stretch h-11 border-b border-border shrink-0 bg-surface">
-      {/* Brand */}
-      <div className="flex items-center px-5 border-r border-border mr-2">
-        <span
-          className="text-accent text-sm font-bold tracking-[0.15em] uppercase select-none"
-          style={{ fontFamily: 'var(--font-family-brand)' }}
-        >
-          SampleByte
-        </span>
+      {/* Brand — matches sidebar width so columns align */}
+      <div
+        className={cn(
+          'flex items-center justify-center border-r border-border shrink-0 overflow-hidden',
+          'transition-[width] duration-200 ease-in-out',
+          sidebarOpen ? 'w-56' : 'w-10'
+        )}
+      >
+        {sidebarOpen && (
+          <span
+            className="text-accent text-sm font-bold tracking-[0.15em] uppercase select-none"
+            style={{ fontFamily: 'var(--font-family-brand)' }}
+          >
+            SampleByte
+          </span>
+        )}
       </div>
 
       {/* Tabs */}

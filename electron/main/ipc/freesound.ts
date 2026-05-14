@@ -1,7 +1,6 @@
 import { ipcMain, app, net } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
-import * as samples from '../db/queries/samples'
 
 const BASE = 'https://freesound.org/apiv2'
 
@@ -30,19 +29,13 @@ export function registerFreesoundHandlers(): void {
     return res.json()
   })
 
-  ipcMain.handle('freesound:download', async (_, soundId: number, name: string, previewUrl: string) => {
-    const dir = path.join(app.getPath('userData'), 'samples')
+  ipcMain.handle('freesound:download', async (_, _soundId: number, name: string, previewUrl: string) => {
+    const dir = path.join(app.getPath('userData'), 'staging')
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    const id = crypto.randomUUID()
-    const outPath = path.join(dir, `${id}.mp3`)
+    const outPath = path.join(dir, `${crypto.randomUUID()}.mp3`)
     const res = await net.fetch(previewUrl)
     if (!res.ok) throw new Error(`Download failed: ${res.status}`)
     fs.writeFileSync(outPath, Buffer.from(await res.arrayBuffer()))
-    return samples.addSample({
-      name: name.replace(/\.[^.]+$/, ''),
-      filePath: outPath,
-      source: 'freesound',
-      freesoundId: String(soundId),
-    })
+    return { name: name.replace(/\.[^.]+$/, ''), filePath: outPath }
   })
 }

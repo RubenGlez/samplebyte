@@ -9,6 +9,8 @@ interface ProjectsState {
   setActiveProject: (project: Project | null) => void
   saveProject: (data: { name: string; sourcePath: string; regions: Project['regions'] }) => Promise<Project>
   updateActiveRegions: (regions: Project['regions']) => Promise<void>
+  renameProject: (id: string, name: string) => Promise<void>
+  duplicateProject: (id: string) => Promise<Project | null>
   deleteProject: (id: string) => Promise<void>
 }
 
@@ -43,6 +45,20 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       activeProject: s.activeProject ? { ...s.activeProject, regions } : null,
       projects: s.projects.map((p) => p.id === activeProject.id ? { ...p, regions } : p),
     }))
+  },
+
+  renameProject: async (id, name) => {
+    await window.api.projects.update(id, { name })
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, name } : p)),
+      activeProject: s.activeProject?.id === id ? { ...s.activeProject, name } : s.activeProject,
+    }))
+  },
+
+  duplicateProject: async (id) => {
+    const copy = await window.api.projects.duplicate(id)
+    if (copy) set((s) => ({ projects: [copy, ...s.projects] }))
+    return copy
   },
 
   deleteProject: async (id) => {

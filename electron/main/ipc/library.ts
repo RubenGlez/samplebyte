@@ -91,4 +91,8 @@ export function registerLibraryHandlers(): void {
   ipcMain.handle('projects:delete', (_, id: string) => {
     projects.deleteProject(id)
   })
+
+  ipcMain.handle('projects:duplicate', (_, id: string) => {
+    return projects.duplicateProject(id)
+  })
 }
