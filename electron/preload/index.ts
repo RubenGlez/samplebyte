@@ -1,5 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
-import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams } from '../types'
+import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../types'
 
 contextBridge.exposeInMainWorld('api', {
   library: {
@@ -52,6 +52,20 @@ contextBridge.exposeInMainWorld('api', {
 
     pickFolder: (): Promise<string | null> =>
       ipcRenderer.invoke('fs:pickFolder'),
+  },
+
+  settings: {
+    get: (key: string): Promise<unknown> =>
+      ipcRenderer.invoke('settings:get', key),
+    set: (key: string, value: unknown): Promise<void> =>
+      ipcRenderer.invoke('settings:set', key, value),
+  },
+
+  freesound: {
+    search: (query: string, page?: number): Promise<FreesoundPage> =>
+      ipcRenderer.invoke('freesound:search', query, page),
+    download: (soundId: number, name: string, previewUrl: string): Promise<Sample> =>
+      ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
   },
 
   packs: {

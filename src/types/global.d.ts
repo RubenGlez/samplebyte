@@ -1,4 +1,4 @@
-import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams } from '../../electron/types'
+import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../../electron/types'
 
 declare global {
   interface Window {
@@ -27,6 +27,14 @@ declare global {
       fs: {
         pickFile: () => Promise<string | null>
         pickFolder: () => Promise<string | null>
+      }
+      settings: {
+        get: (key: string) => Promise<unknown>
+        set: (key: string, value: unknown) => Promise<void>
+      }
+      freesound: {
+        search: (query: string, page?: number) => Promise<FreesoundPage>
+        download: (soundId: number, name: string, previewUrl: string) => Promise<Sample>
       }
       packs: {
         getAll: () => Promise<Pack[]>

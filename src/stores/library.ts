@@ -22,6 +22,7 @@ type LibraryState = {
   setSearchQuery: (query: string) => void
   setFilters: (filters: Filters) => void
   setProjectFilter: (projectId: string | null) => void
+  toggleTagFilter: (tag: string) => void
   setSelectedSample: (sample: Sample | null) => void
 }
 
@@ -63,5 +64,10 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setFilters: (filters) => set({ filters }),
   setProjectFilter: (projectFilter) => set({ projectFilter }),
+  toggleTagFilter: (tag) => set((s) => {
+    const current = s.filters.tags ?? []
+    const tags = current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]
+    return { filters: { ...s.filters, tags: tags.length ? tags : undefined } }
+  }),
   setSelectedSample: (selectedSample) => set({ selectedSample }),
 }))

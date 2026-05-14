@@ -46,3 +46,20 @@ export type ExportRegionsParams = {
   outputDir: string
   profileId: string
 }
+
+export type FreesoundResult = {
+  id: number
+  name: string
+  username: string
+  duration: number
+  previews: { 'preview-hq-mp3': string; 'preview-lq-mp3': string }
+  tags: string[]
+  license: string
+}
+
+export type FreesoundPage = {
+  count: number
+  next: string | null
+  previous: string | null
+  results: FreesoundResult[]
+}
