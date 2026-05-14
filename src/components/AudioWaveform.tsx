@@ -51,8 +51,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath }: AudioWaveformProps) =>
     try {
       await window.api.library.saveChops({
         sourceFilePath: filePath,
-        // Fix: use the user-visible name, not the internal region UUID
         regions: regions.map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
+        projectId: activeProject?.id,
       })
       await fetchSamples()
       toast(`${regions.length} chop${regions.length !== 1 ? 's' : ''} saved to Library`)

@@ -4,13 +4,14 @@ declare global {
   interface Window {
     api: {
       library: {
-        getSamples: (filters?: { bpm?: number; key?: string; tags?: string[] }) => Promise<Sample[]>
+        getSamples: (filters?: { bpm?: number; key?: string; tags?: string[]; projectId?: string }) => Promise<Sample[]>
         addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
         updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
         deleteSample: (id: string) => Promise<void>
         saveChops: (params: {
           sourceFilePath: string
           regions: Array<{ start: number; end: number; name: string }>
+          projectId?: string
         }) => Promise<Sample[]>
       }
       projects: {

@@ -11,6 +11,7 @@ type LibraryState = {
   samples: Sample[]
   searchQuery: string
   filters: Filters
+  projectFilter: string | null
   selectedSample: Sample | null
   isLoading: boolean
 
@@ -20,6 +21,7 @@ type LibraryState = {
   deleteSample: (id: string) => Promise<void>
   setSearchQuery: (query: string) => void
   setFilters: (filters: Filters) => void
+  setProjectFilter: (projectId: string | null) => void
   setSelectedSample: (sample: Sample | null) => void
 }
 
@@ -27,6 +29,7 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   samples: [],
   searchQuery: '',
   filters: {},
+  projectFilter: null,
   selectedSample: null,
   isLoading: false,
 
@@ -59,5 +62,6 @@ export const useLibraryStore = create<LibraryState>((set) => ({
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setFilters: (filters) => set({ filters }),
+  setProjectFilter: (projectFilter) => set({ projectFilter }),
   setSelectedSample: (selectedSample) => set({ selectedSample }),
 }))

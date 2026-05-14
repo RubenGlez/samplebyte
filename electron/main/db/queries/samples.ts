@@ -6,9 +6,10 @@ type SampleFilters = {
   key?: string
   tags?: string[]
   source?: string
+  projectId?: string
 }
 
-type NewSample = Pick<Sample, 'name' | 'filePath'> & Partial<Pick<Sample, 'duration' | 'bpm' | 'musicalKey' | 'tags' | 'source' | 'freesoundId' | 'waveformData'>>
+type NewSample = Pick<Sample, 'name' | 'filePath'> & Partial<Pick<Sample, 'duration' | 'bpm' | 'musicalKey' | 'tags' | 'source' | 'freesoundId' | 'waveformData' | 'projectId'>>
 
 function deserialize(row: Record<string, unknown>): Sample {
   return {
@@ -22,6 +23,7 @@ function deserialize(row: Record<string, unknown>): Sample {
     source: (row.source as Sample['source']) || 'local',
     freesoundId: row.freesound_id as string | null,
     waveformData: row.waveform_data ? JSON.parse(row.waveform_data as string) : null,
+    projectId: row.project_id as string | null,
     createdAt: row.created_at as number,
   }
 }
@@ -36,6 +38,7 @@ export function getAllSamples(filters?: SampleFilters): Sample[] {
     if (filters.key && sample.musicalKey !== filters.key) return false
     if (filters.tags?.length && !filters.tags.some((t) => sample.tags.includes(t))) return false
     if (filters.source && sample.source !== filters.source) return false
+    if (filters.projectId !== undefined && sample.projectId !== filters.projectId) return false
     return true
   })
 }
@@ -46,8 +49,8 @@ export function addSample(data: NewSample): Sample {
   const createdAt = Date.now()
 
   db.prepare(`
-    INSERT INTO samples (id, name, file_path, duration, bpm, musical_key, tags, source, freesound_id, waveform_data, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO samples (id, name, file_path, duration, bpm, musical_key, tags, source, freesound_id, waveform_data, project_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     data.name,
@@ -59,6 +62,7 @@ export function addSample(data: NewSample): Sample {
     data.source ?? 'local',
     data.freesoundId ?? null,
     data.waveformData ? JSON.stringify(data.waveformData) : null,
+    data.projectId ?? null,
     createdAt
   )
 
@@ -83,5 +87,7 @@ export function updateSample(id: string, data: Partial<Pick<Sample, 'name' | 'bp
 }
 
 export function deleteSample(id: string): void {
-  getDb().prepare('DELETE FROM samples WHERE id = ?').run(id)
+  const db = getDb()
+  db.prepare('DELETE FROM pack_slots WHERE sample_id = ?').run(id)
+  db.prepare('DELETE FROM samples WHERE id = ?').run(id)
 }

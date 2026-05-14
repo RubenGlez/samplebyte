@@ -1,24 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search, Trash2, Play, Square, Pencil } from 'lucide-react'
+import { Search, Trash2, Play, Square, Pencil, FolderOpen } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
+import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
-import type { Sample } from '@/types'
+import type { Sample, Project } from '@/types'
 
 export default function LibraryView() {
-  const { samples, searchQuery, isLoading, fetchSamples, deleteSample, updateSample, setSearchQuery } = useLibraryStore()
+  const { samples, searchQuery, projectFilter, isLoading, fetchSamples, deleteSample, updateSample, setSearchQuery, setProjectFilter } = useLibraryStore()
+  const { projects, fetchProjects } = useProjectsStore()
   const { toast } = useToastStore()
   const [playingId, setPlayingId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     fetchSamples()
-  }, [fetchSamples])
+    fetchProjects()
+  }, [fetchSamples, fetchProjects])
 
-  const filtered = samples.filter((s) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))
+
+  const filtered = samples.filter((s) => {
+    if (!s.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    if (projectFilter === '__none__' && s.projectId !== null) return false
+    if (projectFilter !== null && projectFilter !== '__none__' && s.projectId !== projectFilter) return false
+    return true
+  })
 
   const togglePlay = (sample: Sample) => {
     if (playingId === sample.id) {
@@ -53,7 +61,7 @@ export default function LibraryView() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex items-center gap-4 px-6 py-4 border-b border-border shrink-0">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-border shrink-0">
         <div className="relative flex-1 max-w-sm">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
           <input
@@ -63,6 +71,24 @@ export default function LibraryView() {
             className="w-full bg-surface border border-border rounded pl-9 pr-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
           />
         </div>
+
+        {projects.length > 0 && (
+          <div className="relative">
+            <FolderOpen size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+            <select
+              value={projectFilter ?? ''}
+              onChange={(e) => setProjectFilter(e.target.value || null)}
+              className="appearance-none bg-surface border border-border rounded pl-9 pr-6 h-8 text-sm text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
+            >
+              <option value="">All projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+              <option value="__none__">No project</option>
+            </select>
+          </div>
+        )}
+
         <span className="text-xs text-faint ml-auto" style={{ fontFamily: 'var(--font-family-mono)' }}>
           {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}
         </span>
@@ -72,8 +98,8 @@ export default function LibraryView() {
         <div className="flex-1 flex items-center justify-center text-faint text-sm">Loading…</div>
       ) : filtered.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-faint">
-          <p className="text-sm">{searchQuery ? 'No samples match your search.' : 'No samples yet.'}</p>
-          {!searchQuery && <p className="text-xs text-faint/70">Chop some audio and save to Library.</p>}
+          <p className="text-sm">{searchQuery || projectFilter ? 'No samples match your filters.' : 'No samples yet.'}</p>
+          {!searchQuery && !projectFilter && <p className="text-xs text-faint/70">Chop some audio and save to Library.</p>}
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-6">
@@ -82,6 +108,7 @@ export default function LibraryView() {
               <SampleCard
                 key={sample.id}
                 sample={sample}
+                project={sample.projectId ? projectsById[sample.projectId] : undefined}
                 isPlaying={playingId === sample.id}
                 onPlayToggle={() => togglePlay(sample)}
                 onDelete={(e) => handleDelete(sample, e)}
@@ -97,12 +124,14 @@ export default function LibraryView() {
 
 function SampleCard({
   sample,
+  project,
   isPlaying,
   onPlayToggle,
   onDelete,
   onRename,
 }: {
   sample: Sample
+  project: Project | undefined
   isPlaying: boolean
   onPlayToggle: () => void
   onDelete: (e: React.MouseEvent) => void
@@ -177,6 +206,12 @@ function SampleCard({
             </span>
           )}
         </div>
+        {project && (
+          <div className="mt-2 flex items-center gap-1 min-w-0">
+            <FolderOpen size={9} className="text-faint/60 shrink-0" />
+            <span className="text-[10px] text-faint/60 truncate">{project.name}</span>
+          </div>
+        )}
       </div>
 
       <button

@@ -9,6 +9,7 @@ export type Sample = {
   source: 'local' | 'freesound'
   freesoundId: string | null
   waveformData: number[] | null
+  projectId: string | null
   createdAt: number
 }
 

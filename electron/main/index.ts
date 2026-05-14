@@ -40,12 +40,18 @@ async function createWindow() {
   win = new BrowserWindow({
     title: 'SampleByte',
     icon: join(process.env.VITE_PUBLIC!, 'favicon.ico'),
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     webPreferences: {
       preload,
       contextIsolation: true,
       nodeIntegration: false,
     },
   })
+
+  win.maximize()
 
   if (url) {
     win.loadURL(url)

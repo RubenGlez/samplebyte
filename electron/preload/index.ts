@@ -3,7 +3,7 @@ import type { Sample, Pack, Project, ProjectRegion, ExportRegionsParams } from '
 
 contextBridge.exposeInMainWorld('api', {
   library: {
-    getSamples: (filters?: { bpm?: number; key?: string; tags?: string[] }): Promise<Sample[]> =>
+    getSamples: (filters?: { bpm?: number; key?: string; tags?: string[]; projectId?: string }): Promise<Sample[]> =>
       ipcRenderer.invoke('library:getSamples', filters),
 
     addSample: (data: { name: string; filePath: string; duration?: number }): Promise<Sample> =>
@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
     saveChops: (params: {
       sourceFilePath: string
       regions: Array<{ start: number; end: number; name: string }>
+      projectId?: string
     }): Promise<Sample[]> => ipcRenderer.invoke('library:saveChops', params),
   },
 

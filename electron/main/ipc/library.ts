@@ -26,7 +26,7 @@ function trimToWav(input: string, output: string, start: number, duration: numbe
 }
 
 export function registerLibraryHandlers(): void {
-  ipcMain.handle('library:getSamples', (_, filters?: { bpm?: number; key?: string; tags?: string[] }) => {
+  ipcMain.handle('library:getSamples', (_, filters?: { bpm?: number; key?: string; tags?: string[]; projectId?: string }) => {
     return samples.getAllSamples(filters)
   })
 
@@ -45,6 +45,7 @@ export function registerLibraryHandlers(): void {
   ipcMain.handle('library:saveChops', async (_, params: {
     sourceFilePath: string
     regions: Array<{ start: number; end: number; name: string }>
+    projectId?: string
   }) => {
     const samplesDir = path.join(app.getPath('userData'), 'samples')
     if (!fs.existsSync(samplesDir)) fs.mkdirSync(samplesDir, { recursive: true })
@@ -62,6 +63,7 @@ export function registerLibraryHandlers(): void {
         filePath: outputPath,
         duration: region.end - region.start,
         source: 'local',
+        projectId: params.projectId ?? null,
       })
 
       saved.push(sample)

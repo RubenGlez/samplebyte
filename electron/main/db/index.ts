@@ -59,4 +59,9 @@ function runMigrations(): void {
       created_at  INTEGER NOT NULL
     );
   `)
+
+  const sampleCols = (db.prepare('PRAGMA table_info(samples)').all() as { name: string }[]).map((c) => c.name)
+  if (!sampleCols.includes('project_id')) {
+    db.exec('ALTER TABLE samples ADD COLUMN project_id TEXT')
+  }
 }
