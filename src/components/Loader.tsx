@@ -1,10 +1,11 @@
-import { DragEvent, useEffect, useRef, useState, FormEvent } from 'react'
+import { DragEvent, useEffect, useState, FormEvent } from 'react'
 import { Search, Download, Play, Square, Loader2, Key } from 'lucide-react'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
 import { useFreesoundStore } from '@/stores/freesound'
 import { useToastStore } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
+import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { cn } from '@/lib/utils'
 import { formatTime, mimeTypeFromPath } from '@/utils'
 import type { FreesoundResult } from '@/types'
@@ -60,10 +61,9 @@ export default function Loader() {
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              'relative px-5 py-3 text-xs font-medium transition-colors bg-transparent border-0 cursor-pointer',
+              'relative px-5 py-3 text-xs font-medium transition-colors bg-transparent border-0 cursor-pointer font-brand',
               tab === t ? 'text-ink' : 'text-faint hover:text-muted'
             )}
-            style={{ fontFamily: 'var(--font-family-brand)' }}
           >
             {t === 'freesound' ? 'Freesound' : 'Local'}
             {tab === t && (
@@ -83,7 +83,7 @@ export default function Loader() {
         >
           {isDragging ? (
             <div className="absolute inset-0 rounded-b-lg border-2 border-dashed border-accent bg-accent/5 flex items-center justify-center pointer-events-none">
-              <p className="text-accent text-sm font-medium" style={{ fontFamily: 'var(--font-family-brand)' }}>Drop to load</p>
+              <p className="text-accent text-sm font-medium font-brand">Drop to load</p>
             </div>
           ) : (
             <>
@@ -103,7 +103,7 @@ export default function Loader() {
               </div>
               <div className="flex items-center gap-2">
                 {FORMATS.map((fmt) => (
-                  <span key={fmt} className="px-2 py-0.5 rounded bg-raised border border-border text-[10px] text-faint" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                  <span key={fmt} className="px-2 py-0.5 rounded bg-raised border border-border text-[10px] text-faint font-mono">
                     {fmt}
                   </span>
                 ))}
@@ -180,8 +180,7 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
         <button
           onClick={handleSave}
           disabled={!value.trim() || saving}
-          className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0"
-          style={{ fontFamily: 'var(--font-family-brand)' }}
+          className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 font-brand"
         >
           Save
         </button>
@@ -229,8 +228,7 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
         <button
           type="submit"
           disabled={!inputValue.trim() || isSearching}
-          className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 shrink-0"
-          style={{ fontFamily: 'var(--font-family-brand)' }}
+          className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 shrink-0 font-brand"
         >
           {isSearching && results.length === 0 ? <Loader2 size={12} className="animate-spin" /> : 'Search'}
         </button>
@@ -278,22 +276,11 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
 }
 
 function FreesoundRow({ sound, isDownloading, onDownload }: { sound: FreesoundResult; isDownloading: boolean; onDownload: () => void }) {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const { isPlaying, toggle } = useAudioPlayer(sound.previews['preview-hq-mp3'])
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isPlaying) {
-      audioRef.current?.pause()
-      setIsPlaying(false)
-      return
-    }
-    if (audioRef.current) audioRef.current.pause()
-    const audio = new Audio(sound.previews['preview-hq-mp3'])
-    audio.onended = () => setIsPlaying(false)
-    audio.play()
-    audioRef.current = audio
-    setIsPlaying(true)
+    toggle()
   }
 
   return (
@@ -311,7 +298,7 @@ function FreesoundRow({ sound, isDownloading, onDownload }: { sound: FreesoundRe
       <div className="flex-1 min-w-0">
         <p className="text-sm text-ink truncate leading-tight">{sound.name.replace(/\.[^.]+$/, '')}</p>
         <p className="text-[11px] text-faint mt-0.5 truncate">
-          <span style={{ fontFamily: 'var(--font-family-mono)' }}>{formatTime(sound.duration)}</span>
+          <span className="font-mono">{formatTime(sound.duration)}</span>
           <span className="mx-1.5 opacity-40">·</span>
           {sound.username}
           {sound.tags.slice(0, 3).length > 0 && (

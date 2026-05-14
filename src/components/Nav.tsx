@@ -22,10 +22,7 @@ export default function Nav() {
         )}
       >
         {sidebarOpen && (
-          <span
-            className="text-accent text-sm font-bold tracking-[0.15em] uppercase select-none"
-            style={{ fontFamily: 'var(--font-family-brand)' }}
-          >
+          <span className="text-accent text-sm font-bold tracking-[0.15em] uppercase select-none font-brand">
             SampleByte
           </span>
         )}
@@ -38,12 +35,11 @@ export default function Nav() {
             key={id}
             onClick={() => setView(id)}
             className={cn(
-              'relative flex items-center gap-2 px-4 text-xs font-medium tracking-wide uppercase transition-colors cursor-pointer border-0 bg-transparent',
+              'relative flex items-center gap-2 px-4 text-xs font-medium tracking-wide uppercase transition-colors cursor-pointer border-0 bg-transparent font-brand',
               currentView === id
                 ? 'text-ink'
                 : 'text-muted hover:text-ink'
             )}
-            style={{ fontFamily: 'var(--font-family-brand)' }}
           >
             <Icon size={13} strokeWidth={currentView === id ? 2 : 1.5} />
             {label}

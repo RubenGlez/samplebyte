@@ -15,10 +15,10 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
   return (
     <div className="px-5 pb-1">
       <div className="flex justify-between items-center px-2 py-1.5">
-        <span className="text-[10px] font-medium tracking-widest uppercase text-faint" style={{ fontFamily: 'var(--font-family-brand)' }}>
+        <span className="text-[10px] font-medium tracking-widest uppercase text-faint font-brand">
           Regions
         </span>
-        <span className="text-[10px] text-faint" style={{ fontFamily: 'var(--font-family-mono)' }}>
+        <span className="text-[10px] text-faint font-mono">
           {samples.length} chop{samples.length !== 1 ? 's' : ''}
         </span>
       </div>

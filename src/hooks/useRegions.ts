@@ -49,6 +49,8 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
   }, [])
 
   useEffect(() => {
+    // isConfigured ensures region listeners and drag-selection are registered once per WS instance.
+    // A new instance (after remount) starts with isConfigured=false so setup runs again cleanly.
     if (wavesurfer && !isConfigured.current) {
       wavesurfer.on('ready', () => {
         if (!regionsPlugin) return

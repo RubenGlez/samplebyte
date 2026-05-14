@@ -33,8 +33,7 @@ export function DialogContent({ children, className, ...props }: RadixDialog.Dia
 export function DialogTitle({ children, className, ...props }: RadixDialog.DialogTitleProps) {
   return (
     <RadixDialog.Title
-      className={cn('text-ink text-sm font-semibold mb-4 tracking-wide uppercase', className)}
-      style={{ fontFamily: 'var(--font-family-brand)' }}
+      className={cn('text-ink text-sm font-semibold mb-4 tracking-wide uppercase font-brand', className)}
       {...props}
     >
       {children}

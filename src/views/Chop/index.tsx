@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
 import Loader from '@/components/Loader'
-import Editor from '@/components/Editor'
+import AudioWaveform from '@/components/AudioWaveform'
 
 export default function ChopView() {
   const { audio } = usePlayerStore()
@@ -13,7 +13,20 @@ export default function ChopView() {
   }, [fetchProjects])
 
   if (audio) {
-    return <Editor name={audio.name} size={audio.size} type={audio.type} path={audio.path} filePath={audio.filePath} />
+    // key forces a full remount when the URL changes (e.g. blob→local-file://),
+    // resetting isConfigured.current in useWaveSurfer so a new WaveSurfer instance is created.
+    return (
+      <div className="h-full flex flex-col overflow-hidden">
+        <AudioWaveform
+          key={audio.path}
+          audioUrl={audio.path}
+          audioName={audio.name}
+          filePath={audio.filePath}
+          size={audio.size}
+          type={audio.type}
+        />
+      </div>
+    )
   }
 
   return (

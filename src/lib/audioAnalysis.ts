@@ -20,6 +20,8 @@ function pearsonCorrelation(a: number[], b: number[]): number {
   return denom === 0 ? 0 : num / denom
 }
 
+// BPM via autocorrelation of onset-strength envelope (energy RMS differences).
+// Lags covering 60–200 BPM are tested; the lag with the highest dot product wins.
 function detectBpm(mono: Float32Array, sampleRate: number): number {
   const HOP = 512
   const FRAME = 1024
@@ -58,6 +60,8 @@ function detectBpm(mono: Float32Array, sampleRate: number): number {
   return Math.round(bestBpm)
 }
 
+// Chroma via Goertzel DFT at each MIDI pitch (C2–B7), folded into 12 pitch classes.
+// Downsampled first so the per-pitch DFT stays fast even on long files.
 function extractChroma(mono: Float32Array, sampleRate: number): number[] {
   const limit = Math.min(mono.length, MAX_ANALYSIS_SECONDS * sampleRate)
 

@@ -33,10 +33,7 @@ export default function Sample({ sample, isSelected, index, initialName, onClick
       )}
       onClick={() => onClick(sample)}
     >
-      <span
-        className="text-[10px] tabular-nums shrink-0 w-5 text-right text-faint"
-        style={{ fontFamily: 'var(--font-family-mono)' }}
-      >
+      <span className="text-[10px] tabular-nums shrink-0 w-5 text-right text-faint font-mono">
         {String(index + 1).padStart(2, '0')}
       </span>
 
@@ -69,10 +66,7 @@ export default function Sample({ sample, isSelected, index, initialName, onClick
         </span>
       )}
 
-      <span
-        className="text-[11px] tabular-nums shrink-0 text-faint"
-        style={{ fontFamily: 'var(--font-family-mono)' }}
-      >
+      <span className="text-[11px] tabular-nums shrink-0 text-faint font-mono">
         {formatTime(duration)}
       </span>
 

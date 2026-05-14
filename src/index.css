@@ -1,6 +1,10 @@
 @import "tailwindcss/theme.css";
 @import "tailwindcss/utilities.css";
 
+@utility font-brand {
+  font-family: var(--font-family-brand);
+}
+
 @theme {
   --color-accent:         #FF5500;
   --color-accent-bright:  #FF7733;

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Search, ChevronDown, Download, FolderOpen } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
+import { useAudioPlayer } from '@/hooks/useAudioPlayer'
+import { FilterControls } from '@/components/FilterControls'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
 import { Button } from '@/components/ui/Button'
@@ -100,71 +102,18 @@ export default function PacksView() {
         {/* Library sidebar */}
         <aside className="w-52 shrink-0 border-r border-border flex flex-col bg-surface overflow-hidden">
           <div className="flex flex-col gap-2 px-2 pt-2 pb-2 border-b border-border shrink-0">
-            {/* Search */}
-            <div className="relative">
-              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="w-full bg-raised border border-border rounded pl-7 pr-2 h-7 text-xs text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
-              />
-            </div>
-            {/* Source filter */}
-            <div className="flex gap-1">
-              {(['all', 'local', 'freesound'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSourceFilter(s)}
-                  className={cn(
-                    'flex-1 h-6 rounded text-[10px] font-medium transition-colors bg-transparent border cursor-pointer capitalize',
-                    sourceFilter === s
-                      ? 'border-accent/40 text-accent bg-accent/10'
-                      : 'border-border text-faint hover:text-muted hover:border-border-bright'
-                  )}
-                  style={{ fontFamily: 'var(--font-family-brand)' }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            {/* Project filter */}
-            {projects.length > 0 && (
-              <div className="relative">
-                <FolderOpen size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-                <select
-                  value={projectFilter ?? ''}
-                  onChange={(e) => setProjectFilter(e.target.value || null)}
-                  className="w-full appearance-none bg-raised border border-border rounded pl-7 pr-5 h-7 text-xs text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
-                >
-                  <option value="">All projects</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                  <option value="__none__">No project</option>
-                </select>
-                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-              </div>
-            )}
-            {/* Tag filter */}
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {allTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={cn(
-                      'px-1.5 py-0.5 rounded text-[10px] transition-colors cursor-pointer border bg-transparent',
-                      activeTags.includes(tag)
-                        ? 'border-accent/40 text-accent bg-accent/10'
-                        : 'border-border text-faint hover:text-muted hover:border-border-bright'
-                    )}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            )}
+            <FilterControls
+              search={search}
+              onSearchChange={setSearch}
+              source={sourceFilter}
+              onSourceChange={setSourceFilter}
+              projects={projects}
+              projectFilter={projectFilter}
+              onProjectFilterChange={setProjectFilter}
+              allTags={allTags}
+              activeTags={activeTags}
+              onTagToggle={toggleTag}
+            />
           </div>
           <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-0.5">
             {samples.length === 0 ? (
@@ -188,9 +137,7 @@ export default function PacksView() {
               {currentPack ? (
                 <>
                   <span className="text-sm text-ink font-medium">{currentPack.name}</span>
-                  <span className="text-[11px] text-faint" style={{ fontFamily: 'var(--font-family-mono)' }}>
-                    {filledSlots}/16
-                  </span>
+                  <span className="text-[11px] text-faint font-mono">{filledSlots}/16</span>
                 </>
               ) : (
                 <span className="text-sm text-faint">No pack selected</span>
@@ -207,7 +154,7 @@ export default function PacksView() {
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
-                <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none text-[10px]">▾</span>
               </div>
               <Button
                 size="sm"
@@ -225,15 +172,10 @@ export default function PacksView() {
             {currentPack ? (
               <>
                 <div className="flex items-center gap-3 mb-2">
-                  <p
-                    className="text-xs text-faint tracking-widest uppercase"
-                    style={{ fontFamily: 'var(--font-family-brand)' }}
-                  >
+                  <p className="text-xs text-faint tracking-widest uppercase font-brand">
                     {currentPack.name}
                   </p>
-                  <span className="text-[10px] text-faint/60" style={{ fontFamily: 'var(--font-family-mono)' }}>
-                    {filledSlots}/16
-                  </span>
+                  <span className="text-[10px] text-faint/60 font-mono">{filledSlots}/16</span>
                 </div>
                 <div
                   className="grid grid-cols-4 gap-2"
@@ -297,10 +239,7 @@ function DraggableSample({ sample }: { sample: Sample }) {
     >
       <span className="flex-1 truncate font-medium">{sample.name}</span>
       {sample.duration != null && (
-        <span
-          className="text-faint tabular-nums shrink-0"
-          style={{ fontFamily: 'var(--font-family-mono)', fontSize: '10px' }}
-        >
+        <span className="text-faint tabular-nums shrink-0 font-mono text-[10px]">
           {formatTime(sample.duration)}
         </span>
       )}
@@ -308,40 +247,23 @@ function DraggableSample({ sample }: { sample: Sample }) {
   )
 }
 
-function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: { slotNumber: number; sample: Sample | null; onClear: () => void; isDraggingAny: boolean }) {
+function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: {
+  slotNumber: number
+  sample: Sample | null
+  onClear: () => void
+  isDraggingAny: boolean
+}) {
   const { isOver, setNodeRef } = useDroppable({ id: slotNumber })
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-
-  const handlePadPress = () => {
-    if (!sample) return
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    }
-    const audio = new Audio(`local-file://${sample.filePath}`)
-    audio.onended = () => setIsPlaying(false)
-    audio.play()
-    audioRef.current = audio
-    setIsPlaying(true)
-  }
-
-  const handlePadRelease = () => {
-    if (!audioRef.current) return
-    audioRef.current.pause()
-    audioRef.current.currentTime = 0
-    setIsPlaying(false)
-  }
+  const { isPlaying, play, stop } = useAudioPlayer(sample ? `local-file://${sample.filePath}` : null)
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
 
   return (
-    // Outer div owns the square shape only — no padding/flex so content can't stretch it
     <div
       ref={setNodeRef}
-      onPointerDown={handlePadPress}
-      onPointerUp={handlePadRelease}
-      onPointerLeave={handlePadRelease}
+      onPointerDown={play}
+      onPointerUp={stop}
+      onPointerLeave={stop}
       className={cn(
         'relative aspect-square rounded-lg border transition-all overflow-hidden',
         sample
@@ -353,14 +275,9 @@ function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: { slotNumber: n
         isDraggingAny && 'cursor-copy',
       )}
     >
-      {/* All content is absolutely positioned so it can never stretch the square */}
       <div className="absolute inset-0 p-2.5 flex flex-col justify-between">
-        {/* Top row: pad number + accent dot / clear */}
         <div className="flex items-start justify-between">
-          <span
-            className={cn('text-[10px] tabular-nums leading-none', sample ? 'text-accent/40' : 'text-faint/60')}
-            style={{ fontFamily: 'var(--font-family-mono)' }}
-          >
+          <span className={cn('text-[10px] tabular-nums leading-none font-mono', sample ? 'text-accent/40' : 'text-faint/60')}>
             {padLabel}
           </span>
           {sample && (
@@ -373,12 +290,11 @@ function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: { slotNumber: n
           )}
         </div>
 
-        {/* Bottom: sample info or empty hint */}
         {sample ? (
           <div className="flex flex-col gap-0.5 min-w-0">
             <p className="text-[11px] font-medium text-ink leading-tight truncate">{sample.name}</p>
             {sample.duration != null && (
-              <p className="text-[10px] text-accent/50 tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>
+              <p className="text-[10px] text-accent/50 tabular-nums font-mono">
                 {formatTime(sample.duration)}
               </p>
             )}

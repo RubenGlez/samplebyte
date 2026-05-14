@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Trash2, Play, Square, Pencil, FolderOpen, Tag, X } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
 import { useFilteredSamples } from '@/hooks/useFilteredSamples'
+import { useAudioPlayer } from '@/hooks/useAudioPlayer'
+import { useInlineRename } from '@/hooks/useInlineRename'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
+import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
 import type { Sample, Project } from '@/types'
@@ -13,8 +16,7 @@ export default function LibraryView() {
   const { isLoading, fetchSamples, deleteSample, updateSample, toggleTagFilter } = useLibraryStore()
   const { projects, fetchProjects } = useProjectsStore()
   const { toast } = useToastStore()
-  const [playingId, setPlayingId] = useState<string | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Sample | null>(null)
 
   useEffect(() => {
     fetchSamples()
@@ -24,26 +26,11 @@ export default function LibraryView() {
   const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))
   const filtered = useFilteredSamples()
 
-  const togglePlay = (sample: Sample) => {
-    if (playingId === sample.id) {
-      audioRef.current?.pause()
-      setPlayingId(null)
-      return
-    }
-    if (audioRef.current) audioRef.current.pause()
-    const audio = new Audio(`local-file://${sample.filePath}`)
-    audio.onended = () => setPlayingId(null)
-    audio.play()
-    audioRef.current = audio
-    setPlayingId(sample.id)
-  }
-
-  const handleDelete = async (sample: Sample, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!confirm(`Delete "${sample.name}"?`)) return
-    if (playingId === sample.id) { audioRef.current?.pause(); setPlayingId(null) }
-    await deleteSample(sample.id)
+  const handleDelete = async () => {
+    if (!pendingDelete) return
+    await deleteSample(pendingDelete.id)
     toast('Sample deleted', 'info')
+    setPendingDelete(null)
   }
 
   const handleRename = async (sample: Sample, name: string) => {
@@ -58,7 +45,6 @@ export default function LibraryView() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Body */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-faint text-sm">Loading…</div>
       ) : filtered.length === 0 ? (
@@ -74,9 +60,7 @@ export default function LibraryView() {
                 key={sample.id}
                 sample={sample}
                 project={sample.projectId ? projectsById[sample.projectId] : undefined}
-                isPlaying={playingId === sample.id}
-                onPlayToggle={() => togglePlay(sample)}
-                onDelete={(e) => handleDelete(sample, e)}
+                onDeleteRequest={() => setPendingDelete(sample)}
                 onRename={(name) => handleRename(sample, name)}
                 onTagsChange={(tags) => handleTagsChange(sample, tags)}
                 onTagClick={(tag) => toggleTagFilter(tag)}
@@ -85,35 +69,53 @@ export default function LibraryView() {
           </div>
         </div>
       )}
+
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null) }}>
+        <DialogContent>
+          <div className="flex items-center justify-between mb-4">
+            <DialogTitle>Delete sample?</DialogTitle>
+            <DialogClose asChild>
+              <button className="text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer transition-colors rounded">
+                <X size={14} />
+              </button>
+            </DialogClose>
+          </div>
+          <p className="text-sm text-muted mb-6">
+            "{pendingDelete?.name}" will be permanently removed from the library.
+          </p>
+          <div className="flex justify-end gap-2">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button
+              size="sm"
+              onClick={handleDelete}
+              className="bg-red-500/80 hover:bg-red-500 text-white border-0"
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 function SampleCard({
-  sample, project, isPlaying,
-  onPlayToggle, onDelete, onRename, onTagsChange, onTagClick,
+  sample, project,
+  onDeleteRequest, onRename, onTagsChange, onTagClick,
 }: {
   sample: Sample
   project: Project | undefined
-  isPlaying: boolean
-  onPlayToggle: () => void
-  onDelete: (e: React.MouseEvent) => void
+  onDeleteRequest: () => void
   onRename: (name: string) => void
   onTagsChange: (tags: string[]) => void
   onTagClick: (tag: string) => void
 }) {
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [draftName, setDraftName] = useState(sample.name)
+  const { isPlaying, toggle } = useAudioPlayer(`local-file://${sample.filePath}`)
+  const { isRenaming, draftName, inputRef, setDraftName, startRename, commitRename, cancelRename } =
+    useInlineRename(sample.name, onRename)
   const [isEditingTags, setIsEditingTags] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const commitRename = () => { setIsRenaming(false); onRename(draftName) }
-  const startRename = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setDraftName(sample.name)
-    setIsRenaming(true)
-    setTimeout(() => inputRef.current?.select(), 0)
-  }
 
   return (
     <>
@@ -122,7 +124,7 @@ function SampleCard({
           'group relative bg-surface border rounded-lg p-4 flex flex-col gap-3 cursor-pointer transition-all',
           isPlaying ? 'border-accent/30 bg-accent/5' : 'border-border hover:border-border-bright hover:bg-raised'
         )}
-        onClick={onPlayToggle}
+        onClick={toggle}
       >
         <div className={cn(
           'w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0',
@@ -138,7 +140,11 @@ function SampleCard({
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
               onBlur={commitRename}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setIsRenaming(false); e.stopPropagation() }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') cancelRename()
+                e.stopPropagation()
+              }}
               onClick={(e) => e.stopPropagation()}
               className="w-full bg-transparent border-0 border-b border-accent/50 outline-none text-sm text-ink font-medium py-0 px-0"
               autoFocus
@@ -149,17 +155,16 @@ function SampleCard({
 
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {sample.duration != null && (
-              <span className="text-[11px] text-faint tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>{formatTime(sample.duration)}</span>
+              <span className="text-[11px] text-faint tabular-nums font-mono">{formatTime(sample.duration)}</span>
             )}
             {sample.bpm != null && (
-              <span className="text-[10px] text-accent/70 tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>{Math.round(sample.bpm)} BPM</span>
+              <span className="text-[10px] text-accent/70 tabular-nums font-mono">{Math.round(sample.bpm)} BPM</span>
             )}
             {sample.musicalKey != null && (
-              <span className="text-[10px] text-accent/60" style={{ fontFamily: 'var(--font-family-mono)' }}>{sample.musicalKey}</span>
+              <span className="text-[10px] text-accent/60 font-mono">{sample.musicalKey}</span>
             )}
           </div>
 
-          {/* Tags */}
           <div className="flex flex-wrap items-center gap-1 mt-2">
             {sample.tags.slice(0, 3).map((tag) => (
               <button
@@ -184,7 +189,6 @@ function SampleCard({
             </button>
           </div>
 
-          {/* Project badge */}
           {project && (
             <div className="mt-2 flex items-center gap-1 min-w-0">
               <FolderOpen size={9} className="text-faint/60 shrink-0" />
@@ -193,17 +197,23 @@ function SampleCard({
           )}
         </div>
 
-        <button onClick={onDelete} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-faint hover:text-red-400 bg-transparent border-0 p-1 cursor-pointer rounded">
+        <button
+          onClick={(e) => { e.stopPropagation(); onDeleteRequest() }}
+          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-faint hover:text-red-400 bg-transparent border-0 p-1 cursor-pointer rounded"
+        >
           <Trash2 size={11} />
         </button>
-        <button onClick={startRename} className="absolute top-3 right-8 opacity-0 group-hover:opacity-100 transition-opacity text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer rounded" title="Rename">
+        <button
+          onClick={(e) => { e.stopPropagation(); startRename() }}
+          className="absolute top-3 right-8 opacity-0 group-hover:opacity-100 transition-opacity text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer rounded"
+          title="Rename"
+        >
           <Pencil size={11} />
         </button>
 
         {isPlaying && <span className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
       </div>
 
-      {/* Tag editing dialog */}
       <TagDialog
         sample={sample}
         open={isEditingTags}
@@ -255,7 +265,6 @@ function TagDialog({ sample, open, onOpenChange, onTagsChange }: {
           </DialogClose>
         </div>
 
-        {/* Existing tags */}
         <div className="flex flex-wrap gap-2 min-h-8 mb-4">
           {tags.length === 0
             ? <p className="text-xs text-faint/60">No tags yet.</p>
@@ -270,7 +279,6 @@ function TagDialog({ sample, open, onOpenChange, onTagsChange }: {
           }
         </div>
 
-        {/* Add tag input */}
         <div className="flex gap-2">
           <input
             value={input}
@@ -285,8 +293,7 @@ function TagDialog({ sample, open, onOpenChange, onTagsChange }: {
           <button
             onClick={() => addTag(input)}
             disabled={!input.trim()}
-            className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0"
-            style={{ fontFamily: 'var(--font-family-brand)' }}
+            className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 font-brand"
           >
             Add
           </button>

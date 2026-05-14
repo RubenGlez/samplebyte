@@ -73,6 +73,8 @@ app.whenReady().then(() => {
   // Serve local audio files to the renderer without cross-origin restrictions
   protocol.handle('local-file', (request) => {
     const filePath = decodeURIComponent(request.url.slice('local-file://'.length))
+    // pathToFileURL properly percent-encodes spaces and special chars (e.g. paths under
+    // "Application Support"). Plain `file://${filePath}` breaks on macOS userData paths.
     return net.fetch(pathToFileURL(filePath).href)
   })
 

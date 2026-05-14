@@ -14,6 +14,8 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
   const isConfigured = useRef(false);
 
   useEffect(() => {
+    // isConfigured guards against a second run of this effect when audioUrl changes — WS is only
+    // ever created once per mount. The parent must use key={url} to force a remount on URL changes.
     if (waveformRef.current && !isConfigured.current) {
       const wsInstance = WaveSurfer.create({
         container: waveformRef.current,

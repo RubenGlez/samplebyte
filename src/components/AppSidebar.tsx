@@ -1,8 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import {
-  ChevronLeft, ChevronRight, Pencil, Trash2, Copy,
-  FolderOpen, Search, ChevronDown,
-} from 'lucide-react'
+import { useState } from 'react'
+import { ChevronLeft, ChevronRight, Pencil, Trash2, Copy, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
 import { usePlayerStore } from '@/stores/player'
@@ -10,7 +7,9 @@ import { useProjectsStore } from '@/stores/projects'
 import { useLibraryStore } from '@/stores/library'
 import { usePacksStore } from '@/stores/packs'
 import { useFilteredSamples } from '@/hooks/useFilteredSamples'
+import { useInlineRename } from '@/hooks/useInlineRename'
 import { mimeTypeFromPath } from '@/utils'
+import { FilterControls } from '@/components/FilterControls'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -41,14 +40,10 @@ export default function AppSidebar() {
         </button>
 
         {sidebarOpen && (
-          <span
-            className="flex-1 text-[10px] font-medium tracking-widest uppercase text-faint select-none pl-1"
-            style={{ fontFamily: 'var(--font-family-brand)' }}
-          >
+          <span className="flex-1 text-[10px] font-medium tracking-widest uppercase text-faint select-none pl-1 font-brand">
             {labels[currentView]}
           </span>
         )}
-
       </div>
 
       {/* Body */}
@@ -123,22 +118,8 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
   onDuplicate: () => void
   onDelete: () => void
 }) {
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [draftName, setDraftName] = useState(project.name)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (isRenaming) {
-      setDraftName(project.name)
-      setTimeout(() => inputRef.current?.select(), 0)
-    }
-  }, [isRenaming, project.name])
-
-  const commitRename = () => {
-    setIsRenaming(false)
-    const trimmed = draftName.trim()
-    if (trimmed && trimmed !== project.name) onRename(trimmed)
-  }
+  const { isRenaming, draftName, inputRef, setDraftName, startRename, commitRename, cancelRename } =
+    useInlineRename(project.name, onRename)
 
   return (
     <li
@@ -159,7 +140,7 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
           onBlur={commitRename}
           onKeyDown={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); commitRename() }
-            if (e.key === 'Escape') setIsRenaming(false)
+            if (e.key === 'Escape') cancelRename()
             e.stopPropagation()
           }}
           onClick={(e) => e.stopPropagation()}
@@ -174,7 +155,7 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
 
       {!isRenaming && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <RowAction icon={Pencil} title="Rename" onClick={(e) => { e.stopPropagation(); setIsRenaming(true) }} />
+          <RowAction icon={Pencil} title="Rename" onClick={(e) => { e.stopPropagation(); startRename() }} />
           <RowAction icon={Copy} title="Duplicate" onClick={(e) => { e.stopPropagation(); onDuplicate() }} />
           <RowAction icon={Trash2} title="Delete" onClick={(e) => { e.stopPropagation(); onDelete() }} danger />
         </div>
@@ -192,98 +173,25 @@ function LibraryContent() {
 
   const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
   const activeTags = filters.tags ?? []
-  const activeSource = filters.source
+  const activeSource = (filters.source ?? 'all') as 'all' | 'local' | 'freesound'
 
   return (
-    <div className="flex flex-col gap-0 py-2">
-      {/* Search */}
-      <div className="px-2 mb-3">
-        <div className="relative">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search…"
-            className="w-full bg-raised border border-border rounded pl-8 pr-2 h-7 text-xs text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
-          />
-        </div>
-      </div>
-
-      <SidebarSection label="Source">
-        <div className="flex gap-1">
-          {(['all', 'local', 'freesound'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilters({ ...filters, source: s === 'all' ? undefined : s })}
-              className={cn(
-                'flex-1 h-6 rounded text-[10px] font-medium transition-colors bg-transparent border cursor-pointer capitalize',
-                (s === 'all' ? !activeSource : activeSource === s)
-                  ? 'border-accent/40 text-accent bg-accent/10'
-                  : 'border-border text-faint hover:text-muted hover:border-border-bright'
-              )}
-              style={{ fontFamily: 'var(--font-family-brand)' }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </SidebarSection>
-
-      {projects.length > 0 && (
-        <SidebarSection label="Project">
-          <div className="relative">
-            <FolderOpen size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-            <select
-              value={projectFilter ?? ''}
-              onChange={(e) => setProjectFilter(e.target.value || null)}
-              className="w-full appearance-none bg-raised border border-border rounded pl-7 pr-5 h-7 text-xs text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
-            >
-              <option value="">All projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-              <option value="__none__">No project</option>
-            </select>
-            <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-          </div>
-        </SidebarSection>
-      )}
-
-      {allTags.length > 0 && (
-        <SidebarSection label="Tags">
-          <div className="flex flex-wrap gap-1">
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => toggleTagFilter(tag)}
-                className={cn(
-                  'px-2 py-0.5 rounded text-[10px] transition-colors cursor-pointer border bg-transparent',
-                  activeTags.includes(tag)
-                    ? 'border-accent/40 text-accent bg-accent/10'
-                    : 'border-border text-faint hover:text-muted hover:border-border-bright'
-                )}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        </SidebarSection>
-      )}
-
-      <p className="px-3 mt-auto pt-4 text-[10px] text-faint/50" style={{ fontFamily: 'var(--font-family-mono)' }}>
+    <div className="flex flex-col gap-3 py-2 px-2">
+      <FilterControls
+        search={searchQuery}
+        onSearchChange={setSearchQuery}
+        source={activeSource}
+        onSourceChange={(s) => setFilters({ ...filters, source: s === 'all' ? undefined : s })}
+        projects={projects}
+        projectFilter={projectFilter}
+        onProjectFilterChange={setProjectFilter}
+        allTags={allTags}
+        activeTags={activeTags}
+        onTagToggle={toggleTagFilter}
+      />
+      <p className="text-[10px] text-faint/50 font-mono">
         {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}
       </p>
-    </div>
-  )
-}
-
-function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="px-2 mb-3">
-      <p className="text-[9px] font-medium tracking-widest uppercase text-faint/60 mb-1.5 px-0.5" style={{ fontFamily: 'var(--font-family-brand)' }}>
-        {label}
-      </p>
-      {children}
     </div>
   )
 }
@@ -355,22 +263,8 @@ function PackRow({ pack, isActive, onSelect, onRename, onDelete }: {
   onRename: (name: string) => void
   onDelete: () => void
 }) {
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [draftName, setDraftName] = useState(pack.name)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (isRenaming) {
-      setDraftName(pack.name)
-      setTimeout(() => inputRef.current?.select(), 0)
-    }
-  }, [isRenaming, pack.name])
-
-  const commitRename = () => {
-    setIsRenaming(false)
-    const trimmed = draftName.trim()
-    if (trimmed && trimmed !== pack.name) onRename(trimmed)
-  }
+  const { isRenaming, draftName, inputRef, setDraftName, startRename, commitRename, cancelRename } =
+    useInlineRename(pack.name, onRename)
 
   return (
     <li
@@ -390,7 +284,7 @@ function PackRow({ pack, isActive, onSelect, onRename, onDelete }: {
           onBlur={commitRename}
           onKeyDown={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); commitRename() }
-            if (e.key === 'Escape') setIsRenaming(false)
+            if (e.key === 'Escape') cancelRename()
             e.stopPropagation()
           }}
           onClick={(e) => e.stopPropagation()}
@@ -405,7 +299,7 @@ function PackRow({ pack, isActive, onSelect, onRename, onDelete }: {
 
       {!isRenaming && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <RowAction icon={Pencil} title="Rename" onClick={(e) => { e.stopPropagation(); setIsRenaming(true) }} />
+          <RowAction icon={Pencil} title="Rename" onClick={(e) => { e.stopPropagation(); startRename() }} />
           <RowAction icon={Trash2} title="Delete" onClick={(e) => { e.stopPropagation(); onDelete() }} danger />
         </div>
       )}

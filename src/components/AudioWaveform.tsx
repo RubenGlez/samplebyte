@@ -157,7 +157,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
             : <Play  size={11} fill="currentColor" className="translate-x-px" />
           }
         </button>
-        <span className="text-[10px] text-faint" style={{ fontFamily: 'var(--font-family-mono)' }}>
+        <span className="text-[10px] text-faint font-mono">
           {isPlaying ? 'Playing' : 'Paused'} · scroll to zoom
         </span>
       </div>
@@ -175,7 +175,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
       <div className="flex items-center gap-4 px-5 py-2.5 border-t border-border shrink-0">
         {([['Space', 'Play / Pause'], ['Enter', 'Play region'], ['⌫', 'Delete region']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded bg-raised border border-border-bright text-[10px] text-faint leading-none" style={{ fontFamily: 'var(--font-family-mono)' }}>
+            <kbd className="px-1.5 py-0.5 rounded bg-raised border border-border-bright text-[10px] text-faint leading-none font-mono">
               {key}
             </kbd>
             <span className="text-[10px] text-faint">{label}</span>

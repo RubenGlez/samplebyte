@@ -20,22 +20,22 @@ export default function CardHeader({ name, size, type, bpm, musicalKey, isAnalyz
       <div className="flex-1 min-w-0">
         <p className="text-sm text-ink font-medium truncate leading-none m-0">{name}</p>
         <div className="flex items-center gap-3 mt-2">
-          <p className="text-xs text-faint tabular-nums m-0" style={{ fontFamily: 'var(--font-family-mono)' }}>
+          <p className="text-xs text-faint tabular-nums m-0 font-mono">
             {humanizeAudioType(type)}
             {size > 0 && <span className="ml-3">{formatBytes(size)}</span>}
           </p>
           {isAnalyzing && (
-            <span className="text-[10px] text-faint/50 animate-pulse" style={{ fontFamily: 'var(--font-family-mono)' }}>
+            <span className="text-[10px] text-faint/50 animate-pulse font-mono">
               analyzing…
             </span>
           )}
           {!isAnalyzing && bpm != null && (
-            <span className="text-[10px] text-accent/70 tabular-nums" style={{ fontFamily: 'var(--font-family-mono)' }}>
+            <span className="text-[10px] text-accent/70 tabular-nums font-mono">
               {Math.round(bpm)} BPM
             </span>
           )}
           {!isAnalyzing && musicalKey != null && (
-            <span className="text-[10px] text-accent/70" style={{ fontFamily: 'var(--font-family-mono)' }}>
+            <span className="text-[10px] text-accent/70 font-mono">
               {musicalKey}
             </span>
           )}
