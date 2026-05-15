@@ -100,7 +100,34 @@ See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
 
 ---
 
-## Getting Started
+## Download
+
+Pre-built installers are available on the [Releases](https://github.com/RubenGlez/samplebyte/releases) page.
+
+| Platform | File |
+|---|---|
+| macOS | `.dmg` |
+| Windows | `.exe` (NSIS installer) |
+
+### macOS — "App is damaged" or "unidentified developer"
+
+SampleByte is not notarized. macOS will block it on first launch. To open it:
+
+1. Open the `.dmg` and drag SampleByte to Applications as usual
+2. When macOS blocks the app, go to **System Settings → Privacy & Security** and click **Open Anyway**
+
+Or run once in Terminal:
+```bash
+xattr -cr /Applications/SampleByte.app
+```
+
+### Windows — SmartScreen warning
+
+Windows may show a "Windows protected your PC" warning because the app is unsigned. Click **More info → Run anyway** to proceed.
+
+---
+
+## Getting Started (from source)
 
 ### Prerequisites
 
