@@ -126,11 +126,31 @@ function SampleCard({
         )}
         onClick={toggle}
       >
-        <div className={cn(
-          'w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0',
-          isPlaying ? 'bg-accent text-[#0A0806]' : 'bg-raised border border-border text-faint group-hover:border-border-bright group-hover:text-muted'
-        )}>
-          {isPlaying ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            'w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0',
+            isPlaying ? 'bg-accent text-[#0A0806]' : 'bg-raised border border-border text-faint group-hover:border-border-bright group-hover:text-muted'
+          )}>
+            {isPlaying ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+          </div>
+          {sample.waveformData && (
+            <svg viewBox="0 0 100 100" className="flex-1 h-7" preserveAspectRatio="none">
+              {sample.waveformData.map((v, i) => {
+                const barW = 100 / sample.waveformData!.length
+                const h = Math.max(2, v * 100)
+                return (
+                  <rect
+                    key={i}
+                    x={i * barW + 0.1}
+                    width={barW - 0.2}
+                    y={50 - h / 2}
+                    height={h}
+                    className={isPlaying ? 'fill-accent' : 'fill-accent/30'}
+                  />
+                )
+              })}
+            </svg>
+          )}
         </div>
 
         <div className="flex-1 min-w-0">
