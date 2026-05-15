@@ -26,6 +26,16 @@ export const useZoom = ({ wavesurfer, waveformRef }: UseZoomProps) => {
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       if (!wavesurfer) return
+
+      // Horizontal pan when zoomed: trackpad sideways, or Shift+scroll on a mouse wheel
+      const panDelta = e.shiftKey ? e.deltaY : e.deltaX
+      const isHorizontalGesture = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)
+      if (isHorizontalGesture && panDelta !== 0) {
+        e.preventDefault()
+        wavesurfer.setScroll(wavesurfer.getScroll() + panDelta)
+        return
+      }
+
       e.preventDefault()
 
       const container = waveformRef.current

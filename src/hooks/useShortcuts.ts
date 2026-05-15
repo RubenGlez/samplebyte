@@ -18,7 +18,7 @@ export const useShortcuts = ({
     selectedRegion?.remove();
   }, [selectedRegion]);
   const handlePressEnter = useCallback(() => {
-    selectedRegion?.play();
+    selectedRegion?.play(true);
   }, [selectedRegion]);
   const handlePressEscape = useCallback(() => {}, []);
   const handlePressSpace = useCallback(() => {

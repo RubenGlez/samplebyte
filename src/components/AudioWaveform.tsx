@@ -32,7 +32,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
   const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
 
   const { waveformRef, wavesurfer, isPlaying } = useWavesurfer({ audioUrl })
-  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, autoChop } = useRegions({
+  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, autoChop, clearAllRegions } = useRegions({
     wavesurfer,
     initialRegions: activeProject?.regions,
   })
@@ -180,7 +180,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
           }
         </button>
         <span className="text-[11px] text-faint/70 flex-1 select-none">
-          {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom
+          {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom, shift+scroll or swipe sideways to pan
         </span>
 
         {/* Auto-chop controls */}
@@ -214,6 +214,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
           regionNames={regionNames}
           onClick={handleSelectRegion}
           onNameChange={updateRegionName}
+          onClearAll={clearAllRegions}
         />
       </div>
 
