@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 320px;
+      height: 360px;
+      background: #1c1c1e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif;
+      -webkit-app-region: drag;
+      opacity: 0;
+      animation: fadeIn 0.25s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+
+    img {
+      width: 128px;
+      height: 128px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .wordmark {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.87);
+      letter-spacing: -0.3px;
+      user-select: none;
+    }
+
+    p {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.28);
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <img src="./icon.png" alt="SampleByte">
+  <div class="wordmark">
+    <h1>SampleByte</h1>
+    <p>A producer's sample workstation</p>
+  </div>
+</body>
+</html>

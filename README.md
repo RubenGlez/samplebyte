@@ -1,5 +1,9 @@
 # SampleByte
 
+<p align="center">
+  <img src="public/icon.png" width="128" alt="SampleByte" />
+</p>
+
 > A producer's sample workstation for hardware instruments.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubenglez)

@@ -39,9 +39,21 @@ const url = process.env.VITE_DEV_SERVER_URL
 const indexHtml = join(process.env.DIST, 'index.html')
 
 async function createWindow() {
+  const splash = new BrowserWindow({
+    width: 320,
+    height: 360,
+    frame: false,
+    backgroundColor: '#1c1c1e',
+    resizable: false,
+    center: true,
+    skipTaskbar: true,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  })
+  splash.loadFile(join(process.env.VITE_PUBLIC!, 'splash.html'))
+
   win = new BrowserWindow({
     title: 'SampleByte',
-    icon: join(process.env.VITE_PUBLIC!, 'favicon.ico'),
+    icon: join(process.env.VITE_PUBLIC!, 'icon.png'),
     width: 1280,
     height: 800,
     minWidth: 900,
@@ -49,6 +61,7 @@ async function createWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 14 },
     backgroundColor: '#1c1c1e',
+    show: false,
     webPreferences: {
       preload,
       contextIsolation: true,
@@ -56,13 +69,22 @@ async function createWindow() {
     },
   })
 
-  win.maximize()
-
   if (url) {
     win.loadURL(url)
   } else {
     win.loadFile(indexHtml)
   }
+
+  const splashShownAt = Date.now()
+  win.once('ready-to-show', () => {
+    const elapsed = Date.now() - splashShownAt
+    const remaining = Math.max(0, 1400 - elapsed)
+    setTimeout(() => {
+      splash.destroy()
+      win?.maximize()
+      win?.show()
+    }, remaining)
+  })
 
   win.webContents.setWindowOpenHandler(({ url: openUrl }) => {
     if (openUrl.startsWith('https:')) shell.openExternal(openUrl)
