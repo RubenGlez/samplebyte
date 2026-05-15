@@ -114,9 +114,9 @@ Pre-built installers are available on the [Releases](https://github.com/RubenGle
 SampleByte is not notarized. macOS will block it on first launch. To open it:
 
 1. Open the `.dmg` and drag SampleByte to Applications as usual
-2. When macOS blocks the app, go to **System Settings → Privacy & Security** and click **Open Anyway**
+2. **Right-click** (or Control+click) the app and select **Open** — macOS will show a warning with an "Open" button this time, click it
 
-Or run once in Terminal:
+If that doesn't work, go to **System Settings → Privacy & Security** and click **Open Anyway**, or run once in Terminal:
 ```bash
 xattr -cr /Applications/SampleByte.app
 ```
