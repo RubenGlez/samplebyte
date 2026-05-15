@@ -1,8 +1,8 @@
-# SampleByte
-
 <p align="center">
   <img src="public/icon.png" width="128" alt="SampleByte" />
 </p>
+
+# SampleByte
 
 > A producer's sample workstation for hardware instruments.
 
