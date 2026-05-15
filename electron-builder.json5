@@ -36,6 +36,6 @@
     provider: "github",
     owner: "RubenGlez",
     repo: "samplebyte",
-    releaseType: "release",
+    releaseType: "draft",
   },
 }
