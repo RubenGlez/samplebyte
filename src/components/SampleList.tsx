@@ -13,13 +13,13 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
   if (!samples.length) return null
 
   return (
-    <div className="px-5 pb-1">
-      <div className="flex justify-between items-center px-2 py-1.5">
-        <span className="text-[10px] font-medium tracking-widest uppercase text-faint font-brand">
+    <div className="px-4 pb-2">
+      <div className="flex justify-between items-center px-1 py-2">
+        <span className="text-[11px] font-semibold text-faint tracking-wide select-none">
           Regions
         </span>
-        <span className="text-[10px] text-faint font-mono">
-          {samples.length} chop{samples.length !== 1 ? 's' : ''}
+        <span className="text-[11px] text-faint/60 font-mono select-none">
+          {samples.length} {samples.length === 1 ? 'chop' : 'chops'}
         </span>
       </div>
       <ul className="list-none flex flex-col m-0 p-0">

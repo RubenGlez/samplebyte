@@ -46,6 +46,9 @@ async function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 14 },
+    backgroundColor: '#1c1c1e',
     webPreferences: {
       preload,
       contextIsolation: true,

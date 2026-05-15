@@ -54,23 +54,24 @@ export default function Loader() {
 
   return (
     <CardRoot>
-      {/* Tab bar */}
-      <div className="flex border-b border-border bg-raised">
-        {(['local', 'freesound'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              'relative px-5 py-3 text-xs font-medium transition-colors bg-transparent border-0 cursor-pointer font-brand',
-              tab === t ? 'text-ink' : 'text-faint hover:text-muted'
-            )}
-          >
-            {t === 'freesound' ? 'Freesound' : 'Local'}
-            {tab === t && (
-              <span className="absolute bottom-0 left-0 right-0 h-px bg-accent" />
-            )}
-          </button>
-        ))}
+      {/* Source tab bar — segmented control style */}
+      <div className="flex items-center gap-px px-4 py-3 border-b border-border bg-surface shrink-0">
+        <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
+          {(['local', 'freesound'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                'h-[24px] px-4 rounded-[4px] text-[12px] font-medium transition-all cursor-pointer border-0',
+                tab === t
+                  ? 'bg-[rgba(255,255,255,0.12)] text-ink'
+                  : 'text-faint/70 hover:text-muted bg-transparent'
+              )}
+            >
+              {t === 'freesound' ? 'Freesound' : 'Local'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === 'local' ? (
@@ -82,28 +83,27 @@ export default function Loader() {
           onDrop={handleDrop}
         >
           {isDragging ? (
-            <div className="absolute inset-0 rounded-b-lg border-2 border-dashed border-accent bg-accent/5 flex items-center justify-center pointer-events-none">
-              <p className="text-accent text-sm font-medium font-brand">Drop to load</p>
+            <div className="absolute inset-0 rounded-b-xl border-2 border-dashed border-accent bg-accent/5 flex items-center justify-center pointer-events-none">
+              <p className="text-accent text-[13px] font-medium">Drop to load</p>
             </div>
           ) : (
             <>
-              <div className="w-14 h-14 rounded-xl bg-raised border border-border-bright flex items-center justify-center">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted">
+              <div className="w-14 h-14 rounded-xl bg-raised border border-border flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="text-muted">
                   <path d="M9 18V5l12-2v13" />
                   <circle cx="6" cy="18" r="3" />
                   <circle cx="18" cy="16" r="3" />
                 </svg>
               </div>
               <div className="flex flex-col items-center gap-1.5 text-center">
-                <p className="text-sm text-ink font-medium m-0">Drop an audio file here</p>
-                <p className="text-xs text-faint m-0">or</p>
-                <button onClick={handlePickFile} className="text-accent hover:text-accent-bright text-xs font-medium underline underline-offset-2 cursor-pointer bg-transparent border-0 p-0 transition-colors">
-                  Browse files
+                <p className="text-[13px] text-ink font-medium m-0">Drop an audio file</p>
+                <button onClick={handlePickFile} className="text-accent hover:text-accent-bright text-[12px] font-medium underline underline-offset-2 cursor-pointer bg-transparent border-0 p-0 transition-colors">
+                  Browse files…
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {FORMATS.map((fmt) => (
-                  <span key={fmt} className="px-2 py-0.5 rounded bg-raised border border-border text-[10px] text-faint font-mono">
+                  <span key={fmt} className="px-1.5 py-0.5 rounded bg-raised border border-border text-[10px] text-faint/70 font-mono">
                     {fmt}
                   </span>
                 ))}
@@ -180,7 +180,7 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
         <button
           onClick={handleSave}
           disabled={!value.trim() || saving}
-          className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 font-brand"
+          className="px-3 h-8 rounded-md bg-accent text-white text-[12px] font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0"
         >
           Save
         </button>
@@ -228,7 +228,7 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
         <button
           type="submit"
           disabled={!inputValue.trim() || isSearching}
-          className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 shrink-0 font-brand"
+          className="px-3 h-8 rounded-md bg-accent text-white text-[12px] font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 shrink-0"
         >
           {isSearching && results.length === 0 ? <Loader2 size={12} className="animate-spin" /> : 'Search'}
         </button>
