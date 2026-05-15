@@ -8,12 +8,12 @@ This is a phased plan ordered by dependency and user impact. Each phase produces
 
 The plumbing everything else builds on. No new user-facing features, but the existing code becomes stable and maintainable.
 
-- [ ] Replace `ipcMain.on`/`event.sender.send` pattern with `ipcMain.handle`/`ipcRenderer.invoke` across all IPC channels
-- [ ] Typed contextBridge in preload (replace the current stringly-typed `send`/`receive` API)
-- [ ] Set up `better-sqlite3` with migrations (samples, packs, pack_slots, projects tables)
-- [ ] Set up Zustand stores (player, library, packs)
-- [ ] Remove `ytdl-core` and all YouTube-related code
-- [ ] Upgrade Tailwind to v4, add shadcn/ui
+- [x] Replace `ipcMain.on`/`event.sender.send` pattern with `ipcMain.handle`/`ipcRenderer.invoke` across all IPC channels
+- [x] Typed contextBridge in preload (replace the current stringly-typed `send`/`receive` API)
+- [x] Set up `better-sqlite3` with migrations (samples, packs, pack_slots, projects tables)
+- [x] Set up Zustand stores (player, library, packs)
+- [x] Remove `ytdl-core` and all YouTube-related code
+- [x] Upgrade Tailwind to v4, add shadcn/ui
 
 **Exit criteria:** The app loads, plays audio, and saves regions. No YouTube. No crashes from listener leaks.
 
@@ -24,31 +24,31 @@ The plumbing everything else builds on. No new user-facing features, but the exi
 The full three-view workflow from audio in to hardware pack out.
 
 ### Chop view
-- [ ] SourcePicker — drag local file or search Freesound (search UI, not download yet)
-- [ ] WaveformEditor with region creation, naming, deletion
-- [ ] RegionList with editable names and duration display
-- [ ] Save regions as samples to the library (IPC → SQLite)
-- [ ] Project save/load (reopen a session and its source audio)
+- [x] SourcePicker — drag local file or search Freesound (search UI, not download yet)
+- [x] WaveformEditor with region creation, naming, deletion
+- [x] RegionList with editable names and duration display
+- [x] Save regions as samples to the library (IPC → SQLite)
+- [x] Project save/load (reopen a session and its source audio)
 
 ### Library view
-- [ ] SampleGrid — browse all saved samples
-- [ ] Click to preview (inline waveform or just audio playback)
-- [ ] Search by name
-- [ ] Filter by tags
-- [ ] Delete sample
+- [x] SampleGrid — browse all saved samples
+- [x] Click to preview (inline waveform + audio playback)
+- [x] Search by name
+- [x] Filter by tags
+- [x] Delete sample
 
 ### Packs view
-- [ ] PadGrid — visual 4×4 layout
-- [ ] Drag sample from Library onto a pad slot
-- [ ] Hardware profile picker (Maschine MK3, SP-404 MkII, MPC, Generic)
-- [ ] Export pack — ffmpeg trims + resamples each slot, writes named files to chosen output folder
-- [ ] Save/load named packs
+- [x] PadGrid — visual 4×4 layout
+- [x] Drag sample from Library onto a pad slot
+- [x] Hardware profile picker (Maschine MK3, SP-404 MkII, MPC, Generic)
+- [x] Export pack — ffmpeg trims + resamples each slot, writes named files to chosen output folder
+- [x] Save/load named packs
 
 ### Freesound integration
-- [ ] Search with query and pagination
-- [ ] Preview audio in app before downloading
-- [ ] Download to local cache, add to library automatically
-- [ ] Store `freesound_id` on sample for attribution
+- [x] Search with query and pagination
+- [x] Preview audio in app before downloading
+- [x] Download to local cache, add to library automatically
+- [x] Store `freesound_id` on sample for attribution
 
 **Exit criteria:** A producer can load a local audio file, chop it, save the chops, build a 16-pad pack, and export hardware-ready WAV files. End-to-end workflow complete.
 
