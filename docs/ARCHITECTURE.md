@@ -11,14 +11,14 @@ This document covers the technical decisions, structure, and conventions for Sam
 | Layer | Choice | Rationale |
 |---|---|---|
 | Desktop runtime | **Electron** | Heavy native ops (ffmpeg, SQLite, file dialogs) are seamless via Node.js. Tauri would add Rust complexity for no real benefit here. |
-| UI framework | **React 18 + TypeScript** | Ecosystem, tooling, WaveSurfer.js integration |
+| UI framework | **React 19 + TypeScript** | Ecosystem, tooling, WaveSurfer.js integration |
 | Build | **Vite + vite-plugin-electron** | Fast HMR, clean ESM output |
 | Styling | **Tailwind CSS v4 + shadcn/ui** | Utility-first + headless accessible components |
 | State | **Zustand** | Minimal boilerplate, no context prop drilling, TypeScript-native |
 | Database | **better-sqlite3** | Synchronous SQLite — right for a desktop library with thousands of local files |
 | Waveform | **WaveSurfer.js** | Best-in-class browser waveform with regions plugin |
 | Audio processing | **fluent-ffmpeg** | Trim, convert, resample via ffmpeg subprocess |
-| Audio analysis | **essentia.js** (WASM) | BPM and key detection running in the renderer, offline, no server needed |
+| Audio analysis | **Custom Web Audio API** | BPM detection (autocorrelation) and key detection (Krumhansl-Schmuckler profiles) — offline, no dependencies |
 | Audio sources | Local files + **Freesound API** | Legal, high-quality, 650k+ Creative Commons sounds |
 
 ### What we removed and why
@@ -70,61 +70,60 @@ samplebyte/
 ├── electron/
 │   ├── main/
 │   │   ├── index.ts            # app bootstrap, BrowserWindow creation
+│   │   ├── update.ts           # electron-updater auto-update logic
 │   │   ├── db/
 │   │   │   ├── index.ts        # better-sqlite3 init + migrations
 │   │   │   └── queries/
 │   │   │       ├── samples.ts  # sample CRUD
 │   │   │       ├── packs.ts    # pack + pack_slots CRUD
 │   │   │       └── projects.ts # project CRUD
-│   │   ├── ipc/
-│   │   │   ├── audio.ts        # audio:export, audio:peaks
-│   │   │   ├── library.ts      # library:getSamples, addSample, etc.
-│   │   │   ├── filesystem.ts   # fs:pickFile, fs:pickFolder
-│   │   │   ├── freesound.ts    # freesound:search, freesound:download
-│   │   │   └── packs.ts        # packs:create, packs:export
 │   │   ├── hardware/
 │   │   │   └── profiles.ts     # hardware export profile definitions
-│   │   └── services/
-│   │       └── export.ts       # ffmpeg orchestration per hardware profile
+│   │   └── ipc/
+│   │       ├── audio.ts        # audio:exportRegions
+│   │       ├── filesystem.ts   # fs:pickFile, fs:pickFolder
+│   │       ├── freesound.ts    # freesound:search, freesound:download
+│   │       ├── library.ts      # library:getSamples, saveChops, etc.
+│   │       ├── packs.ts        # packs:create, upsertSlot, export, etc.
+│   │       └── settings.ts     # settings:get, settings:set
 │   └── preload/
 │       └── index.ts            # typed contextBridge
 │
 └── src/
+    ├── views/
+    │   ├── Chop/index.tsx      # waveform editor, region creation, save to library
+    │   ├── Library/index.tsx   # sample grid, search, filters, preview
+    │   └── Packs/index.tsx     # 4×4 pad grid, hardware profile picker, export
+    ├── components/             # shared UI components
+    │   ├── AudioWaveform.tsx   # WaveSurfer wrapper + region controls
+    │   ├── Loader.tsx          # source picker (local file + Freesound search)
+    │   ├── SampleList.tsx      # region list with editable names
+    │   ├── FilterControls.tsx  # library search and tag filters
+    │   ├── Card/               # generic card primitives
+    │   └── ui/                 # headless primitives (Button, Dialog, Input, Toaster)
+    ├── hooks/
+    │   ├── useWaveSurfer.ts    # WaveSurfer instance lifecycle
+    │   ├── useRegions.ts       # region CRUD on the waveform
+    │   ├── useAudioAnalysis.ts # BPM + key detection via Web Audio API
+    │   ├── useAudioPlayer.ts   # simple play/pause for library preview
+    │   ├── useFilteredSamples.ts
+    │   ├── useInlineRename.ts
+    │   ├── useShortcuts.ts
+    │   └── useZoom.ts
     ├── stores/
     │   ├── player.ts           # current audio, regions, playback state
-    │   ├── library.ts          # sample list, search query, filters
-    │   └── packs.ts            # current pack being built, hardware profile
-    ├── views/
-    │   ├── Chop/
-    │   │   ├── index.tsx
-    │   │   ├── WaveformEditor.tsx
-    │   │   ├── RegionList.tsx
-    │   │   └── SourcePicker.tsx    # drag file or search Freesound
-    │   ├── Library/
-    │   │   ├── index.tsx
-    │   │   ├── SampleGrid.tsx
-    │   │   ├── SampleCard.tsx
-    │   │   └── Filters.tsx
-    │   └── Packs/
-    │       ├── index.tsx
-    │       ├── PadGrid.tsx         # 4×4 visual pad layout
-    │       ├── PadSlot.tsx
-    │       └── ExportDialog.tsx
-    ├── components/                 # shared UI primitives (shadcn/ui based)
-    │   ├── Button.tsx
-    │   ├── Dialog.tsx
-    │   ├── Input.tsx
-    │   └── Tag.tsx
-    ├── hooks/
-    │   ├── useWavesurfer.ts
-    │   ├── useRegions.ts
-    │   ├── useKeyboard.ts
-    │   ├── useZoom.ts
-    │   └── useAnalysis.ts          # essentia.js BPM + key detection
-    └── lib/
-        ├── ipc.ts                  # typed invoke wrappers (thin client layer)
-        ├── freesound.ts            # Freesound API client
-        └── format.ts               # audio format utilities
+    │   ├── library.ts          # sample list, search query, tag filters
+    │   ├── packs.ts            # current pack, pad slots, hardware profile
+    │   ├── projects.ts         # saved chop sessions
+    │   ├── freesound.ts        # Freesound search state and API key
+    │   ├── ui.ts               # active view, sidebar state
+    │   └── toast.ts            # ephemeral notifications
+    ├── lib/
+    │   ├── audioAnalysis.ts    # BPM (autocorrelation) + key (K-S profiles) algorithms
+    │   └── utils.ts            # cn(), shared utilities
+    └── types/
+        ├── global.d.ts         # window.api type declarations
+        └── index.ts            # shared frontend types
 ```
 
 ---
@@ -155,27 +154,45 @@ const samples = await window.api.library.getSamples({ bpm: 120 })
 // preload — one definition per operation
 contextBridge.exposeInMainWorld('api', {
   library: {
-    getSamples:   (filters?) => ipcRenderer.invoke('library:getSamples', filters),
-    addSample:    (path)     => ipcRenderer.invoke('library:addSample', path),
-    updateSample: (id, data) => ipcRenderer.invoke('library:updateSample', id, data),
-    deleteSample: (id)       => ipcRenderer.invoke('library:deleteSample', id),
+    getSamples:   (filters?)    => ipcRenderer.invoke('library:getSamples', filters),
+    addSample:    (data)        => ipcRenderer.invoke('library:addSample', data),
+    updateSample: (id, data)    => ipcRenderer.invoke('library:updateSample', id, data),
+    deleteSample: (id)          => ipcRenderer.invoke('library:deleteSample', id),
+    saveChops:    (params)      => ipcRenderer.invoke('library:saveChops', params),
+  },
+  projects: {
+    getAll:    ()           => ipcRenderer.invoke('projects:getAll'),
+    get:       (id)         => ipcRenderer.invoke('projects:get', id),
+    save:      (data)       => ipcRenderer.invoke('projects:save', data),
+    update:    (id, data)   => ipcRenderer.invoke('projects:update', id, data),
+    delete:    (id)         => ipcRenderer.invoke('projects:delete', id),
+    duplicate: (id)         => ipcRenderer.invoke('projects:duplicate', id),
   },
   audio: {
-    exportRegions:   (params) => ipcRenderer.invoke('audio:exportRegions', params),
-    getWaveformData: (path)   => ipcRenderer.invoke('audio:getWaveformData', path),
+    exportRegions: (params) => ipcRenderer.invoke('audio:exportRegions', params),
   },
   fs: {
     pickFile:   () => ipcRenderer.invoke('fs:pickFile'),
     pickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
   },
+  settings: {
+    get: (key)        => ipcRenderer.invoke('settings:get', key),
+    set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  },
   freesound: {
-    search:   (query, page?) => ipcRenderer.invoke('freesound:search', query, page),
-    download: (id, destDir)  => ipcRenderer.invoke('freesound:download', id, destDir),
+    search:   (query, page?)               => ipcRenderer.invoke('freesound:search', query, page),
+    download: (soundId, name, previewUrl)  => ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
   },
   packs: {
-    getAll:  ()                  => ipcRenderer.invoke('packs:getAll'),
-    create:  (data)              => ipcRenderer.invoke('packs:create', data),
-    export:  (packId, outputDir) => ipcRenderer.invoke('packs:export', packId, outputDir),
+    getAll:      ()                        => ipcRenderer.invoke('packs:getAll'),
+    getSlots:    (packId)                  => ipcRenderer.invoke('packs:getSlots', packId),
+    getProfiles: ()                        => ipcRenderer.invoke('packs:getProfiles'),
+    create:      (data)                    => ipcRenderer.invoke('packs:create', data),
+    upsertSlot:  (packId, slot, sampleId) => ipcRenderer.invoke('packs:upsertSlot', packId, slot, sampleId),
+    removeSlot:  (packId, slot)           => ipcRenderer.invoke('packs:removeSlot', packId, slot),
+    rename:      (id, name)               => ipcRenderer.invoke('packs:rename', id, name),
+    delete:      (id)                     => ipcRenderer.invoke('packs:delete', id),
+    export:      (packId, outputDir)      => ipcRenderer.invoke('packs:export', packId, outputDir),
   },
 })
 
@@ -346,14 +363,18 @@ ffmpeg runs as a child process via `fluent-ffmpeg`. Each trim is a separate ffmp
 
 ## Audio Analysis
 
-BPM and key detection runs in the renderer via `essentia.js` (compiled to WASM). No server, no internet required.
+BPM and key detection run in the renderer using the Web Audio API and custom signal-processing algorithms implemented in `src/lib/audioAnalysis.ts`. No server, no internet, no WASM dependencies.
+
+- **BPM** — autocorrelation on a downsampled RMS energy envelope
+- **Key** — Krumhansl-Schmuckler pitch-class profiles compared against all 24 major/minor keys
+- **Transient detection** — adaptive threshold on onset strength with configurable sensitivity (coarse / medium / fine), used for auto-chop
 
 ```typescript
-// hooks/useAnalysis.ts
-const { bpm, key } = useAnalysis(audioBuffer)
+// hooks/useAudioAnalysis.ts
+const { bpm, musicalKey } = useAudioAnalysis(audioUrl)
 ```
 
-Analysis runs once when audio is loaded into the Chop view. Results are stored in the sample record when saved to the library.
+Analysis runs once when audio is loaded into the Chop view. Results are stored on the sample record when saved to the library.
 
 ---
 

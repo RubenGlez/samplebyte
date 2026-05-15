@@ -71,13 +71,13 @@ See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
 
 ## Tech Stack
 
-- **Electron** + **React 18** + **TypeScript**
+- **Electron 33** + **React 19** + **TypeScript**
 - **Vite** + vite-plugin-electron
 - **Zustand** for state management
 - **better-sqlite3** for the sample library database
 - **WaveSurfer.js** for waveform visualisation
 - **fluent-ffmpeg** for audio export and conversion
-- **essentia.js** (WASM) for BPM and key detection
+- Custom **Web Audio API** algorithms for BPM and key detection (offline, no dependencies)
 - **Tailwind CSS v4** + **shadcn/ui**
 
 For the full architecture breakdown, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -139,7 +139,6 @@ Before starting:
 
 - [WaveSurfer.js](https://wavesurfer-js.org/) for waveform visualisation
 - [Freesound](https://freesound.org/) for the Creative Commons audio API
-- [essentia.js](https://mtg.github.io/essentia.js/) for audio analysis
 - [Electron](https://www.electronjs.org/) for the cross-platform runtime
 
 ---
