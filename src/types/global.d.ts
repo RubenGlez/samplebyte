@@ -37,6 +37,9 @@ declare global {
         search: (query: string, page?: number) => Promise<FreesoundPage>
         download: (soundId: number, name: string, previewUrl: string) => Promise<{ name: string; filePath: string }>
       }
+      shell: {
+        openExternal: (url: string) => Promise<void>
+      }
       packs: {
         getAll: () => Promise<Pack[]>
         getSlots: (packId: string) => Promise<PackSlot[]>

@@ -71,6 +71,11 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
   },
 
+  shell: {
+    openExternal: (url: string): Promise<void> =>
+      ipcRenderer.invoke('shell:openExternal', url),
+  },
+
   packs: {
     getAll: (): Promise<Pack[]> =>
       ipcRenderer.invoke('packs:getAll'),

@@ -13,7 +13,7 @@ import { formatTime } from '@/utils'
 import type { Sample, Project } from '@/types'
 
 // Column layout — Name flex, then fixed narrow cols
-const GRID = 'grid-cols-[1fr_64px_52px_44px_140px_52px]'
+const GRID = 'grid-cols-[1fr_64px_52px_72px_140px_52px]'
 
 export default function LibraryView() {
   const { isLoading, fetchSamples, deleteSample, updateSample, toggleTagFilter } = useLibraryStore()
@@ -231,7 +231,7 @@ function SampleRow({
         </span>
 
         {/* Key */}
-        <span className="text-[12px] text-faint font-mono">
+        <span className="text-[12px] text-faint font-mono whitespace-nowrap">
           {sample.musicalKey ?? '—'}
         </span>
 

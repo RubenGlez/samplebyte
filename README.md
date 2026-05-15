@@ -2,11 +2,23 @@
 
 > A producer's sample workstation for hardware instruments.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubenglez)
+
 SampleByte is an open-source desktop app that covers the full workflow from audio discovery to hardware-ready sample packs — without the fragmented, multi-tool process producers deal with today.
 
 ```
 Discover → Chop → Organise → Export to your sampler
 ```
+
+---
+
+## Why I built this
+
+I produce music in my free time and own a Roland SP-404. Every time I wanted to load new samples onto it, I'd go through the same painful loop: find audio somewhere, download it with a separate tool, trim it in Audacity, rename the files to match the SP-404's naming convention, and copy everything to the SD card. Half an hour of friction before I even started making something.
+
+I built SampleByte to collapse that into a single app. It's a personal tool first — but it's also a project I'm genuinely proud of, and I wanted to build it properly: typed IPC, a real database, a clean architecture, and a UI that actually looks good.
+
+This is not a commercial product. It's open source, free to use, and built in my spare time. If it's useful to you, a coffee goes a long way.
 
 ---
 
@@ -56,19 +68,6 @@ No YouTube. Not because it isn't useful — the original version of this app was
 
 ---
 
-## Roadmap
-
-See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
-
-| Phase | Focus |
-|---|---|
-| 1 — Foundation | SQLite database, typed IPC, Zustand state management |
-| 2 — Core | Chop, Library, Packs views + Freesound integration |
-| 3 — Intelligence | BPM/key detection, auto-chop on transients, pitch shift |
-| 4 — AI | Auto-tagging, stem separation, smart chop suggestions |
-
----
-
 ## Tech Stack
 
 - **Electron 33** + **React 19** + **TypeScript**
@@ -81,6 +80,19 @@ See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
 - **Tailwind CSS v4** + **shadcn/ui**
 
 For the full architecture breakdown, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
+
+| Phase | Focus |
+|---|---|
+| 1 — Foundation | SQLite database, typed IPC, Zustand state management |
+| 2 — Core | Chop, Library, Packs views + Freesound integration |
+| 3 — Intelligence | BPM/key detection, auto-chop on transients, pitch shift |
+| 4 — AI | Auto-tagging, stem separation, smart chop suggestions |
 
 ---
 
@@ -149,4 +161,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-Built by [@RubenGlez](https://github.com/RubenGlez)
+Built by [@RubenGlez](https://github.com/RubenGlez) · [ko-fi.com/rubenglez](https://ko-fi.com/rubenglez)

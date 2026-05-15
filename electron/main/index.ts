@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, session, protocol, net } from 'electron'
+import { app, BrowserWindow, shell, session, protocol, net, ipcMain } from 'electron'
 import { release } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -92,6 +92,10 @@ app.whenReady().then(() => {
       })
     })
   }
+
+  ipcMain.handle('shell:openExternal', (_, url: string) => {
+    if (url.startsWith('https:')) shell.openExternal(url)
+  })
 
   initDatabase()
   registerLibraryHandlers()
