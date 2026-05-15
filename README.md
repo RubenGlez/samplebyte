@@ -109,17 +109,20 @@ Pre-built installers are available on the [Releases](https://github.com/RubenGle
 | macOS | `.dmg` |
 | Windows | `.exe` (NSIS installer) |
 
-### macOS — "App is damaged" or "unidentified developer"
+### macOS — "Apple could not verify" warning
 
-SampleByte is not notarized. macOS will block it on first launch. To open it:
+SampleByte is not notarized. macOS Sequoia (15+) will block it on first launch. To open it:
 
-1. Open the `.dmg` and drag SampleByte to Applications as usual
-2. **Right-click** (or Control+click) the app and select **Open** — macOS will show a warning with an "Open" button this time, click it
-
-If that doesn't work, go to **System Settings → Privacy & Security** and click **Open Anyway**, or run once in Terminal:
+**Option A — Terminal (easiest):**
 ```bash
 xattr -cr /Applications/SampleByte.app
 ```
+Then double-click the app normally.
+
+**Option B — System Settings:**
+1. Try to open the app — click **OK** on the warning dialog
+2. Go to **System Settings → Privacy & Security**
+3. Scroll down to find the blocked app and click **Open Anyway**
 
 ### Windows — SmartScreen warning
 
