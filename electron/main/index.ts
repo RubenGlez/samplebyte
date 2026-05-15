@@ -109,7 +109,7 @@ app.whenReady().then(() => {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' file: local-file: https://cdn.freesound.org; img-src 'self' data:"],
+          'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' local-file: blob: https://freesound.org https://cdn.freesound.org; media-src 'self' file: local-file: blob: https://cdn.freesound.org; img-src 'self' data:"],
         },
       })
     })
