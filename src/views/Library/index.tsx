@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Play, Square, Pencil, FolderOpen, Tag, X } from 'lucide-react'
+import { Play, Square, Pencil, Tag, X, Trash2 } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
 import type { Sample, Project } from '@/types'
+
+// Column layout — Name flex, then fixed narrow cols
+const GRID = 'grid-cols-[1fr_64px_52px_44px_140px_52px]'
 
 export default function LibraryView() {
   const { isLoading, fetchSamples, deleteSample, updateSample, toggleTagFilter } = useLibraryStore()
@@ -46,20 +49,29 @@ export default function LibraryView() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {isLoading ? (
-        <div className="flex-1 flex items-center justify-center text-faint text-sm">Loading…</div>
+        <div className="flex-1 flex items-center justify-center text-faint text-[13px]">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-faint">
-          <p className="text-sm">No samples yet.</p>
-          <p className="text-xs text-faint/70">Chop some audio and save to Library.</p>
-        </div>
+        <EmptyState />
       ) : (
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
-            {filtered.map((sample) => (
-              <SampleCard
+        <>
+          {/* Column headers */}
+          <div className={cn('grid shrink-0 px-4 h-8 items-center border-b border-border bg-surface', GRID)}>
+            <ColHeader label="Name" />
+            <ColHeader label="Duration" right />
+            <ColHeader label="BPM"      right />
+            <ColHeader label="Key" />
+            <ColHeader label="Project" />
+            <ColHeader label="" />
+          </div>
+
+          {/* Rows */}
+          <div className="flex-1 overflow-y-auto">
+            {filtered.map((sample, i) => (
+              <SampleRow
                 key={sample.id}
                 sample={sample}
                 project={sample.projectId ? projectsById[sample.projectId] : undefined}
+                striped={i % 2 === 1}
                 onDeleteRequest={() => setPendingDelete(sample)}
                 onRename={(name) => handleRename(sample, name)}
                 onTagsChange={(tags) => handleTagsChange(sample, tags)}
@@ -67,7 +79,7 @@ export default function LibraryView() {
               />
             ))}
           </div>
-        </div>
+        </>
       )}
 
       <Dialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null) }}>
@@ -75,23 +87,19 @@ export default function LibraryView() {
           <div className="flex items-center justify-between mb-4">
             <DialogTitle>Delete sample?</DialogTitle>
             <DialogClose asChild>
-              <button className="text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer transition-colors rounded">
+              <button className="text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer transition-colors rounded-md">
                 <X size={14} />
               </button>
             </DialogClose>
           </div>
-          <p className="text-sm text-muted mb-6">
+          <p className="text-[13px] text-muted mb-6">
             "{pendingDelete?.name}" will be permanently removed from the library.
           </p>
           <div className="flex justify-end gap-2">
             <DialogClose asChild>
               <Button variant="ghost" size="sm">Cancel</Button>
             </DialogClose>
-            <Button
-              size="sm"
-              onClick={handleDelete}
-              className="bg-red-500/80 hover:bg-red-500 text-white border-0"
-            >
+            <Button size="sm" onClick={handleDelete} className="bg-red-500/80 hover:bg-red-500 text-white border-0">
               Delete
             </Button>
           </div>
@@ -101,12 +109,37 @@ export default function LibraryView() {
   )
 }
 
-function SampleCard({
-  sample, project,
+function EmptyState() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-faint">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="opacity-25">
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      </svg>
+      <div className="text-center">
+        <p className="text-[13px] text-muted">No samples yet</p>
+        <p className="text-[12px] text-faint/70 mt-1">Chop some audio and save to Library</p>
+      </div>
+    </div>
+  )
+}
+
+function ColHeader({ label, right }: { label: string; right?: boolean }) {
+  return (
+    <span className={cn('text-[11px] font-medium text-faint select-none tracking-wide', right && 'text-right')}>
+      {label}
+    </span>
+  )
+}
+
+function SampleRow({
+  sample, project, striped,
   onDeleteRequest, onRename, onTagsChange, onTagClick,
 }: {
   sample: Sample
   project: Project | undefined
+  striped: boolean
   onDeleteRequest: () => void
   onRename: (name: string) => void
   onTagsChange: (tags: string[]) => void
@@ -117,43 +150,35 @@ function SampleCard({
     useInlineRename(sample.name, onRename)
   const [isEditingTags, setIsEditingTags] = useState(false)
 
+  const hasTags = sample.tags.length > 0
+
   return (
     <>
       <div
         className={cn(
-          'group relative bg-surface border rounded-lg p-4 flex flex-col gap-3 cursor-pointer transition-all',
-          isPlaying ? 'border-accent/30 bg-accent/5' : 'border-border hover:border-border-bright hover:bg-raised'
+          'group grid items-center px-4 cursor-pointer transition-colors',
+          hasTags ? 'pt-[6px] pb-[2px]' : 'h-[34px]',
+          isPlaying
+            ? 'bg-accent/10'
+            : striped
+              ? 'bg-[rgba(255,255,255,0.015)] hover:bg-[rgba(255,255,255,0.04)]'
+              : 'hover:bg-[rgba(255,255,255,0.04)]',
+          GRID
         )}
-        onClick={toggle}
+        onClick={() => !isRenaming && toggle()}
       >
-        <div className="flex items-center gap-3">
+        {/* Name + play indicator + waveform miniature */}
+        <div className="flex items-center gap-2 min-w-0 pr-2">
           <div className={cn(
-            'w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0',
-            isPlaying ? 'bg-accent text-[#0A0806]' : 'bg-raised border border-border text-faint group-hover:border-border-bright group-hover:text-muted'
+            'w-5 h-5 flex items-center justify-center rounded-full shrink-0 transition-colors',
+            isPlaying ? 'text-accent' : 'text-faint/0 group-hover:text-faint'
           )}>
-            {isPlaying ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+            {isPlaying
+              ? <Square size={9} fill="currentColor" />
+              : <Play  size={9} fill="currentColor" className="translate-x-px" />
+            }
           </div>
-          {sample.waveformData && (
-            <svg viewBox="0 0 100 100" className="flex-1 h-7" preserveAspectRatio="none">
-              {sample.waveformData.map((v, i) => {
-                const barW = 100 / sample.waveformData!.length
-                const h = Math.max(2, v * 100)
-                return (
-                  <rect
-                    key={i}
-                    x={i * barW + 0.1}
-                    width={barW - 0.2}
-                    y={50 - h / 2}
-                    height={h}
-                    className={isPlaying ? 'fill-accent' : 'fill-accent/30'}
-                  />
-                )
-              })}
-            </svg>
-          )}
-        </div>
 
-        <div className="flex-1 min-w-0">
           {isRenaming ? (
             <input
               ref={inputRef}
@@ -166,73 +191,83 @@ function SampleCard({
                 e.stopPropagation()
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full bg-transparent border-0 border-b border-accent/50 outline-none text-sm text-ink font-medium py-0 px-0"
+              className="flex-1 min-w-0 bg-transparent border-0 border-b border-accent/40 outline-none text-[13px] text-ink py-0 px-0"
               autoFocus
             />
           ) : (
-            <p className="text-sm text-ink font-medium truncate leading-tight">{sample.name}</p>
+            <span className={cn('text-[13px] truncate shrink-0', isPlaying && 'text-ink font-medium')}>
+              {sample.name}
+            </span>
           )}
-
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            {sample.duration != null && (
-              <span className="text-[11px] text-faint tabular-nums font-mono">{formatTime(sample.duration)}</span>
-            )}
-            {sample.bpm != null && (
-              <span className="text-[10px] text-accent/70 tabular-nums font-mono">{Math.round(sample.bpm)} BPM</span>
-            )}
-            {sample.musicalKey != null && (
-              <span className="text-[10px] text-accent/60 font-mono">{sample.musicalKey}</span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1 mt-2">
-            {sample.tags.slice(0, 3).map((tag) => (
-              <button
-                key={tag}
-                onClick={(e) => { e.stopPropagation(); onTagClick(tag) }}
-                className="px-1.5 py-0.5 rounded bg-accent/10 border border-accent/20 text-[10px] text-accent/70 hover:bg-accent/20 transition-colors cursor-pointer"
-              >
-                {tag}
-              </button>
-            ))}
-            {sample.tags.length > 3 && (
-              <span className="text-[10px] text-faint/60">+{sample.tags.length - 3}</span>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); setIsEditingTags(true) }}
-              className={cn(
-                'text-[10px] text-faint/50 hover:text-faint bg-transparent border-0 p-0 cursor-pointer transition-colors',
-                sample.tags.length > 0 ? 'opacity-0 group-hover:opacity-100' : 'opacity-60'
-              )}
-            >
-              {sample.tags.length === 0 ? '+ tags' : '+'}
-            </button>
-          </div>
-
-          {project && (
-            <div className="mt-2 flex items-center gap-1 min-w-0">
-              <FolderOpen size={9} className="text-faint/60 shrink-0" />
-              <span className="text-[10px] text-faint/60 truncate">{project.name}</span>
-            </div>
+          {/* Waveform miniature */}
+          {sample.waveformData && !isRenaming && (
+            <svg viewBox="0 0 100 100" className="flex-1 h-4 min-w-0" preserveAspectRatio="none">
+              {sample.waveformData.map((v, i) => {
+                const barW = 100 / sample.waveformData!.length
+                const h = Math.max(2, v * 100)
+                return (
+                  <rect
+                    key={i}
+                    x={i * barW + 0.1}
+                    width={barW - 0.2}
+                    y={50 - h / 2}
+                    height={h}
+                    className={isPlaying ? 'fill-accent/60' : 'fill-[rgba(255,255,255,0.15)]'}
+                  />
+                )
+              })}
+            </svg>
           )}
         </div>
 
-        <button
-          onClick={(e) => { e.stopPropagation(); onDeleteRequest() }}
-          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-faint hover:text-red-400 bg-transparent border-0 p-1 cursor-pointer rounded"
-        >
-          <Trash2 size={11} />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); startRename() }}
-          className="absolute top-3 right-8 opacity-0 group-hover:opacity-100 transition-opacity text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer rounded"
-          title="Rename"
-        >
-          <Pencil size={11} />
-        </button>
+        {/* Duration */}
+        <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
+          {sample.duration != null ? formatTime(sample.duration) : '—'}
+        </span>
 
-        {isPlaying && <span className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
+        {/* BPM */}
+        <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
+          {sample.bpm != null ? Math.round(sample.bpm) : '—'}
+        </span>
+
+        {/* Key */}
+        <span className="text-[12px] text-faint font-mono">
+          {sample.musicalKey ?? '—'}
+        </span>
+
+        {/* Project */}
+        <span className="text-[12px] text-faint/80 truncate pr-2">
+          {project?.name ?? '—'}
+        </span>
+
+        {/* Row actions */}
+        <div className="flex items-center gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+          <RowBtn icon={Pencil} title="Rename"    onClick={(e) => { e.stopPropagation(); startRename() }} />
+          <RowBtn icon={Tag}    title="Edit tags" onClick={(e) => { e.stopPropagation(); setIsEditingTags(true) }} />
+          <RowBtn icon={Trash2} title="Delete"    onClick={(e) => { e.stopPropagation(); onDeleteRequest() }} danger />
+        </div>
       </div>
+
+      {/* Tags — shown inline below the row */}
+      {hasTags && !isRenaming && (
+        <div className={cn(
+          'flex items-center gap-1 px-11 pb-1.5 flex-wrap',
+          striped ? 'bg-[rgba(255,255,255,0.015)]' : ''
+        )}>
+          {sample.tags.slice(0, 5).map((tag) => (
+            <button
+              key={tag}
+              onClick={(e) => { e.stopPropagation(); onTagClick(tag) }}
+              className="px-1.5 py-px rounded bg-accent/8 border border-accent/15 text-[10px] text-accent/60 hover:bg-accent/15 hover:text-accent/80 transition-colors cursor-pointer"
+            >
+              {tag}
+            </button>
+          ))}
+          {sample.tags.length > 5 && (
+            <span className="text-[10px] text-faint/50">+{sample.tags.length - 5}</span>
+          )}
+        </div>
+      )}
 
       <TagDialog
         sample={sample}
@@ -241,6 +276,26 @@ function SampleCard({
         onTagsChange={onTagsChange}
       />
     </>
+  )
+}
+
+function RowBtn({ icon: Icon, title, onClick, danger }: {
+  icon: React.ElementType
+  title: string
+  onClick: (e: React.MouseEvent) => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={cn(
+        'w-6 h-6 flex items-center justify-center rounded-md bg-transparent border-0 cursor-pointer transition-colors text-faint hover:bg-raised',
+        danger ? 'hover:text-red-400' : 'hover:text-ink'
+      )}
+    >
+      <Icon size={12} />
+    </button>
   )
 }
 
@@ -279,7 +334,7 @@ function TagDialog({ sample, open, onOpenChange, onTagsChange }: {
             Tags — <span className="text-faint font-normal truncate max-w-32">{sample.name}</span>
           </DialogTitle>
           <DialogClose asChild>
-            <button className="text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer transition-colors rounded">
+            <button className="text-faint hover:text-ink bg-transparent border-0 p-1 cursor-pointer transition-colors rounded-md">
               <X size={14} />
             </button>
           </DialogClose>
@@ -287,9 +342,9 @@ function TagDialog({ sample, open, onOpenChange, onTagsChange }: {
 
         <div className="flex flex-wrap gap-2 min-h-8 mb-4">
           {tags.length === 0
-            ? <p className="text-xs text-faint/60">No tags yet.</p>
+            ? <p className="text-[12px] text-faint/60">No tags yet.</p>
             : tags.map((tag) => (
-              <span key={tag} className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent/80 text-xs">
+              <span key={tag} className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent/80 text-[12px]">
                 {tag}
                 <button onClick={() => removeTag(tag)} className="hover:text-red-400 transition-colors bg-transparent border-0 p-0 cursor-pointer leading-none">
                   <X size={10} />
@@ -308,17 +363,17 @@ function TagDialog({ sample, open, onOpenChange, onTagsChange }: {
               e.stopPropagation()
             }}
             placeholder="Add a tag, press Enter…"
-            className="flex-1 bg-surface border border-border rounded px-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
+            className="flex-1 bg-raised border border-border rounded-md px-3 h-8 text-[13px] text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
           />
           <button
             onClick={() => addTag(input)}
             disabled={!input.trim()}
-            className="px-3 h-8 rounded bg-accent text-[#0A0806] text-xs font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 font-brand"
+            className="px-3 h-8 rounded-md bg-accent text-white text-[12px] font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0"
           >
             Add
           </button>
         </div>
-        <p className="text-[10px] text-faint/50 mt-2">Lowercase letters, numbers, hyphens and underscores only.</p>
+        <p className="text-[11px] text-faint/50 mt-2">Lowercase letters, numbers, hyphens and underscores only.</p>
       </DialogContent>
     </Dialog>
   )

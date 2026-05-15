@@ -19,7 +19,7 @@ After `npm install`, the `postinstall` script runs `electron-rebuild -f -w bette
 
 ## Architecture
 
-SampleByte is an Electron 33 + React 19 + TypeScript desktop app. The full vision and technical decisions are in `docs/ARCHITECTURE.md`. The product roadmap is in `docs/ROADMAP.md`.
+SampleByte is an Electron 33 + React 19 + TypeScript desktop app. The full vision and technical decisions are in `docs/ARCHITECTURE.md`. The product roadmap is in `docs/ROADMAP.md`. UI design system, color tokens, and macOS conventions are in `docs/DESIGN.md` — read it before touching any UI code.
 
 ### Three processes
 

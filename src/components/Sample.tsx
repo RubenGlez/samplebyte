@@ -26,9 +26,9 @@ export default function Sample({ sample, isSelected, index, initialName, onClick
   return (
     <li
       className={cn(
-        'flex items-center justify-between gap-3 px-2 py-2 rounded text-sm cursor-pointer select-none transition-colors',
+        'flex items-center justify-between gap-3 px-2 h-[30px] rounded-md cursor-pointer select-none transition-colors',
         isSelected
-          ? 'bg-accent/10 text-ink'
+          ? 'bg-accent/15 text-ink'
           : 'text-muted hover:bg-raised hover:text-ink'
       )}
       onClick={() => onClick(sample)}

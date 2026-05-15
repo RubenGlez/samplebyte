@@ -1,5 +1,4 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Dialog({ children, ...props }: RadixDialog.DialogProps) {
@@ -15,16 +14,13 @@ export function DialogContent({ children, className, ...props }: RadixDialog.Dia
       <RadixDialog.Content
         className={cn(
           'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
-          'w-full max-w-sm bg-surface border border-border-bright rounded-lg p-6 shadow-2xl',
+          'w-full max-w-sm bg-surface border border-border rounded-xl p-6 shadow-2xl shadow-black/60',
           'focus:outline-none',
           className
         )}
         {...props}
       >
         {children}
-        <RadixDialog.Close className="absolute top-4 right-4 text-faint hover:text-muted transition-colors">
-          <X size={15} />
-        </RadixDialog.Close>
       </RadixDialog.Content>
     </RadixDialog.Portal>
   )
@@ -33,7 +29,7 @@ export function DialogContent({ children, className, ...props }: RadixDialog.Dia
 export function DialogTitle({ children, className, ...props }: RadixDialog.DialogTitleProps) {
   return (
     <RadixDialog.Title
-      className={cn('text-ink text-sm font-semibold mb-4 tracking-wide uppercase font-brand', className)}
+      className={cn('text-ink text-[13px] font-semibold mb-4', className)}
       {...props}
     >
       {children}

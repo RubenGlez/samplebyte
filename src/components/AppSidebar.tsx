@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Pencil, Trash2, Copy, FolderOpen } from 'lucide-react'
+import { Pencil, Trash2, Copy, Grid2x2, FolderOpen, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
 import { usePlayerStore } from '@/stores/player'
@@ -15,50 +15,37 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { Project, Pack } from '../../electron/types'
 
-
 export default function AppSidebar() {
-  const { currentView, sidebarOpen, toggleSidebar } = useUiStore()
-
-  const labels: Record<string, string> = { chop: 'Projects', library: 'Filters', packs: 'Packs' }
+  const { currentView, sidebarOpen } = useUiStore()
 
   return (
     <div
       className={cn(
         'flex flex-col border-r border-border bg-surface shrink-0 overflow-hidden',
-        'transition-[width] duration-200 ease-in-out',
-        sidebarOpen ? 'w-56' : 'w-10'
+        'transition-[width,opacity] duration-200 ease-in-out',
+        sidebarOpen ? 'w-56 opacity-100' : 'w-0 opacity-0'
       )}
     >
-      {/* Header */}
-      <div className="h-11 flex items-center gap-1 px-1.5 border-b border-border shrink-0">
-        <button
-          onClick={toggleSidebar}
-          title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          className="w-7 h-7 flex items-center justify-center rounded text-faint hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer shrink-0"
-        >
-          {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-        </button>
-
-        {sidebarOpen && (
-          <span className="flex-1 text-[10px] font-medium tracking-widest uppercase text-faint select-none pl-1 font-brand">
-            {labels[currentView]}
-          </span>
-        )}
+      <div className="flex-1 overflow-y-auto min-h-0 pt-1">
+        {currentView === 'chop'    && <ChopContent />}
+        {currentView === 'library' && <LibraryContent />}
+        {currentView === 'packs'   && <PacksContent />}
       </div>
-
-      {/* Body */}
-      {sidebarOpen && (
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {currentView === 'chop'    && <ChopContent />}
-          {currentView === 'library' && <LibraryContent />}
-          {currentView === 'packs'   && <PacksContent />}
-        </div>
-      )}
     </div>
   )
 }
 
-// ─── Chop ───────────────────────────────────────────────────────────────────
+// ─── Section header ─────────────────────────────────────────────────────────
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <p className="px-3 pt-3 pb-1 text-[11px] font-semibold text-faint select-none tracking-wide">
+      {label}
+    </p>
+  )
+}
+
+// ─── Chop ────────────────────────────────────────────────────────────────────
 
 function ChopContent() {
   const { projects, activeProject, renameProject, duplicateProject, deleteProject } = useProjectsStore()
@@ -84,9 +71,10 @@ function ChopContent() {
 
   return (
     <div className="flex flex-col h-full">
-      <ul className="flex-1 overflow-y-auto py-1 list-none m-0 p-0 min-h-0">
+      <SectionHeader label="Projects" />
+      <ul className="flex-1 overflow-y-auto list-none m-0 p-0 px-1 min-h-0">
         {projects.length === 0 ? (
-          <p className="text-[11px] text-faint/50 text-center mt-6 px-3">No projects yet</p>
+          <p className="text-[12px] text-faint/50 text-center mt-6 px-3">No projects yet</p>
         ) : (
           projects.map((project) => (
             <ProjectRow
@@ -101,10 +89,14 @@ function ChopContent() {
           ))
         )}
       </ul>
-      <div className="shrink-0 p-2 border-t border-border">
-        <Button size="sm" className="w-full" onClick={handleNew}>
+      <div className="shrink-0 px-2 py-2 border-t border-border">
+        <button
+          onClick={handleNew}
+          className="w-full flex items-center gap-1.5 px-2 h-7 rounded-md text-[12px] text-muted hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer"
+        >
+          <Plus size={13} strokeWidth={2} />
           New Project
-        </Button>
+        </button>
       </div>
     </div>
   )
@@ -124,13 +116,16 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
   return (
     <li
       className={cn(
-        'group relative flex items-center gap-1.5 px-2 py-2 mx-1 rounded cursor-pointer transition-colors',
-        isActive ? 'bg-accent/10' : 'hover:bg-raised'
+        'group relative flex items-center gap-2 px-2 h-[28px] rounded-md cursor-pointer transition-colors',
+        isActive ? 'bg-accent/15 text-ink' : 'text-muted hover:bg-raised hover:text-ink'
       )}
       onClick={() => !isRenaming && onLoad()}
     >
-      {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-accent rounded-r" />}
-      <FolderOpen size={12} strokeWidth={1.5} className={cn('shrink-0', isActive ? 'text-accent' : 'text-faint')} />
+      <FolderOpen
+        size={13}
+        strokeWidth={1.5}
+        className={cn('shrink-0', isActive ? 'text-accent/80' : 'text-faint')}
+      />
 
       {isRenaming ? (
         <input
@@ -144,20 +139,20 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
             e.stopPropagation()
           }}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 min-w-0 bg-transparent border-0 border-b border-accent/50 outline-none text-xs text-ink py-0 px-0"
+          className="flex-1 min-w-0 bg-transparent border-0 border-b border-accent/40 outline-none text-[12px] text-ink py-0 px-0"
           autoFocus
         />
       ) : (
-        <span className={cn('flex-1 text-xs truncate leading-tight', isActive ? 'text-ink' : 'text-muted')}>
+        <span className="flex-1 text-[12px] truncate leading-none">
           {project.name}
         </span>
       )}
 
       {!isRenaming && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <RowAction icon={Pencil} title="Rename" onClick={(e) => { e.stopPropagation(); startRename() }} />
-          <RowAction icon={Copy} title="Duplicate" onClick={(e) => { e.stopPropagation(); onDuplicate() }} />
-          <RowAction icon={Trash2} title="Delete" onClick={(e) => { e.stopPropagation(); onDelete() }} danger />
+          <RowAction icon={Pencil}  title="Rename"    onClick={(e) => { e.stopPropagation(); startRename() }} />
+          <RowAction icon={Copy}    title="Duplicate" onClick={(e) => { e.stopPropagation(); onDuplicate() }} />
+          <RowAction icon={Trash2}  title="Delete"    onClick={(e) => { e.stopPropagation(); onDelete() }} danger />
         </div>
       )}
     </li>
@@ -176,7 +171,8 @@ function LibraryContent() {
   const activeSource = (filters.source ?? 'all') as 'all' | 'local' | 'freesound'
 
   return (
-    <div className="flex flex-col gap-3 py-2 px-2">
+    <div className="flex flex-col gap-2 py-1 px-2">
+      <SectionHeader label="Filters" />
       <FilterControls
         search={searchQuery}
         onSearchChange={setSearchQuery}
@@ -189,7 +185,7 @@ function LibraryContent() {
         activeTags={activeTags}
         onTagToggle={toggleTagFilter}
       />
-      <p className="text-[10px] text-faint/50 font-mono">
+      <p className="text-[11px] text-faint/60 px-1">
         {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}
       </p>
     </div>
@@ -212,9 +208,10 @@ function PacksContent() {
 
   return (
     <div className="flex flex-col h-full">
-      <ul className="flex-1 overflow-y-auto py-1 list-none m-0 p-0 min-h-0">
+      <SectionHeader label="Packs" />
+      <ul className="flex-1 overflow-y-auto list-none m-0 p-0 px-1 min-h-0">
         {packs.length === 0 ? (
-          <p className="text-[11px] text-faint/50 text-center mt-6 px-3">No packs yet</p>
+          <p className="text-[12px] text-faint/50 text-center mt-6 px-3">No packs yet</p>
         ) : (
           packs.map((pack) => (
             <PackRow
@@ -228,10 +225,14 @@ function PacksContent() {
           ))
         )}
       </ul>
-      <div className="shrink-0 p-2 border-t border-border">
-        <Button size="sm" className="w-full" onClick={() => setShowDialog(true)}>
+      <div className="shrink-0 px-2 py-2 border-t border-border">
+        <button
+          onClick={() => setShowDialog(true)}
+          className="w-full flex items-center gap-1.5 px-2 h-7 rounded-md text-[12px] text-muted hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer"
+        >
+          <Plus size={13} strokeWidth={2} />
           New Pack
-        </Button>
+        </button>
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -269,12 +270,16 @@ function PackRow({ pack, isActive, onSelect, onRename, onDelete }: {
   return (
     <li
       className={cn(
-        'group relative flex items-center gap-1.5 px-2 py-2 mx-1 rounded cursor-pointer transition-colors',
-        isActive ? 'bg-accent/10' : 'hover:bg-raised'
+        'group relative flex items-center gap-2 px-2 h-[28px] rounded-md cursor-pointer transition-colors',
+        isActive ? 'bg-accent/15 text-ink' : 'text-muted hover:bg-raised hover:text-ink'
       )}
       onClick={() => !isRenaming && onSelect()}
     >
-      {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-accent rounded-r" />}
+      <Grid2x2
+        size={12}
+        strokeWidth={1.5}
+        className={cn('shrink-0', isActive ? 'text-accent/80' : 'text-faint')}
+      />
 
       {isRenaming ? (
         <input
@@ -288,11 +293,11 @@ function PackRow({ pack, isActive, onSelect, onRename, onDelete }: {
             e.stopPropagation()
           }}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 min-w-0 bg-transparent border-0 border-b border-accent/50 outline-none text-xs text-ink py-0 px-0"
+          className="flex-1 min-w-0 bg-transparent border-0 border-b border-accent/40 outline-none text-[12px] text-ink py-0 px-0"
           autoFocus
         />
       ) : (
-        <span className={cn('flex-1 text-xs truncate leading-tight', isActive ? 'text-ink' : 'text-muted')}>
+        <span className="flex-1 text-[12px] truncate leading-none">
           {pack.name}
         </span>
       )}
@@ -320,11 +325,11 @@ function RowAction({ icon: Icon, title, onClick, danger }: {
       onClick={onClick}
       title={title}
       className={cn(
-        'w-5 h-5 flex items-center justify-center rounded text-faint bg-transparent border-0 cursor-pointer transition-colors hover:bg-raised',
+        'w-5 h-5 flex items-center justify-center rounded bg-transparent border-0 cursor-pointer transition-colors text-faint hover:bg-overlay',
         danger ? 'hover:text-red-400' : 'hover:text-ink'
       )}
     >
-      <Icon size={10} />
+      <Icon size={11} />
     </button>
   )
 }

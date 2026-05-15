@@ -6,21 +6,29 @@
 }
 
 @theme {
+  /* Brand accent */
   --color-accent:         #FF5500;
   --color-accent-bright:  #FF7733;
-  --color-base:           #090807;
-  --color-surface:        #111009;
-  --color-raised:         #191714;
-  --color-overlay:        #22201C;
-  --color-border:         rgba(255, 180, 100, 0.08);
-  --color-border-bright:  rgba(255, 180, 100, 0.18);
-  --color-ink:            #EDE8DF;
-  --color-muted:          #78726A;
-  --color-faint:          #3A3530;
 
-  --font-family-ui:    'DM Sans', system-ui, sans-serif;
-  --font-family-brand: 'Chakra Petch', system-ui, sans-serif;
-  --font-family-mono:  'JetBrains Mono', 'Fira Code', monospace;
+  /* Backgrounds — macOS dark semantic stack */
+  --color-base:           #1c1c1e;
+  --color-surface:        #242427;
+  --color-raised:         #2e2e31;
+  --color-overlay:        #38383c;
+
+  /* Borders */
+  --color-border:         rgba(255,255,255,0.08);
+  --color-border-bright:  rgba(255,255,255,0.16);
+
+  /* Text */
+  --color-ink:            rgba(255,255,255,0.87);
+  --color-muted:          rgba(255,255,255,0.55);
+  --color-faint:          rgba(255,255,255,0.28);
+
+  /* System font stack — SF Pro on macOS */
+  --font-family-ui:    -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif;
+  --font-family-brand: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif;
+  --font-family-mono:  'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
 }
 
 *, *:before, *:after {
@@ -39,6 +47,12 @@ body {
   margin: 0;
   background: var(--color-base);
   color: var(--color-ink);
+  user-select: none;
+}
+
+/* Allow text selection in inputs and editable areas */
+input, textarea, [contenteditable] {
+  user-select: text;
 }
 
 /* WaveSurfer region parts */
@@ -57,11 +71,11 @@ body {
   border-color: var(--region-border-active) !important;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar          { width: 4px; height: 4px; }
+/* Thin macOS-style scrollbars */
+::-webkit-scrollbar          { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: rgba(255,180,100,0.15); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,180,100,0.28); }
+::-webkit-scrollbar-thumb    { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
 /* Selection */
-::selection { background: rgba(255, 85, 0, 0.3); }
+::selection { background: rgba(255, 85, 0, 0.28); }

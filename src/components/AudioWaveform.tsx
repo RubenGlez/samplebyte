@@ -169,36 +169,38 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
       <div id="waveform" ref={waveformRef} className="shrink-0" />
 
       {/* Transport */}
-      <div className="flex items-center gap-3 px-5 py-2 border-b border-border shrink-0">
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-surface shrink-0">
         <button
           onClick={() => wavesurfer?.playPause()}
-          className="w-7 h-7 rounded-full flex items-center justify-center bg-raised border border-border-bright hover:border-accent/40 hover:text-accent text-muted transition-colors cursor-pointer bg-transparent"
+          className="w-7 h-7 rounded-full flex items-center justify-center bg-raised border border-border hover:border-accent/40 hover:text-accent text-muted transition-colors cursor-pointer"
         >
           {isPlaying
             ? <Pause size={11} fill="currentColor" />
             : <Play  size={11} fill="currentColor" className="translate-x-px" />
           }
         </button>
-        <span className="text-[10px] text-faint font-mono flex-1">
-          {isPlaying ? 'Playing' : 'Paused'} · scroll to zoom
+        <span className="text-[11px] text-faint/70 flex-1 select-none">
+          {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom
         </span>
 
         {/* Auto-chop controls */}
-        <div className="flex items-center gap-1.5">
-          {(['coarse', 'medium', 'fine'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setSensitivity(p)}
-              className={cn(
-                'text-[10px] px-2 h-5 rounded border transition-colors cursor-pointer bg-transparent capitalize font-brand',
-                sensitivity === p
-                  ? 'border-accent/40 text-accent bg-accent/10'
-                  : 'border-border text-faint hover:text-muted hover:border-border-bright'
-              )}
-            >
-              {p}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
+            {(['coarse', 'medium', 'fine'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setSensitivity(p)}
+                className={cn(
+                  'text-[11px] px-2.5 h-[22px] rounded-[4px] transition-all cursor-pointer border-0 capitalize',
+                  sensitivity === p
+                    ? 'bg-[rgba(255,255,255,0.12)] text-ink'
+                    : 'text-faint/70 hover:text-muted bg-transparent'
+                )}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
           <Button size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
             {isAutoChopping ? 'Chopping…' : 'Auto-chop'}
           </Button>
@@ -215,13 +217,13 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
         />
       </div>
 
-      <div className="flex items-center gap-4 px-5 py-2.5 border-t border-border shrink-0">
-        {([['Space', 'Play / Pause'], ['Enter', 'Play region'], ['⌫', 'Delete region']] as const).map(([key, label]) => (
+      <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
+        {([['Space', 'Play / Pause'], ['Return', 'Play region'], ['⌫', 'Delete region']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 rounded bg-raised border border-border-bright text-[10px] text-faint leading-none font-mono">
+            <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}
             </kbd>
-            <span className="text-[10px] text-faint">{label}</span>
+            <span className="text-[11px] text-faint/60 select-none">{label}</span>
           </span>
         ))}
       </div>
