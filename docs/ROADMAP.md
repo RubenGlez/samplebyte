@@ -56,12 +56,12 @@ The full three-view workflow from audio in to hardware pack out.
 
 ## Phase 3 — Intelligence
 
-Audio analysis features that make chopping faster and smarter. All run offline via WASM or native binaries — no cloud dependency.
+Audio analysis features that make chopping faster and smarter. All run offline via the Web Audio API — no cloud dependency, no WASM.
 
-- [ ] **BPM detection** — `essentia.js` analyses audio on load, stores result in the sample record. Displayed in the Chop view header and Library card.
-- [ ] **Key detection** — same pipeline as BPM. Musical key (e.g. "C minor") stored and filterable in the Library.
-- [ ] **Transient detection → auto-chop** — detect peaks/onsets in the waveform and auto-generate regions at transient points. One-click to slice a drum break into individual hits.
-- [ ] **Filter Library by BPM / key** — now that samples have analysis data, enable numeric BPM range filter and key filter in the Library view.
+- [x] **BPM detection** — custom autocorrelation on audio load; result stored on the sample record and displayed in the Chop view header and Library card.
+- [x] **Key detection** — Krumhansl-Schmuckler pitch-class profiles; musical key (e.g. "C minor") stored and available in the Library.
+- [x] **Transient detection → auto-chop** — adaptive threshold on onset strength with coarse / medium / fine presets; auto-generates regions at transient points.
+- [ ] **Filter Library by BPM / key** — enable numeric BPM range filter and key filter in the Library view.
 - [ ] **Pitch shift on export** — specify a semitone offset per pack slot; ffmpeg applies it via rubberband on export. Lets you tune samples to a key before loading hardware.
 - [ ] **Time stretch on export** — specify a target BPM per pack; ffmpeg stretches/compresses each sample to match.
 
