@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('api', {
     save: (data: { name: string; sourcePath: string | null; regions: ProjectRegion[] }): Promise<Project> =>
       ipcRenderer.invoke('projects:save', data),
 
-    update: (id: string, data: Partial<Pick<Project, 'name' | 'regions'>>): Promise<void> =>
+    update: (id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>): Promise<void> =>
       ipcRenderer.invoke('projects:update', id, data),
 
     delete: (id: string): Promise<void> =>
@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('api', {
   audio: {
     exportRegions: (params: ExportRegionsParams): Promise<{ filesWritten: number }> =>
       ipcRenderer.invoke('audio:exportRegions', params),
+    trimSource: (params: { sourceFilePath: string; start: number; end: number }): Promise<{ filePath: string; duration: number }> =>
+      ipcRenderer.invoke('audio:trimSource', params),
   },
 
   fs: {

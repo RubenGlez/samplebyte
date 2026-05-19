@@ -36,12 +36,13 @@ export function saveProject(data: Pick<Project, 'name' | 'sourcePath' | 'regions
   return { id, ...data, createdAt }
 }
 
-export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'regions'>>): void {
+export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>): void {
   const db = getDb()
   const fields: string[] = []
   const values: unknown[] = []
 
   if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
+  if (data.sourcePath !== undefined) { fields.push('source_path = ?'); values.push(data.sourcePath) }
   if (data.regions !== undefined) { fields.push('regions = ?'); values.push(JSON.stringify(data.regions)) }
 
   if (fields.length === 0) return

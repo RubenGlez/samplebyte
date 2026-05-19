@@ -18,12 +18,13 @@ declare global {
         getAll: () => Promise<Project[]>
         get: (id: string) => Promise<Project | null>
         save: (data: { name: string; sourcePath: string | null; regions: ProjectRegion[] }) => Promise<Project>
-        update: (id: string, data: Partial<Pick<Project, 'name' | 'regions'>>) => Promise<void>
+        update: (id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => Promise<void>
         delete: (id: string) => Promise<void>
         duplicate: (id: string) => Promise<Project | null>
       }
       audio: {
         exportRegions: (params: ExportRegionsParams) => Promise<{ filesWritten: number }>
+        trimSource: (params: { sourceFilePath: string; start: number; end: number }) => Promise<{ filePath: string; duration: number }>
       }
       fs: {
         pickFile: () => Promise<string | null>

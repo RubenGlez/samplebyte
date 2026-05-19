@@ -47,6 +47,17 @@ export type ExportRegionsParams = {
   profileId: string
 }
 
+export type TrimSourceParams = {
+  sourceFilePath: string
+  start: number
+  end: number
+}
+
+export type TrimSourceResult = {
+  filePath: string
+  duration: number
+}
+
 export type FreesoundResult = {
   id: number
   name: string

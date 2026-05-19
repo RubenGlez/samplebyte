@@ -1,11 +1,13 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
+import { useTrimRange } from '@/hooks/useTrimRange'
 import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis'
 import { useLibraryStore } from '@/stores/library'
+import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
 import { Button } from '@/components/ui/Button'
@@ -13,9 +15,12 @@ import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui
 import { Input } from '@/components/ui/Input'
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
+import TrimOverlay from './TrimOverlay'
 import { analyzeAudioUrl, detectTransientsFromUrl } from '@/lib/audioAnalysis'
+import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
-import type { Sample } from '../../electron/types'
+import { formatTime } from '@/utils'
+import type { ProjectRegion, Sample } from '@/types'
 
 interface AudioWaveformProps {
   audioUrl: string
@@ -23,18 +28,33 @@ interface AudioWaveformProps {
   filePath: string
   size: number
   type: string
+  initialRegions?: ProjectRegion[]
 }
 
 
-const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWaveformProps) => {
-  const { activeProject, saveProject, updateActiveRegions } = useProjectsStore()
+const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
+  const { activeProject, isProjectDirty, saveProject, updateActiveProject, updateActiveRegions, applyLocalTrim } =
+    useProjectsStore()
+  const { setAudio } = usePlayerStore()
   const { toast } = useToastStore()
   const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
 
+  const canTrimFile = !!filePath
+
   const { waveformRef, wavesurfer, isPlaying } = useWavesurfer({ audioUrl })
+  const {
+    trimIn,
+    trimOut,
+    trimDuration,
+    duration,
+    setTrimIn,
+    setTrimOut,
+    canApplyTrim,
+    viewportTick,
+  } = useTrimRange(wavesurfer)
   const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, autoChop, clearAllRegions } = useRegions({
     wavesurfer,
-    initialRegions: activeProject?.regions,
+    initialRegions,
   })
   const { fetchSamples, updateSample } = useLibraryStore()
 
@@ -44,6 +64,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
   const [projectName, setProjectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [sensitivity, setSensitivity] = useState<'coarse' | 'medium' | 'fine'>('medium')
   const [isAutoChopping, setIsAutoChopping] = useState(false)
+  const [isTrimming, setIsTrimming] = useState(false)
+  const [showTrimDialog, setShowTrimDialog] = useState(false)
 
   const currentRegions = useCallback(() =>
     (regions ?? []).map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
@@ -89,15 +111,19 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
   }, [filePath, projectName, regions, currentRegions, saveProject, toast])
 
   const handleUpdateProject = useCallback(async () => {
-    if (!regions?.length) return
+    if (!isProjectDirty && !regions?.length) return
     setIsSaving(true)
     try {
-      await updateActiveRegions(currentRegions())
+      if (isProjectDirty) {
+        await updateActiveProject()
+      } else {
+        await updateActiveRegions(currentRegions())
+      }
       toast('Project updated')
     } finally {
       setIsSaving(false)
     }
-  }, [regions, currentRegions, updateActiveRegions, toast])
+  }, [isProjectDirty, regions, currentRegions, updateActiveProject, updateActiveRegions, toast])
 
   const handleExport = useCallback(async () => {
     if (!regions?.length) return
@@ -127,18 +153,74 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
         toast('No transients found — try Fine sensitivity', 'info')
         return
       }
-      autoChop(transients, wavesurfer.getDuration())
-      const count = transients.length + 1
+      autoChop(transients, wavesurfer.getDuration(), { start: trimIn, end: trimOut })
+      const inner = transients.filter((t) => t > trimIn && t < trimOut)
+      const count = inner.length + 1
       toast(`${count} chop${count !== 1 ? 's' : ''} created`)
     } catch {
       toast('Auto-chop failed', 'error')
     } finally {
       setIsAutoChopping(false)
     }
-  }, [audioUrl, sensitivity, wavesurfer, autoChop, toast])
+  }, [audioUrl, sensitivity, wavesurfer, autoChop, trimIn, trimOut, toast])
+
+  const trimPreview = useMemo(() => {
+    if (!regions?.length) return { kept: 0, dropped: 0 }
+    const kept = remapRegionsForTrim(regions, regionNames, trimIn, trimOut)
+    return { kept: kept.length, dropped: regions.length - kept.length }
+  }, [regions, regionNames, trimIn, trimOut])
+
+  const handleApplyTrim = useCallback(async () => {
+    if (!canApplyTrim || !filePath) return
+    setShowTrimDialog(false)
+    setIsTrimming(true)
+    try {
+      const kept = remapRegionsForTrim(regions ?? [], regionNames, trimIn, trimOut)
+      const { filePath: trimmedPath, duration: trimmedDuration } = await window.api.audio.trimSource({
+        sourceFilePath: filePath,
+        start: trimIn,
+        end: trimOut,
+      })
+
+      if (activeProject) {
+        applyLocalTrim({ sourcePath: trimmedPath, regions: kept })
+      }
+
+      setAudio({
+        name: audioName,
+        path: `local-file://${trimmedPath}`,
+        filePath: trimmedPath,
+        size: 0,
+        type: 'audio/wav',
+        initialRegions: kept,
+      })
+
+      const droppedMsg = trimPreview.dropped > 0
+        ? ` · ${trimPreview.dropped} chop${trimPreview.dropped !== 1 ? 's' : ''} removed`
+        : ''
+      toast(`Source trimmed to ${formatTime(trimmedDuration)}${droppedMsg}`)
+    } catch {
+      toast('Trim failed', 'error')
+    } finally {
+      setIsTrimming(false)
+    }
+  }, [
+    activeProject,
+    applyLocalTrim,
+    audioName,
+    canApplyTrim,
+    filePath,
+    regionNames,
+    regions,
+    setAudio,
+    toast,
+    trimIn,
+    trimOut,
+    trimPreview.dropped,
+  ])
 
   useZoom({ waveformRef, wavesurfer })
-  useShortcuts({ wavesurfer, selectedRegion })
+  useShortcuts({ wavesurfer, selectedRegion, regions, onSelectRegion: handleSelectRegion })
 
   const hasRegions = !!regions?.length
 
@@ -148,8 +230,13 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
         {isExporting ? 'Exporting…' : 'Export WAV'}
       </Button>
       {activeProject ? (
-        <Button variant="outline" size="sm" onClick={handleUpdateProject} disabled={isSaving || !hasRegions}>
-          {isSaving ? 'Saving…' : 'Update Project'}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleUpdateProject}
+          disabled={isSaving || (!isProjectDirty && !hasRegions)}
+        >
+          {isSaving ? 'Saving…' : isProjectDirty ? 'Update Project •' : 'Update Project'}
         </Button>
       ) : (
         <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
@@ -166,7 +253,20 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
     <div className="flex flex-col flex-1 overflow-hidden">
       <CardHeader name={audioName} size={size} type={type} bpm={bpm} musicalKey={musicalKey} isAnalyzing={isAnalyzing} actions={actions} />
 
-      <div id="waveform" ref={waveformRef} className="shrink-0" />
+      <div className="relative shrink-0">
+        <div id="waveform" ref={waveformRef} />
+        {wavesurfer && duration > 0 && (
+          <TrimOverlay
+            wavesurfer={wavesurfer}
+            duration={duration}
+            trimIn={trimIn}
+            trimOut={trimOut}
+            onTrimInChange={setTrimIn}
+            onTrimOutChange={setTrimOut}
+            viewportTick={viewportTick}
+          />
+        )}
+      </div>
 
       {/* Transport */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-surface shrink-0">
@@ -204,6 +304,15 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
           <Button size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
             {isAutoChopping ? 'Chopping…' : 'Auto-chop'}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTrimDialog(true)}
+            disabled={!canApplyTrim || !canTrimFile || isTrimming}
+            title={!canTrimFile ? 'Save file to disk before trimming' : undefined}
+          >
+            {isTrimming ? 'Trimming…' : 'Trim source'}
+          </Button>
         </div>
       </div>
 
@@ -219,7 +328,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
       </div>
 
       <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
-        {([['Space', 'Play / Pause'], ['Return', 'Play region'], ['⌫', 'Delete region']] as const).map(([key, label]) => (
+        {([['Space', 'Play / Pause'], ['Return', 'Play region'], ['⌫', 'Delete region'], ['←/→', 'Prev / Next region']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}
@@ -228,6 +337,32 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type }: AudioWavef
           </span>
         ))}
       </div>
+
+      <Dialog open={showTrimDialog} onOpenChange={setShowTrimDialog}>
+        <DialogContent>
+          <DialogTitle>Trim source</DialogTitle>
+          <p className="text-[13px] text-muted m-0 leading-relaxed">
+            Replace the current source with <span className="font-mono text-ink">{formatTime(trimIn)}</span>
+            {' – '}
+            <span className="font-mono text-ink">{formatTime(trimOut)}</span>
+            {' '}({formatTime(trimDuration)}). This cannot be undone without re-importing the full song.
+          </p>
+          {regions && regions.length > 0 && (
+            <p className="text-[12px] text-faint m-0">
+              {trimPreview.kept} chop{trimPreview.kept !== 1 ? 's' : ''} kept
+              {trimPreview.dropped > 0 && ` · ${trimPreview.dropped} removed`}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button size="sm" onClick={handleApplyTrim} disabled={isTrimming}>
+              {isTrimming ? 'Trimming…' : 'Trim'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent>

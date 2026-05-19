@@ -1,13 +1,10 @@
 import { ipcMain, app } from 'electron'
-import ffmpeg from 'fluent-ffmpeg'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import path from 'node:path'
 import fs from 'node:fs'
 import * as samples from '../db/queries/samples'
 import * as projects from '../db/queries/projects'
+import { trimToWav } from '../services/trim'
 import type { Sample, Project, ProjectRegion } from '../../types'
-
-ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 
 // Reads a s16 stereo WAV (as produced by trimToWav) and returns ~100 peak amplitude values.
 function extractWaveformData(filePath: string, bars = 100): number[] {
@@ -39,22 +36,6 @@ function extractWaveformData(filePath: string, bars = 100): number[] {
   }
 
   return result
-}
-
-function trimToWav(input: string, output: string, start: number, duration: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    ffmpeg(input)
-      .setStartTime(start)
-      .setDuration(duration)
-      .toFormat('wav')
-      .audioFrequency(44100)
-      .audioChannels(2)
-      .outputOptions(['-sample_fmt s16'])
-      .output(output)
-      .on('end', () => resolve())
-      .on('error', reject)
-      .run()
-  })
 }
 
 export function registerLibraryHandlers(): void {
@@ -119,7 +100,7 @@ export function registerLibraryHandlers(): void {
     return projects.saveProject(data)
   })
 
-  ipcMain.handle('projects:update', (_, id: string, data: Partial<Pick<Project, 'name' | 'regions'>>) => {
+  ipcMain.handle('projects:update', (_, id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => {
     projects.updateProject(id, data)
   })
 

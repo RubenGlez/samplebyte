@@ -99,10 +99,17 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
 
   // Replace all regions with a grid derived from detected transient timestamps.
   // Boundaries: 0, ...transients, duration — each adjacent pair becomes one region.
-  const autoChop = useCallback((transients: number[], duration: number) => {
+  const autoChop = useCallback((
+    transients: number[],
+    duration: number,
+    bounds?: { start: number; end: number }
+  ) => {
     if (!regionsPlugin) return
     clearAllRegions()
-    const boundaries = [0, ...transients, duration]
+    const start = bounds?.start ?? 0
+    const end = bounds?.end ?? duration
+    const inner = transients.filter((t) => t > start && t < end)
+    const boundaries = [start, ...inner, end]
     for (let i = 0; i < boundaries.length - 1; i++) {
       regionsPlugin.addRegion({ start: boundaries[i], end: boundaries[i + 1], color: 'var(--region-bg)' })
     }

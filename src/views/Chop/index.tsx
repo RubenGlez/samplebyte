@@ -6,7 +6,7 @@ import AudioWaveform from '@/components/AudioWaveform'
 
 export default function ChopView() {
   const { audio } = usePlayerStore()
-  const { fetchProjects } = useProjectsStore()
+  const { activeProject, fetchProjects } = useProjectsStore()
 
   useEffect(() => {
     fetchProjects()
@@ -24,6 +24,7 @@ export default function ChopView() {
           filePath={audio.filePath}
           size={audio.size}
           type={audio.type}
+          initialRegions={audio.initialRegions ?? activeProject?.regions}
         />
       </div>
     )

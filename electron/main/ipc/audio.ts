@@ -4,7 +4,8 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import path from 'node:path'
 import fs from 'node:fs'
 import { getProfile } from '../hardware/profiles'
-import type { ExportRegionsParams } from '../../types'
+import { trimSourceToCache } from '../services/trim'
+import type { ExportRegionsParams, TrimSourceParams } from '../../types'
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 
@@ -36,5 +37,10 @@ export function registerAudioHandlers(): void {
     )
 
     return { filesWritten: regions.length }
+  })
+
+  ipcMain.handle('audio:trimSource', async (_, params: TrimSourceParams) => {
+    const { sourceFilePath, start, end } = params
+    return trimSourceToCache(sourceFilePath, start, end)
   })
 }

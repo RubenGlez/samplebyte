@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { type Region } from 'wavesurfer.js/dist/plugins/regions'
 import { Button } from '@/components/ui/Button'
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import Sample from './Sample'
 
 interface SampleListProps {
@@ -12,6 +14,12 @@ interface SampleListProps {
 }
 
 const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onNameChange, onClearAll }: SampleListProps) => {
+  const [showClearDialog, setShowClearDialog] = useState(false)
+
+  const handleConfirmClearAll = () => {
+    onClearAll?.()
+    setShowClearDialog(false)
+  }
   if (!samples.length) return null
 
   return (
@@ -25,7 +33,7 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
             {samples.length} {samples.length === 1 ? 'chop' : 'chops'}
           </span>
           {onClearAll && (
-            <Button variant="danger" size="sm" onClick={onClearAll}>
+            <Button variant="danger" size="sm" onClick={() => setShowClearDialog(true)}>
               Clear all
             </Button>
           )}
@@ -44,6 +52,23 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
           />
         ))}
       </ul>
+
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent>
+          <DialogTitle>Clear all regions?</DialogTitle>
+          <p className="text-[13px] text-muted m-0 leading-relaxed">
+            This will remove all chops from the current waveform.
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button variant="danger" size="sm" onClick={handleConfirmClearAll}>
+              Clear all
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
