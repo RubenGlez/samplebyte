@@ -1,13 +1,12 @@
 import { ipcMain } from 'electron'
-import ffmpeg from 'fluent-ffmpeg'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import path from 'node:path'
 import fs from 'node:fs'
 import { getProfile } from '../hardware/profiles'
 import { trimSourceToCache } from '../services/trim'
+import { configureFfmpeg, ffmpeg } from '../services/ffmpeg'
 import type { ExportRegionsParams, TrimSourceParams } from '../../types'
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path)
+configureFfmpeg()
 
 export function registerAudioHandlers(): void {
   ipcMain.handle('audio:exportRegions', async (_, params: ExportRegionsParams) => {

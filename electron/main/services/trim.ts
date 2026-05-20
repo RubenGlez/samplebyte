@@ -1,10 +1,9 @@
-import ffmpeg from 'fluent-ffmpeg'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { configureFfmpeg, ffmpeg } from './ffmpeg'
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path)
+configureFfmpeg()
 
 export function trimToWav(input: string, output: string, start: number, duration: number): Promise<void> {
   return new Promise((resolve, reject) => {

@@ -4,12 +4,11 @@ import * as samplesDb from '../db/queries/samples'
 import { getProfile } from '../hardware/profiles'
 import { profiles } from '../hardware/profiles'
 import type { Pack } from '../../types'
-import ffmpeg from 'fluent-ffmpeg'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import path from 'node:path'
 import fs from 'node:fs'
+import { configureFfmpeg, ffmpeg } from '../services/ffmpeg'
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path)
+configureFfmpeg()
 
 export function registerPacksHandlers(): void {
   ipcMain.handle('packs:getAll', () => {

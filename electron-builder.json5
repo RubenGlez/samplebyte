@@ -4,6 +4,9 @@
 {
   appId: "com.rubenglez.samplebyte",
   asar: true,
+  asarUnpack: [
+    "**/node_modules/@ffmpeg-installer/**/*"
+  ],
   directories: {
     output: "release/${version}",
   },

@@ -3,6 +3,14 @@ import { release } from 'node:os'
 import { dirname, join } from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { update } from './update'
+import { initDatabase } from './db/index'
+import { registerLibraryHandlers } from './ipc/library'
+import { registerAudioHandlers } from './ipc/audio'
+import { registerFilesystemHandlers } from './ipc/filesystem'
+import { registerPacksHandlers } from './ipc/packs'
+import { registerSettingsHandlers } from './ipc/settings'
+import { registerFreesoundHandlers } from './ipc/freesound'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -88,50 +96,19 @@ protocol.registerSchemesAsPrivileged([
 if (release().startsWith('6.1')) app.disableHardwareAcceleration()
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
-logMain('process:start', {
-  isPackaged: app.isPackaged,
-  version: app.getVersion(),
-  execPath: process.execPath,
-  argv: process.argv,
-  cwd: process.cwd(),
-  appPath: app.getAppPath(),
-})
-
 if (!app.requestSingleInstanceLock()) {
-  logMain('single-instance-lock:failed')
   app.quit()
   process.exit(0)
 }
-
-logMain('single-instance-lock:acquired')
 
 let win: BrowserWindow | null = null
 const preload = join(__dirname, '../preload/index.mjs')
 const url = process.env.VITE_DEV_SERVER_URL
 const indexHtml = join(process.env.DIST, 'index.html')
 
-async function createWindow(update: (win: BrowserWindow) => void) {
-  logMain('createWindow:start', {
-    isPackaged: app.isPackaged,
-    version: app.getVersion(),
-    __dirname,
-    DIST_ELECTRON: process.env.DIST_ELECTRON,
-    DIST: process.env.DIST,
-    VITE_PUBLIC: process.env.VITE_PUBLIC,
-    preload,
-    preloadExists: existsSync(preload),
-    indexHtml,
-    indexHtmlExists: existsSync(indexHtml),
-  })
-
+async function createWindow() {
   const splashPath = join(process.env.VITE_PUBLIC!, 'splash.html')
   const iconPath = join(process.env.VITE_PUBLIC!, 'icon.png')
-  logMain('createWindow:assets', {
-    splashPath,
-    splashExists: existsSync(splashPath),
-    iconPath,
-    iconExists: existsSync(iconPath),
-  })
 
   const splash = new BrowserWindow({
     width: 320,
@@ -166,12 +143,10 @@ async function createWindow(update: (win: BrowserWindow) => void) {
   })
 
   if (url) {
-    logMain('mainWindow:loadURL', url)
     win.loadURL(url).catch((error) => {
       showFatalError('SampleByte failed to load dev URL', error)
     })
   } else {
-    logMain('mainWindow:loadFile', indexHtml)
     win.loadFile(indexHtml).catch((error) => {
       showFatalError('SampleByte failed to load packaged renderer', error)
     })
@@ -193,27 +168,16 @@ async function createWindow(update: (win: BrowserWindow) => void) {
     return { action: 'deny' }
   })
 
-  logMain('update:init:start')
   update(win)
-  logMain('update:init:done')
 }
 
-app.whenReady().then(async () => {
-  logMain('app:ready', {
-    isPackaged: app.isPackaged,
-    version: app.getVersion(),
-    appPath: app.getAppPath(),
-    userData: app.getPath('userData'),
-    logs: app.getPath('logs'),
-  })
-
+app.whenReady().then(() => {
   // Serve local audio files to the renderer without cross-origin restrictions
   protocol.handle('local-file', async (request) => {
     const url = new URL(request.url)
     const filePath = decodeURIComponent(
       url.hostname ? `/${url.hostname}${url.pathname}` : url.pathname
     )
-    logMain('local-file:request', { requestUrl: request.url, filePath, exists: existsSync(filePath) })
     // pathToFileURL properly percent-encodes spaces and special chars (e.g. paths under
     // "Application Support"). Plain `file://${filePath}` breaks on macOS userData paths.
     if (!existsSync(filePath)) {
@@ -263,40 +227,14 @@ app.whenReady().then(async () => {
     if (url.startsWith('https:')) shell.openExternal(url)
   })
 
-  logMain('startup-modules:import:start')
-  const [
-    { update },
-    { initDatabase },
-    { registerLibraryHandlers },
-    { registerAudioHandlers },
-    { registerFilesystemHandlers },
-    { registerPacksHandlers },
-    { registerSettingsHandlers },
-    { registerFreesoundHandlers },
-  ] = await Promise.all([
-    import('./update.js'),
-    import('./db/index.js'),
-    import('./ipc/library.js'),
-    import('./ipc/audio.js'),
-    import('./ipc/filesystem.js'),
-    import('./ipc/packs.js'),
-    import('./ipc/settings.js'),
-    import('./ipc/freesound.js'),
-  ])
-  logMain('startup-modules:import:done')
-
   initDatabase()
-  logMain('database:init:done')
   registerLibraryHandlers()
   registerAudioHandlers()
   registerFilesystemHandlers()
   registerPacksHandlers()
   registerSettingsHandlers()
   registerFreesoundHandlers()
-  logMain('ipc:registered')
-  createWindow(update)
-}).catch((error) => {
-  showFatalError('SampleByte failed during app startup', error)
+  createWindow()
 })
 
 app.on('window-all-closed', () => {
@@ -316,10 +254,6 @@ app.on('activate', () => {
   if (allWindows.length) {
     allWindows[0].focus()
   } else {
-    import('./update.js')
-      .then(({ update }) => createWindow(update))
-      .catch((error) => {
-        showFatalError('SampleByte failed during activate', error)
-      })
+    createWindow()
   }
 })
