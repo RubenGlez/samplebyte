@@ -45,7 +45,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.2",
+    "@electron/rebuild": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/fluent-ffmpeg": "^2.1.24",
     "@types/react": "^19.2.14",
