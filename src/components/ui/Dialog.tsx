@@ -5,7 +5,9 @@ export function Dialog({ children, ...props }: RadixDialog.DialogProps) {
   return <RadixDialog.Root {...props}>{children}</RadixDialog.Root>
 }
 
-export const DialogTrigger = RadixDialog.Trigger
+export function DialogTrigger(props: RadixDialog.DialogTriggerProps) {
+  return <RadixDialog.Trigger {...props} />
+}
 
 export function DialogContent({ children, className, ...props }: RadixDialog.DialogContentProps) {
   return (
@@ -37,4 +39,6 @@ export function DialogTitle({ children, className, ...props }: RadixDialog.Dialo
   )
 }
 
-export const DialogClose = RadixDialog.Close
+export function DialogClose(props: RadixDialog.DialogCloseProps) {
+  return <RadixDialog.Close {...props} />
+}
