@@ -26,7 +26,7 @@ function getFfmpegBinaryPath(): string {
     try {
       const packageJsonPath = require.resolve(path.join(platformDir, 'package.json'))
       return path.join(path.dirname(packageJsonPath), binaryName)
-    } catch (e) {
+    } catch {
       // Fallback if require.resolve fails
       return path.join(
         app.getAppPath(),
