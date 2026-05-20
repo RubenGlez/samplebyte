@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import type { Sample, Pack, PackSlot, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../types'
 
 contextBridge.exposeInMainWorld('api', {
@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   fs: {
+    getPathForFile: (file: File): string =>
+      webUtils.getPathForFile(file),
+
     pickFile: (): Promise<string | null> =>
       ipcRenderer.invoke('fs:pickFile'),
 

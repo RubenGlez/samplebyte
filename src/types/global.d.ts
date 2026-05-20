@@ -27,6 +27,7 @@ declare global {
         trimSource: (params: { sourceFilePath: string; start: number; end: number }) => Promise<{ filePath: string; duration: number }>
       }
       fs: {
+        getPathForFile: (file: File) => string
         pickFile: () => Promise<string | null>
         pickFolder: () => Promise<string | null>
       }
@@ -55,10 +56,6 @@ declare global {
     }
   }
 
-  // Electron adds .path to File objects from drag-and-drop
-  interface File {
-    path: string
-  }
 }
 
 export {}

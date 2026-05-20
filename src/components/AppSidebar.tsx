@@ -8,7 +8,7 @@ import { useLibraryStore } from '@/stores/library'
 import { usePacksStore } from '@/stores/packs'
 import { useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useInlineRename } from '@/hooks/useInlineRename'
-import { mimeTypeFromPath } from '@/utils'
+import { mimeTypeFromPath, toLocalFileUrl } from '@/utils'
 import { FilterControls } from '@/components/FilterControls'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
@@ -57,7 +57,7 @@ function ChopContent() {
     setActiveProject(project)
     setAudio({
       name: project.name,
-      path: `local-file://${project.sourcePath}`,
+      path: toLocalFileUrl(project.sourcePath),
       filePath: project.sourcePath,
       size: 0,
       type: mimeTypeFromPath(project.sourcePath),

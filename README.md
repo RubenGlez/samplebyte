@@ -58,7 +58,7 @@ No YouTube. Not because it isn't useful (the original version of this app was bu
 
 ## Tech Stack
 
-- **Electron 33** + **React 19** + **TypeScript**
+- **Electron 41** + **React 19** + **TypeScript**
 - **Vite** + vite-plugin-electron
 - **Zustand** for state management
 - **better-sqlite3** for the sample library database
@@ -119,12 +119,12 @@ Click "More info" then "Run anyway" to get past the unsigned-app warning.
 ```bash
 git clone https://github.com/RubenGlez/samplebyte
 cd samplebyte
-npm install
-npm run dev   # development (hot reload)
-npm run build # production build
+pnpm install
+pnpm dev   # development (hot reload)
+pnpm build # production build
 ```
 
-Requires Node.js v18+.
+Requires Node.js v18+ and pnpm. The project pins its pnpm version in `package.json`.
 
 ---
 

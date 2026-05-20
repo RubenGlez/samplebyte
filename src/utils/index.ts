@@ -34,6 +34,11 @@ export const mimeTypeFromPath = (filePath: string): string => {
   return EXT_TO_MIME[ext] ?? 'audio/*'
 }
 
+export const toLocalFileUrl = (filePath: string): string => {
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/')
+  return `local-file://${encodedPath}`
+}
+
 export const humanizeAudioType = (mimeType: string): string => {
   const typeMap: Record<string, string> = {
     'audio/mpeg': 'MP3',

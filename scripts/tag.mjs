@@ -9,7 +9,7 @@ const pkgPath = resolve(__dirname, '../package.json')
 
 const bump = process.argv[2] ?? 'patch'
 if (!['patch', 'minor', 'major'].includes(bump)) {
-  console.error('Usage: npm run tag [patch|minor|major]')
+  console.error('Usage: pnpm tag [patch|minor|major]')
   process.exit(1)
 }
 

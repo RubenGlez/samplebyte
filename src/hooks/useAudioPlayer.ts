@@ -22,9 +22,13 @@ export function useAudioPlayer(url: string | null) {
     }
     const audio = new Audio(url)
     audio.onended = () => setIsPlaying(false)
-    audio.play()
     audioRef.current = audio
-    setIsPlaying(true)
+    audio.play()
+      .then(() => setIsPlaying(true))
+      .catch(() => {
+        if (audioRef.current === audio) audioRef.current = null
+        setIsPlaying(false)
+      })
   }
 
   const stop = () => {

@@ -9,7 +9,7 @@ import { useInlineRename } from '@/hooks/useInlineRename'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/utils'
+import { formatTime, toLocalFileUrl } from '@/utils'
 import type { Sample, Project } from '@/types'
 
 // Column layout — Name flex, then fixed narrow cols
@@ -145,7 +145,7 @@ function SampleRow({
   onTagsChange: (tags: string[]) => void
   onTagClick: (tag: string) => void
 }) {
-  const { isPlaying, toggle } = useAudioPlayer(`local-file://${sample.filePath}`)
+  const { isPlaying, toggle } = useAudioPlayer(toLocalFileUrl(sample.filePath))
   const { isRenaming, draftName, inputRef, setDraftName, startRename, commitRename, cancelRename } =
     useInlineRename(sample.name, onRename)
   const [isEditingTags, setIsEditingTags] = useState(false)

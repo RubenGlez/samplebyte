@@ -7,7 +7,7 @@ import { useToastStore } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { cn } from '@/lib/utils'
-import { formatTime, mimeTypeFromPath } from '@/utils'
+import { formatTime, mimeTypeFromPath, toLocalFileUrl } from '@/utils'
 import type { FreesoundResult } from '@/types'
 import CardRoot from './Card/CardRoot'
 
@@ -25,8 +25,14 @@ export default function Loader() {
   const [tab, setTab] = useState<Tab>('local')
 
   const loadFile = (file: File) => {
+    const filePath = window.api.fs.getPathForFile(file)
+    if (!filePath) {
+      toast('Could not read that file path', 'error')
+      return
+    }
+
     setActiveProject(null)
-    setAudio({ name: file.name, path: URL.createObjectURL(file), filePath: file.path, size: file.size, type: file.type })
+    setAudio({ name: file.name, path: toLocalFileUrl(filePath), filePath, size: file.size, type: file.type || mimeTypeFromPath(filePath) })
   }
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }
@@ -42,12 +48,12 @@ export default function Loader() {
     const filePath = await window.api.fs.pickFile()
     if (!filePath) return
     setActiveProject(null)
-    setAudio({ name: filePath.split('/').pop() ?? 'audio', path: `local-file://${filePath}`, filePath, size: 0, type: mimeTypeFromPath(filePath) })
+    setAudio({ name: filePath.split('/').pop() ?? 'audio', path: toLocalFileUrl(filePath), filePath, size: 0, type: mimeTypeFromPath(filePath) })
   }
 
   const handleFreesoundLoad = ({ name, filePath }: { name: string; filePath: string }) => {
     setActiveProject(null)
-    setAudio({ name, path: `local-file://${filePath}`, filePath, size: 0, type: 'audio/mpeg' })
+    setAudio({ name, path: toLocalFileUrl(filePath), filePath, size: 0, type: 'audio/mpeg' })
     setView('chop')
     toast(`"${name}" ready to chop`)
   }

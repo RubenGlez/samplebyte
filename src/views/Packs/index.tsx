@@ -9,7 +9,7 @@ import { useToastStore } from '@/stores/toast'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { FilterControls } from '@/components/FilterControls'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/utils'
+import { formatTime, toLocalFileUrl } from '@/utils'
 import { Button } from '@/components/ui/Button'
 import type { Sample } from '@/types'
 
@@ -250,7 +250,7 @@ function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: {
   isDraggingAny: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: slotNumber })
-  const { isPlaying, play, stop } = useAudioPlayer(sample ? `local-file://${sample.filePath}` : null)
+  const { isPlaying, play, stop } = useAudioPlayer(sample ? toLocalFileUrl(sample.filePath) : null)
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
 

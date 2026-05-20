@@ -19,7 +19,7 @@ import TrimOverlay from './TrimOverlay'
 import { analyzeAudioUrl, detectTransientsFromUrl } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/utils'
+import { formatTime, toLocalFileUrl } from '@/utils'
 import type { ProjectRegion, Sample } from '@/types'
 
 interface AudioWaveformProps {
@@ -75,7 +75,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const analyzeAndPersist = useCallback(async (saved: Sample[]) => {
     for (const sample of saved) {
       try {
-        const result = await analyzeAudioUrl(`local-file://${sample.filePath}`)
+        const result = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
         await updateSample(sample.id, result)
       } catch { /* non-fatal */ }
     }
@@ -188,7 +188,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
       setAudio({
         name: audioName,
-        path: `local-file://${trimmedPath}`,
+        path: toLocalFileUrl(trimmedPath),
         filePath: trimmedPath,
         size: 0,
         type: 'audio/wav',

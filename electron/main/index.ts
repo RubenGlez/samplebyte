@@ -22,7 +22,17 @@ process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL
 
 // Must be called before app.ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'local-file', privileges: { secure: true, supportFetchAPI: true, bypassCSP: true, stream: true } },
+  {
+    scheme: 'local-file',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      bypassCSP: true,
+      stream: true,
+    },
+  },
 ])
 
 if (release().startsWith('6.1')) app.disableHardwareAcceleration()
@@ -96,11 +106,22 @@ async function createWindow() {
 
 app.whenReady().then(() => {
   // Serve local audio files to the renderer without cross-origin restrictions
-  protocol.handle('local-file', (request) => {
-    const filePath = decodeURIComponent(request.url.slice('local-file://'.length))
+  protocol.handle('local-file', async (request) => {
+    const url = new URL(request.url)
+    const filePath = decodeURIComponent(
+      url.hostname ? `/${url.hostname}${url.pathname}` : url.pathname
+    )
     // pathToFileURL properly percent-encodes spaces and special chars (e.g. paths under
     // "Application Support"). Plain `file://${filePath}` breaks on macOS userData paths.
-    return net.fetch(pathToFileURL(filePath).href)
+    const response = await net.fetch(pathToFileURL(filePath).href)
+    const headers = new Headers(response.headers)
+    headers.set('Access-Control-Allow-Origin', '*')
+    headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
   })
 
   if (!url) {

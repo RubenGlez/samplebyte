@@ -5,21 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev          # start Electron app in development (hot reload)
-npm run tsc          # type-check without emitting
-npm run lint         # ESLint
-npm run lint:fix     # ESLint with auto-fix
-npm run prettier:fix # format src/
-npm run build        # full production build (tsc + vite + electron-builder)
+pnpm dev          # start Electron app in development (hot reload)
+pnpm tsc          # type-check without emitting
+pnpm lint         # ESLint
+pnpm lint:fix     # ESLint with auto-fix
+pnpm prettier:fix # format src/
+pnpm build        # full production build (tsc + vite + electron-builder)
+pnpm tag patch    # bump version, push main, and push release tag
 ```
 
-There are no tests yet. After any change, `npm run tsc` is the fastest correctness check.
+This project uses pnpm (`packageManager` is pinned in `package.json`). There are no tests yet. After any change, `pnpm tsc` is the fastest correctness check.
 
-After `npm install`, the `postinstall` script runs `electron-rebuild -f -w better-sqlite3` automatically. If the app crashes on startup with a native module error, re-run `npm install` to rebuild.
+After `pnpm install`, the `postinstall` script runs `electron-rebuild -f -w better-sqlite3` automatically. If the app crashes on startup with a native module error, re-run `pnpm install` to rebuild.
 
 ## Architecture
 
-SampleByte is an Electron 33 + React 19 + TypeScript desktop app. The full vision and technical decisions are in `docs/ARCHITECTURE.md`. The product roadmap is in `docs/ROADMAP.md`. UI design system, color tokens, and macOS conventions are in `docs/DESIGN.md` — read it before touching any UI code.
+SampleByte is an Electron 41 + React 19 + TypeScript desktop app. The full vision and technical decisions are in `docs/ARCHITECTURE.md`. The product roadmap is in `docs/ROADMAP.md`. UI design system, color tokens, and macOS conventions are in `docs/DESIGN.md` — read it before touching any UI code.
 
 ### Three processes
 

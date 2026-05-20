@@ -141,6 +141,14 @@ Analysis runs once when audio is loaded into the Chop view. Results are stored o
 
 ---
 
+## Local Audio Files
+
+Renderer code does not read native file paths directly through `file://`. Local audio is exposed through the privileged `local-file://` protocol registered in `electron/main/index.ts`, which streams files with CORS headers so WaveSurfer, `<audio>`, and `fetch`-based analysis can all load the same URL.
+
+When a user drops a file, the renderer asks the preload bridge for the native path via `webUtils.getPathForFile(file)`. Build `local-file://` URLs with `toLocalFileUrl()` from `src/utils/index.ts`; do not concatenate raw paths by hand. The protocol handler accepts Chromium's host/path URL form and reconstructs the absolute path before forwarding to `net.fetch(pathToFileURL(...))`.
+
+---
+
 ## Freesound Integration
 
 Freesound has a public REST API with Creative Commons licensed audio. The API key is stored in the main process (never exposed to the renderer) and all requests are proxied through the `freesound:*` IPC handlers in `electron/main/ipc/freesound.ts`. Downloaded files are added to the library automatically.
