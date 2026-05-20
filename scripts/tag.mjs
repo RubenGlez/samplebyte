@@ -14,12 +14,27 @@ if (!['patch', 'minor', 'major'].includes(bump)) {
 }
 
 const exec = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', ...opts })
+const read = (cmd) => execSync(cmd, { encoding: 'utf8' }).trim()
 
 // Ensure working tree is clean
 try {
   execSync('git diff --exit-code && git diff --cached --exit-code', { stdio: 'pipe' })
 } catch {
   console.error('Working tree is dirty. Commit or stash your changes first.')
+  process.exit(1)
+}
+
+const branch = read('git branch --show-current')
+if (branch !== 'main') {
+  console.error('Releases must be tagged from main after the version bump is ready to publish.')
+  process.exit(1)
+}
+
+exec('git fetch origin main')
+const localHead = read('git rev-parse HEAD')
+const remoteHead = read('git rev-parse origin/main')
+if (localHead !== remoteHead) {
+  console.error('Local main must match origin/main before tagging. Pull or push your changes first.')
   process.exit(1)
 }
 
@@ -32,6 +47,7 @@ const tag = `v${version}`
 // Commit the bump locally, then tag that commit
 exec(`git add package.json`)
 exec(`git commit -m "chore: bump version to ${tag}"`)
+exec('git push origin main')
 exec(`git tag ${tag}`)
 
 // Push the tag (triggers CI) — tags are not subject to branch rules
@@ -39,8 +55,4 @@ exec(`git push origin ${tag}`)
 
 console.log(`
 Tag ${tag} pushed. CI will build and publish the release.
-
-The version bump commit is local. Push it to main:
-  - If you can push directly: git push
-  - Otherwise open a PR from your current branch
 `)
