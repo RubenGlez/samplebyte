@@ -24,7 +24,6 @@ release
 *.sln
 *.sw?
 
-pnpm-lock.yaml
 yarn.lock
 /test-results/
 /playwright-report/

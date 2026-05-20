@@ -1,0 +1,8 @@
+minimumReleaseAge: 1440
+blockExoticSubdeps: false
+
+allowBuilds:
+  '@electron/rebuild': true
+  better-sqlite3: true
+  electron: true
+  esbuild: true
