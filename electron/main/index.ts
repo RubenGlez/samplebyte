@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, session, protocol, net, ipcMain } from 'electron'
 import { release } from 'node:os'
 import { dirname, join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { update } from './update'
 import { initDatabase } from './db/index'
@@ -113,15 +114,35 @@ app.whenReady().then(() => {
     )
     // pathToFileURL properly percent-encodes spaces and special chars (e.g. paths under
     // "Application Support"). Plain `file://${filePath}` breaks on macOS userData paths.
-    const response = await net.fetch(pathToFileURL(filePath).href)
-    const headers = new Headers(response.headers)
-    headers.set('Access-Control-Allow-Origin', '*')
-    headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    })
+    if (!existsSync(filePath)) {
+      return new Response('File not found', {
+        status: 404,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        },
+      })
+    }
+
+    try {
+      const response = await net.fetch(pathToFileURL(filePath).href)
+      const headers = new Headers(response.headers)
+      headers.set('Access-Control-Allow-Origin', '*')
+      headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      })
+    } catch {
+      return new Response('Could not load file', {
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        },
+      })
+    }
   })
 
   if (!url) {
