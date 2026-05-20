@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { Download } from 'lucide-react'
@@ -75,6 +75,7 @@ export default function PacksView() {
       }
       initSlots(resolved)
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPack?.id, samples.length])
 
   const handleDragStart = (event: DragStartEvent) => {

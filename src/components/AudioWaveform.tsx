@@ -96,7 +96,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     } finally {
       setIsSaving(false)
     }
-  }, [filePath, regions, regionNames, fetchSamples, toast, analyzeAndPersist])
+  }, [filePath, regions, regionNames, fetchSamples, toast, analyzeAndPersist, activeProject?.id])
 
   const handleSaveProject = useCallback(async () => {
     if (!projectName.trim() || !regions?.length) return
