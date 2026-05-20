@@ -1,19 +1,68 @@
-import { app, BrowserWindow, shell, session, protocol, net, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, shell, session, protocol, net, ipcMain } from 'electron'
 import { release } from 'node:os'
 import { dirname, join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { update } from './update'
-import { initDatabase } from './db/index'
-import { registerLibraryHandlers } from './ipc/library'
-import { registerAudioHandlers } from './ipc/audio'
-import { registerFilesystemHandlers } from './ipc/filesystem'
-import { registerPacksHandlers } from './ipc/packs'
-import { registerSettingsHandlers } from './ipc/settings'
-import { registerFreesoundHandlers } from './ipc/freesound'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+const fallbackLogDir = join(__dirname, '../logs')
+const emergencyLogPath = '/tmp/samplebyte-main.log'
+
+function getLogPath(): string {
+  try {
+    return join(app.getPath('logs'), 'main.log')
+  } catch {
+    return join(fallbackLogDir, 'main.log')
+  }
+}
+
+function serializeError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}\n${error.stack ?? ''}`
+  }
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
+function logMain(message: string, data?: unknown): void {
+  const logPath = getLogPath()
+  const suffix = data === undefined ? '' : ` ${typeof data === 'string' ? data : serializeError(data)}`
+  const line = `[${new Date().toISOString()}] ${message}${suffix}\n`
+  try {
+    appendFileSync(emergencyLogPath, line)
+  } catch {
+    // Ignore emergency logging failures.
+  }
+  try {
+    mkdirSync(dirname(logPath), { recursive: true })
+    appendFileSync(logPath, line)
+  } catch {
+    console.error(line)
+  }
+}
+
+function showFatalError(title: string, error: unknown): void {
+  const detail = serializeError(error)
+  const logPath = getLogPath()
+  logMain(title, detail)
+  try {
+    dialog.showErrorBox(title, `${detail}\n\nLog file:\n${logPath}`)
+  } catch {
+    console.error(title, detail)
+  }
+}
+
+process.on('uncaughtException', (error) => {
+  showFatalError('SampleByte main process uncaught exception', error)
+})
+
+process.on('unhandledRejection', (reason) => {
+  showFatalError('SampleByte main process unhandled rejection', reason)
+})
 
 process.env.DIST_ELECTRON = join(__dirname, '../')
 process.env.DIST = join(process.env.DIST_ELECTRON, '../dist')
@@ -39,17 +88,51 @@ protocol.registerSchemesAsPrivileged([
 if (release().startsWith('6.1')) app.disableHardwareAcceleration()
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
+logMain('process:start', {
+  isPackaged: app.isPackaged,
+  version: app.getVersion(),
+  execPath: process.execPath,
+  argv: process.argv,
+  cwd: process.cwd(),
+  appPath: app.getAppPath(),
+})
+
 if (!app.requestSingleInstanceLock()) {
+  logMain('single-instance-lock:failed')
   app.quit()
   process.exit(0)
 }
+
+logMain('single-instance-lock:acquired')
 
 let win: BrowserWindow | null = null
 const preload = join(__dirname, '../preload/index.mjs')
 const url = process.env.VITE_DEV_SERVER_URL
 const indexHtml = join(process.env.DIST, 'index.html')
 
-async function createWindow() {
+async function createWindow(update: (win: BrowserWindow) => void) {
+  logMain('createWindow:start', {
+    isPackaged: app.isPackaged,
+    version: app.getVersion(),
+    __dirname,
+    DIST_ELECTRON: process.env.DIST_ELECTRON,
+    DIST: process.env.DIST,
+    VITE_PUBLIC: process.env.VITE_PUBLIC,
+    preload,
+    preloadExists: existsSync(preload),
+    indexHtml,
+    indexHtmlExists: existsSync(indexHtml),
+  })
+
+  const splashPath = join(process.env.VITE_PUBLIC!, 'splash.html')
+  const iconPath = join(process.env.VITE_PUBLIC!, 'icon.png')
+  logMain('createWindow:assets', {
+    splashPath,
+    splashExists: existsSync(splashPath),
+    iconPath,
+    iconExists: existsSync(iconPath),
+  })
+
   const splash = new BrowserWindow({
     width: 320,
     height: 360,
@@ -60,11 +143,13 @@ async function createWindow() {
     skipTaskbar: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   })
-  splash.loadFile(join(process.env.VITE_PUBLIC!, 'splash.html'))
+  splash.loadFile(splashPath).catch((error) => {
+    logMain('splash.loadFile:failed', error)
+  })
 
   win = new BrowserWindow({
     title: 'SampleByte',
-    icon: join(process.env.VITE_PUBLIC!, 'icon.png'),
+    icon: iconPath,
     width: 1280,
     height: 800,
     minWidth: 900,
@@ -81,9 +166,15 @@ async function createWindow() {
   })
 
   if (url) {
-    win.loadURL(url)
+    logMain('mainWindow:loadURL', url)
+    win.loadURL(url).catch((error) => {
+      showFatalError('SampleByte failed to load dev URL', error)
+    })
   } else {
-    win.loadFile(indexHtml)
+    logMain('mainWindow:loadFile', indexHtml)
+    win.loadFile(indexHtml).catch((error) => {
+      showFatalError('SampleByte failed to load packaged renderer', error)
+    })
   }
 
   const splashShownAt = Date.now()
@@ -102,16 +193,27 @@ async function createWindow() {
     return { action: 'deny' }
   })
 
+  logMain('update:init:start')
   update(win)
+  logMain('update:init:done')
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  logMain('app:ready', {
+    isPackaged: app.isPackaged,
+    version: app.getVersion(),
+    appPath: app.getAppPath(),
+    userData: app.getPath('userData'),
+    logs: app.getPath('logs'),
+  })
+
   // Serve local audio files to the renderer without cross-origin restrictions
   protocol.handle('local-file', async (request) => {
     const url = new URL(request.url)
     const filePath = decodeURIComponent(
       url.hostname ? `/${url.hostname}${url.pathname}` : url.pathname
     )
+    logMain('local-file:request', { requestUrl: request.url, filePath, exists: existsSync(filePath) })
     // pathToFileURL properly percent-encodes spaces and special chars (e.g. paths under
     // "Application Support"). Plain `file://${filePath}` breaks on macOS userData paths.
     if (!existsSync(filePath)) {
@@ -161,14 +263,40 @@ app.whenReady().then(() => {
     if (url.startsWith('https:')) shell.openExternal(url)
   })
 
+  logMain('startup-modules:import:start')
+  const [
+    { update },
+    { initDatabase },
+    { registerLibraryHandlers },
+    { registerAudioHandlers },
+    { registerFilesystemHandlers },
+    { registerPacksHandlers },
+    { registerSettingsHandlers },
+    { registerFreesoundHandlers },
+  ] = await Promise.all([
+    import('./update.js'),
+    import('./db/index.js'),
+    import('./ipc/library.js'),
+    import('./ipc/audio.js'),
+    import('./ipc/filesystem.js'),
+    import('./ipc/packs.js'),
+    import('./ipc/settings.js'),
+    import('./ipc/freesound.js'),
+  ])
+  logMain('startup-modules:import:done')
+
   initDatabase()
+  logMain('database:init:done')
   registerLibraryHandlers()
   registerAudioHandlers()
   registerFilesystemHandlers()
   registerPacksHandlers()
   registerSettingsHandlers()
   registerFreesoundHandlers()
-  createWindow()
+  logMain('ipc:registered')
+  createWindow(update)
+}).catch((error) => {
+  showFatalError('SampleByte failed during app startup', error)
 })
 
 app.on('window-all-closed', () => {
@@ -188,6 +316,10 @@ app.on('activate', () => {
   if (allWindows.length) {
     allWindows[0].focus()
   } else {
-    createWindow()
+    import('./update.js')
+      .then(({ update }) => createWindow(update))
+      .catch((error) => {
+        showFatalError('SampleByte failed during activate', error)
+      })
   }
 })

@@ -108,6 +108,16 @@ Then double-click the app normally.
 2. Go to System Settings > Privacy & Security
 3. Scroll down and click Open Anyway
 
+### macOS: startup diagnostics
+
+If the packaged app shows a JavaScript error before the main window opens, check:
+
+```bash
+cat ~/Library/Logs/samplebyte/main.log
+```
+
+The app also writes an emergency startup log to `/tmp/samplebyte-main.log`.
+
 ### Windows: SmartScreen warning
 
 Click "More info" then "Run anyway" to get past the unsigned-app warning.

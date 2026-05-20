@@ -71,5 +71,10 @@
     "vite": "^8.0.13",
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "optionalDependencies": {
+    "@ffmpeg-installer/darwin-arm64": "4.1.5",
+    "@ffmpeg-installer/darwin-x64": "4.1.0",
+    "@ffmpeg-installer/win32-x64": "4.1.0"
   }
 }

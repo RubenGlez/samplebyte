@@ -140,6 +140,16 @@ importers:
       vite-plugin-electron-renderer:
         specifier: ^0.14.5
         version: 0.14.7
+    optionalDependencies:
+      '@ffmpeg-installer/darwin-arm64':
+        specifier: 4.1.5
+        version: 4.1.5
+      '@ffmpeg-installer/darwin-x64':
+        specifier: 4.1.0
+        version: 4.1.0
+      '@ffmpeg-installer/win32-x64':
+        specifier: 4.1.0
+        version: 4.1.0
 
 packages:
 
