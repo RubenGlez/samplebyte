@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { withLoading } from './utils'
 import type { Project } from '@/types'
 
 interface ProjectsState {
@@ -23,15 +24,13 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   isProjectDirty: false,
   isLoading: false,
 
-  fetchProjects: async () => {
-    set({ isLoading: true })
-    try {
+  fetchProjects: () => withLoading(
+    (v) => set({ isLoading: v }),
+    async () => {
       const projects = await window.api.projects.getAll()
       set({ projects })
-    } finally {
-      set({ isLoading: false })
     }
-  },
+  ),
 
   setActiveProject: (project) => set({ activeProject: project, isProjectDirty: false }),
 

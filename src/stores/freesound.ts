@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { withLoading } from './utils'
 import type { FreesoundResult } from '@/types'
 
 type FreesoundState = {
@@ -24,30 +25,31 @@ export const useFreesoundStore = create<FreesoundState>((set, get) => ({
   isDownloading: [],
 
   search: async (query) => {
-    set({ query, isSearching: true, results: [], page: 1, hasMore: false })
-    try {
-      const data = await window.api.freesound.search(query, 1)
-      set({ results: data.results, hasMore: data.next !== null, page: 1 })
-    } finally {
-      set({ isSearching: false })
-    }
+    set({ query, results: [], page: 1, hasMore: false })
+    await withLoading(
+      (v) => set({ isSearching: v }),
+      async () => {
+        const data = await window.api.freesound.search(query, 1)
+        set({ results: data.results, hasMore: data.next !== null, page: 1 })
+      }
+    )
   },
 
   loadMore: async () => {
     const { query, page, isSearching } = get()
     if (isSearching || !query) return
     const nextPage = page + 1
-    set({ isSearching: true })
-    try {
-      const data = await window.api.freesound.search(query, nextPage)
-      set((s) => ({
-        results: [...s.results, ...data.results],
-        hasMore: data.next !== null,
-        page: nextPage,
-      }))
-    } finally {
-      set({ isSearching: false })
-    }
+    await withLoading(
+      (v) => set({ isSearching: v }),
+      async () => {
+        const data = await window.api.freesound.search(query, nextPage)
+        set((s) => ({
+          results: [...s.results, ...data.results],
+          hasMore: data.next !== null,
+          page: nextPage,
+        }))
+      }
+    )
   },
 
   startDownload: (id) => set((s) => ({ isDownloading: [...s.isDownloading, id] })),

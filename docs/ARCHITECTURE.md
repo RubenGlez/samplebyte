@@ -96,13 +96,13 @@ The library is backed by SQLite via `better-sqlite3`. The database file lives in
 
 ## State Management
 
-Seven Zustand stores, each owning one domain: `player`, `library`, `packs`, `projects`, `freesound`, `ui`, and `toast`. Stores call `window.api.*` directly — no intermediate service layer. Components call store actions.
+Seven Zustand stores, each owning one domain: `player`, `library`, `packs`, `projects`, `freesound`, `ui`, and `toast`. Stores own async operations — they call `window.api.*` and coordinate multi-step flows (e.g. save → analyze → persist). Components call store actions, not `window.api` directly.
 
 ---
 
 ## Hardware Profiles
 
-Each profile is a plain config object in `electron/main/hardware/profiles.ts`. Adding a new hardware target requires no code changes beyond adding one entry to the array. Each profile specifies container format, sample rate, bit depth, and a `fileName` function for pad naming conventions.
+Defined in `electron/main/hardware/profiles.ts`. Adding a new hardware target requires no code changes beyond adding one entry to the array. Each profile specifies container format, sample rate, bit depth, and a `fileName` function for pad naming conventions. `applyProfileFormat(profile, cmd)` configures an ffmpeg command for a given profile — callers never read `profile.format.*` directly.
 
 ---
 
@@ -114,18 +114,17 @@ When the user exports a pack:
 Packs view
   → window.api.packs.export(packId, outputDir)
   → IPC: 'packs:export'
-  → main/services/export.ts
+  → electron/main/ipc/packs.ts
       1. Load pack + slots from DB
       2. Resolve hardware profile
       3. For each slot:
-           ffmpeg trim source file to [start, end]
-           resample to profile.format.sampleRate
-           convert bit depth to profile.format.bitDepth
-           write to outputDir/profile.fileName(slot, name)
-  → returns { success: true, filesWritten: number }
+           applyProfileFormat(profile, ffmpeg(filePath))
+             trims, resamples, and converts to profile format
+             writes to outputDir/profile.fileName(slot, name)
+  → returns { filesWritten: number }
 ```
 
-ffmpeg runs as a child process via `fluent-ffmpeg`. Each trim is a separate ffmpeg call. For 16 pads this is fast enough to run sequentially without a progress bar, but we can add one later.
+ffmpeg runs as a child process via `fluent-ffmpeg`. Each slot is a separate ffmpeg call run in parallel via `Promise.all`. `applyProfileFormat` in `hardware/profiles.ts` owns the full ffmpeg format config — IPC handlers do not read `profile.format.*` directly.
 
 ---
 
@@ -137,7 +136,9 @@ BPM and key detection run in the renderer using the Web Audio API and custom sig
 - **Key** — Krumhansl-Schmuckler pitch-class profiles compared against all 24 major/minor keys
 - **Transient detection** — adaptive threshold on onset strength with configurable sensitivity (coarse / medium / fine), used for auto-chop
 
-Analysis runs once when audio is loaded into the Chop view. Results are stored on the sample record when saved to the library.
+Analysis runs once when audio is loaded into the Chop view. `analyzeAudioUrl` caches results by URL — repeated calls for the same file return the same Promise. When chops are saved to the library, the `library.saveChops` store action fires analysis in the background and persists BPM + key to the sample record.
+
+WAV waveform peak extraction for the library view runs in the main process (`electron/main/audio/waveform.ts`) at save time, not in the renderer.
 
 ---
 
@@ -160,5 +161,5 @@ Freesound has a public REST API with Creative Commons licensed audio. The API ke
 - **No comments explaining what code does.** Names should do that. Comments only for non-obvious _why_ — a constraint, a workaround, a subtle invariant.
 - **IPC handlers throw on error.** The invoke/handle pattern propagates errors as rejections. No separate error channels.
 - **Stores own async.** Components call store actions, not `window.api` directly.
-- **Hardware profiles are data, not code.** A new device is a new object in the array, nothing else.
+- **Hardware profiles are config, not logic.** A new device is a new object in the array. `applyProfileFormat` owns the ffmpeg config so handlers never reach into `profile.format.*`.
 - **Waveform peaks are pre-computed.** When a sample is added to the library, its waveform data is computed once and stored in the DB. The Library view renders instantly without re-reading audio files.

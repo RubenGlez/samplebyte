@@ -37,7 +37,7 @@ Communication between renderer and main is **only** through `window.api`, which 
 All IPC uses `invoke`/`handle` — never `send`/`receive`. Every operation is a typed Promise.
 
 ```typescript
-// renderer — calls window.api directly, or via a Zustand store action
+// renderer — calls store actions; stores call window.api
 const samples = await window.api.library.getSamples()
 
 // main (electron/main/ipc/*.ts) — registers the handler
@@ -58,8 +58,12 @@ Adding a new IPC operation requires changes in three places: the handler in `ele
 Zustand stores live in `src/stores/`. They own async operations — components call store actions, not `window.api` directly.
 
 - `player` — current loaded audio source
-- `library` — sample list, search, filters
+- `library` — sample list, search, filters, save-chops orchestration
 - `packs` — pack being built, pad slots, hardware profile
+- `projects` — active project, save/load
+- `freesound` — search results, download state
+- `ui` — view navigation
+- `toast` — notification queue
 
 ### Database
 
@@ -67,7 +71,7 @@ SQLite via `better-sqlite3` (synchronous). Initialised in `electron/main/db/inde
 
 ### Hardware profiles
 
-Defined in `electron/main/hardware/profiles.ts` as plain config objects — adding a new device is adding one object to the array, no other changes needed. Each profile specifies container format, sample rate, bit depth, and a `fileName` function for pad naming conventions.
+Defined in `electron/main/hardware/profiles.ts`. Adding a new device is adding one object to the array, no other changes needed. `applyProfileFormat(profile, cmd)` configures an ffmpeg command for the profile — IPC handlers call this instead of reading `profile.format.*` directly.
 
 ### Tailwind
 
@@ -75,6 +79,6 @@ v4 with `@tailwindcss/vite`. No `tailwind.config.js` — theme extensions go in 
 
 ## Current state
 
-Phase 1 (foundation) is complete. The app loads a local audio file, renders a waveform, supports drag-to-create regions, and can save/export. YouTube integration was intentionally removed.
+Phases 1 and 2 are complete. The full three-view workflow is working end-to-end: Chop (waveform editor with region creation), Library (SQLite-backed sample browser), and Packs (4×4 pad grid → hardware export). Freesound search and download are live.
 
-Phase 2 builds the three-view UI: Chop (current waveform editor), Library (SQLite-backed sample browser), and Packs (4×4 pad grid → hardware export). Freesound API integration is also Phase 2.
+Phase 3 (intelligence) is mostly complete: BPM detection, key detection, and transient-based auto-chop are all shipped. Remaining: BPM/key filter in the Library view, pitch shift on export, and time stretch on export.

@@ -16,11 +16,11 @@ import { Input } from '@/components/ui/Input'
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
 import TrimOverlay from './TrimOverlay'
-import { analyzeAudioUrl, detectTransientsFromUrl } from '@/lib/audioAnalysis'
+import { detectTransientsFromUrl } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
-import type { ProjectRegion, Sample } from '@/types'
+import type { ProjectRegion } from '@/types'
 
 interface AudioWaveformProps {
   audioUrl: string
@@ -56,7 +56,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     wavesurfer,
     initialRegions,
   })
-  const { fetchSamples, updateSample } = useLibraryStore()
+  const { saveChops } = useLibraryStore()
 
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -72,31 +72,20 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     [regions, regionNames]
   )
 
-  const analyzeAndPersist = useCallback(async (saved: Sample[]) => {
-    for (const sample of saved) {
-      try {
-        const result = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
-        await updateSample(sample.id, result)
-      } catch { /* non-fatal */ }
-    }
-  }, [updateSample])
-
   const handleSaveToLibrary = useCallback(async () => {
     if (!regions?.length) return
     setIsSaving(true)
     try {
-      const saved = await window.api.library.saveChops({
+      await saveChops({
         sourceFilePath: filePath,
         regions: regions.map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
         projectId: activeProject?.id,
       })
-      await fetchSamples()
       toast(`${regions.length} chop${regions.length !== 1 ? 's' : ''} saved to Library`)
-      analyzeAndPersist(saved)
     } finally {
       setIsSaving(false)
     }
-  }, [filePath, regions, regionNames, fetchSamples, toast, analyzeAndPersist, activeProject?.id])
+  }, [filePath, regions, regionNames, saveChops, toast, activeProject?.id])
 
   const handleSaveProject = useCallback(async () => {
     if (!projectName.trim() || !regions?.length) return

@@ -1,8 +1,7 @@
 import { ipcMain } from 'electron'
 import * as packsDb from '../db/queries/packs'
 import * as samplesDb from '../db/queries/samples'
-import { getProfile } from '../hardware/profiles'
-import { profiles } from '../hardware/profiles'
+import { getProfile, applyProfileFormat, profiles } from '../hardware/profiles'
 import type { Pack } from '../../types'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -61,11 +60,7 @@ export function registerPacksHandlers(): void {
 
           const outputFile = path.join(outputDir, profile.fileName(slot.slotNumber, sample.name))
 
-          ffmpeg(sample.filePath)
-            .toFormat(profile.format.container)
-            .audioFrequency(profile.format.sampleRate)
-            .audioChannels(2)
-            .outputOptions([`-sample_fmt ${profile.format.sampleFmt}`])
+          applyProfileFormat(profile, ffmpeg(sample.filePath))
             .output(outputFile)
             .on('end', () => resolve())
             .on('error', reject)

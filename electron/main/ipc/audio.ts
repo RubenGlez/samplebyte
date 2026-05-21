@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
-import { getProfile } from '../hardware/profiles'
+import { getProfile, applyProfileFormat } from '../hardware/profiles'
 import { trimSourceToCache } from '../services/trim'
 import { configureFfmpeg, ffmpeg } from '../services/ffmpeg'
 import type { ExportRegionsParams, TrimSourceParams } from '../../types'
@@ -20,13 +20,9 @@ export function registerAudioHandlers(): void {
         new Promise<void>((resolve, reject) => {
           const outputFile = path.join(outputDir, profile.fileName(index, region.name || `sample_${index + 1}`))
 
-          ffmpeg(sourceFilePath)
+          applyProfileFormat(profile, ffmpeg(sourceFilePath)
             .setStartTime(region.start)
-            .setDuration(region.end - region.start)
-            .toFormat(profile.format.container)
-            .audioFrequency(profile.format.sampleRate)
-            .audioChannels(2)
-            .outputOptions([`-sample_fmt ${profile.format.sampleFmt}`])
+            .setDuration(region.end - region.start))
             .output(outputFile)
             .on('end', () => resolve())
             .on('error', reject)

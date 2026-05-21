@@ -30,17 +30,36 @@ function deserialize(row: Record<string, unknown>): Sample {
 
 export function getAllSamples(filters?: SampleFilters): Sample[] {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM samples ORDER BY created_at DESC').all() as Record<string, unknown>[]
 
-  return rows.map(deserialize).filter((sample) => {
-    if (!filters) return true
-    if (filters.bpm !== undefined && Math.abs((sample.bpm ?? 0) - filters.bpm) > 5) return false
-    if (filters.key && sample.musicalKey !== filters.key) return false
-    if (filters.tags?.length && !filters.tags.some((t) => sample.tags.includes(t))) return false
-    if (filters.source && sample.source !== filters.source) return false
-    if (filters.projectId !== undefined && sample.projectId !== filters.projectId) return false
-    return true
-  })
+  const conditions: string[] = []
+  const values: unknown[] = []
+
+  if (filters?.bpm !== undefined) {
+    conditions.push('ABS(COALESCE(bpm, 0) - ?) <= 5')
+    values.push(filters.bpm)
+  }
+  if (filters?.key) {
+    conditions.push('musical_key = ?')
+    values.push(filters.key)
+  }
+  if (filters?.source) {
+    conditions.push('source = ?')
+    values.push(filters.source)
+  }
+  if (filters?.projectId !== undefined) {
+    conditions.push('project_id = ?')
+    values.push(filters.projectId)
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const rows = db.prepare(`SELECT * FROM samples ${where} ORDER BY created_at DESC`).all(...values) as Record<string, unknown>[]
+  const result = rows.map(deserialize)
+
+  // Tags are JSON arrays in the column; filter in-memory to avoid json_each complexity
+  if (filters?.tags?.length) {
+    return result.filter((s) => filters.tags!.some((t) => s.tags.includes(t)))
+  }
+  return result
 }
 
 export function addSample(data: NewSample): Sample {
