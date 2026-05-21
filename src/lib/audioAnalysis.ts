@@ -143,16 +143,27 @@ export function analyzeAudioBuffer(buffer: AudioBuffer): { bpm: number; musicalK
   return { bpm, musicalKey }
 }
 
-export async function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey: string }> {
-  const response = await fetch(url)
-  const arrayBuffer = await response.arrayBuffer()
-  const ctx = new AudioContext()
-  try {
-    const buffer = await ctx.decodeAudioData(arrayBuffer)
-    return analyzeAudioBuffer(buffer)
-  } finally {
-    ctx.close()
-  }
+const analysisCache = new Map<string, Promise<{ bpm: number; musicalKey: string }>>()
+
+export function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey: string }> {
+  const cached = analysisCache.get(url)
+  if (cached) return cached
+
+  const result = (async () => {
+    const response = await fetch(url)
+    const arrayBuffer = await response.arrayBuffer()
+    const ctx = new AudioContext()
+    try {
+      const buffer = await ctx.decodeAudioData(arrayBuffer)
+      return analyzeAudioBuffer(buffer)
+    } finally {
+      ctx.close()
+    }
+  })()
+
+  analysisCache.set(url, result)
+  result.catch(() => analysisCache.delete(url))
+  return result
 }
 
 // Onset strength is computed as positive first-order RMS energy differences.

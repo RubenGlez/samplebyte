@@ -1,4 +1,7 @@
 import { create } from 'zustand'
+import { analyzeAudioUrl } from '@/lib/audioAnalysis'
+import { toLocalFileUrl } from '@/utils'
+import { withLoading } from './utils'
 import type { Sample } from '../../electron/types'
 
 type Filters = {
@@ -20,6 +23,7 @@ type LibraryState = {
   addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
   updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
   deleteSample: (id: string) => Promise<void>
+  saveChops: (params: { sourceFilePath: string; regions: Array<{ start: number; end: number; name: string }>; projectId?: string }) => Promise<void>
   setSearchQuery: (query: string) => void
   setFilters: (filters: Filters) => void
   setProjectFilter: (projectId: string | null) => void
@@ -27,7 +31,7 @@ type LibraryState = {
   setSelectedSample: (sample: Sample | null) => void
 }
 
-export const useLibraryStore = create<LibraryState>((set) => ({
+export const useLibraryStore = create<LibraryState>((set, get) => ({
   samples: [],
   searchQuery: '',
   filters: {},
@@ -35,11 +39,13 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   selectedSample: null,
   isLoading: false,
 
-  fetchSamples: async () => {
-    set({ isLoading: true })
-    const samples = await window.api.library.getSamples()
-    set({ samples, isLoading: false })
-  },
+  fetchSamples: () => withLoading(
+    (v) => set({ isLoading: v }),
+    async () => {
+      const samples = await window.api.library.getSamples()
+      set({ samples })
+    }
+  ),
 
   addSample: async (data) => {
     const sample = await window.api.library.addSample(data)
@@ -60,6 +66,22 @@ export const useLibraryStore = create<LibraryState>((set) => ({
       samples: state.samples.filter((s) => s.id !== id),
       selectedSample: state.selectedSample?.id === id ? null : state.selectedSample,
     }))
+  },
+
+  saveChops: async (params) => {
+    const saved = await window.api.library.saveChops(params)
+    const samples = await window.api.library.getSamples()
+    set({ samples })
+    // Fire-and-forget: analyze each chop and persist BPM + key
+    ;(async () => {
+      const { updateSample } = get()
+      for (const sample of saved) {
+        try {
+          const result = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
+          await updateSample(sample.id, result)
+        } catch { /* non-fatal */ }
+      }
+    })()
   },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
