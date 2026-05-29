@@ -43,7 +43,7 @@ This is not a commercial product. It's open source, free to use, and built in my
 | Akai MPC (generic) | WAV | 44.1 kHz | 24-bit |
 | Generic WAV | WAV | 44.1 kHz | 24-bit |
 
-Adding a new hardware target is just one config object, no code changes needed. See [Architecture](docs/ARCHITECTURE.md#hardware-profiles).
+Adding a new hardware target is just one config object, no code changes needed. See [Architecture](docs/engineering/architecture.md#export-pipeline).
 
 ---
 
@@ -67,13 +67,13 @@ No YouTube. Not because it isn't useful (the original version of this app was bu
 - Custom **Web Audio API** algorithms for BPM and key detection (offline, no dependencies)
 - **Tailwind CSS v4** + **shadcn/ui**
 
-For the full architecture breakdown, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For the full architecture breakdown, see [architecture.md](docs/engineering/architecture.md).
 
 ---
 
 ## Roadmap
 
-See [ROADMAP.md](docs/ROADMAP.md) for the full phased plan.
+See [roadmap.md](docs/product/roadmap.md) for the full phased plan.
 
 | Phase | Focus |
 |---|---|
@@ -155,8 +155,8 @@ Requires Node.js v18+ and pnpm. The project pins its pnpm version in `package.js
 SampleByte is still working toward its first real MVP. Contributions are welcome.
 
 Before starting:
-1. Read the [Roadmap](docs/ROADMAP.md) to see what's planned and what's in progress
-2. Read the [Architecture](docs/ARCHITECTURE.md) to understand the codebase structure and conventions
+1. Read the [Roadmap](docs/product/roadmap.md) to see what's planned and what's in progress
+2. Read the [Architecture](docs/engineering/architecture.md) to understand the codebase structure and conventions
 3. Open an issue before starting anything large
 
 ---

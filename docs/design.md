@@ -1,6 +1,87 @@
+---
+name: SampleByte
+colors:
+  primary: "#1c1c1e"
+  secondary: "#242427"
+  accent: "#FF5500"
+  accentBright: "#FF7733"
+  neutral: "#2e2e31"
+  overlay: "#38383c"
+  border: "rgba(255,255,255,0.08)"
+  borderBright: "rgba(255,255,255,0.16)"
+  ink: "rgba(255,255,255,0.87)"
+  muted: "rgba(255,255,255,0.55)"
+  faint: "rgba(255,255,255,0.28)"
+typography:
+  h1:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif"
+    fontSize: "13px"
+    fontWeight: 600
+  body-md:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+  body-sm:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+  label:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif"
+    fontSize: "11px"
+    fontWeight: 600
+  meta:
+    fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace"
+    fontSize: "11px"
+    fontWeight: 400
+rounded:
+  sm: "5px"
+  md: "6px"
+  lg: "8px"
+  xl: "12px"
+spacing:
+  xs: "4px"
+  sm: "8px"
+  md: "12px"
+  lg: "16px"
+  xl: "24px"
+components:
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "#ffffff"
+    rounded: "{rounded.md}"
+    height: "28px"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.muted}"
+    rounded: "{rounded.md}"
+    height: "28px"
+  input:
+    backgroundColor: "{colors.raised}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.border}"
+    rounded: "{rounded.md}"
+    height: "26px"
+  segmented-control:
+    backgroundColor: "rgba(255,255,255,0.06)"
+    activeBackgroundColor: "rgba(255,255,255,0.13)"
+    rounded: "{rounded.lg}"
+    height: "32px"
+  table-row:
+    backgroundColor: "{colors.primary}"
+    selectedBackgroundColor: "rgba(255,85,0,0.15)"
+    height: "34px"
+  dialog:
+    backgroundColor: "{colors.overlay}"
+    rounded: "{rounded.xl}"
+  pad-slot:
+    backgroundColor: "{colors.raised}"
+    borderColor: "{colors.border}"
+    rounded: "{rounded.lg}"
+---
+
 # Design
 
-SampleByte targets macOS exclusively and is designed to feel like a first-party Apple app — not a web app that happens to run on the desktop. Read this before touching any UI code.
+SampleByte uses a macOS-first visual language and should feel like a first-party desktop utility, not a web app that happens to run on the desktop. Read this before touching any UI code.
 
 ---
 
@@ -30,7 +111,7 @@ Defined in `src/index.css` `@theme {}`. Every color used in the app must come fr
 
 **Selected/active state**: use `bg-accent/15` for list row selections. This reads as a warm orange tint without being heavy.
 
-**Never** use `text-white` or `bg-black` — always use a token.
+Avoid ad hoc `text-white` or `bg-black`; use tokens or documented component variants. The primary button is the only current white-text exception and should stay centralized in the button component/token.
 
 ---
 

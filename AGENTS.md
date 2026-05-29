@@ -20,7 +20,7 @@ After `pnpm install`, the `postinstall` script runs `electron-rebuild -f -w bett
 
 ## Architecture
 
-SampleByte is an Electron 41 + React 19 + TypeScript desktop app. The full vision and technical decisions are in `docs/ARCHITECTURE.md`. The product roadmap is in `docs/ROADMAP.md`. UI design system, color tokens, and macOS conventions are in `docs/DESIGN.md` — read it before touching any UI code.
+SampleByte is an Electron 41 + React 19 + TypeScript desktop app. The product direction is in `docs/product/`. Engineering architecture and implementation planning are in `docs/engineering/`. Durable tradeoff decisions are in `docs/adr/`. UI design system, color tokens, and macOS conventions are in `docs/design.md` — read it before touching any UI code.
 
 ### Three processes
 
