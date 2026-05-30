@@ -6,6 +6,7 @@ import { useToastStore } from '@/stores/toast'
 import { type LibraryBrowserItem, useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { useInlineRename } from '@/hooks/useInlineRename'
+import { useChopWaveform } from '@/hooks/useChopWaveform'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
@@ -151,6 +152,13 @@ function LibraryRow({
     useInlineRename(item.name, onRename ?? (() => {}))
   const [isEditingTags, setIsEditingTags] = useState(false)
 
+  const chopWaveform = useChopWaveform(
+    item.kind === 'project-chop' ? item.filePath : null,
+    item.kind === 'project-chop' ? item.start : 0,
+    item.kind === 'project-chop' ? item.end : 0,
+  )
+  const waveformData = item.kind === 'sample' ? item.sample.waveformData : chopWaveform
+
   const hasTags = item.tags.length > 0
   const canEdit = item.kind === 'sample' && onRename && onTagsChange && onDeleteRequest
 
@@ -202,10 +210,10 @@ function LibraryRow({
             </span>
           )}
           {/* Waveform miniature */}
-          {item.kind === 'sample' && item.sample.waveformData && !isRenaming && (
+          {waveformData && !isRenaming && (
             <svg viewBox="0 0 100 100" className="flex-1 h-4 min-w-0" preserveAspectRatio="none">
-              {item.sample.waveformData.map((v, i) => {
-                const barW = 100 / item.sample.waveformData!.length
+              {waveformData.map((v, i) => {
+                const barW = 100 / waveformData.length
                 const h = Math.max(2, v * 100)
                 return (
                   <rect
