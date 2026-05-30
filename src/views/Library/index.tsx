@@ -14,7 +14,7 @@ import { formatTime, toLocalFileUrl } from '@/utils'
 import type { Sample, Project } from '@/types'
 
 // Column layout — Name flex, then fixed narrow cols
-const GRID = 'grid-cols-[1fr_80px_64px_52px_72px_140px_52px]'
+const GRID = 'grid-cols-[1fr_120px_64px_52px_72px_140px_52px]'
 
 export default function LibraryView() {
   const { isLoading, fetchSamples, deleteSample, updateSample, toggleTagFilter } = useLibraryStore()
