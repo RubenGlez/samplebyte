@@ -5,9 +5,9 @@ import { useUiStore } from '@/stores/ui'
 type View = 'chop' | 'library' | 'packs'
 
 const segments: { id: View; label: string }[] = [
-  { id: 'chop',    label: 'Chop'    },
-  { id: 'library', label: 'Library' },
-  { id: 'packs',   label: 'Packs'   },
+  { id: 'chop',    label: 'Chop'   },
+  { id: 'library', label: 'Browse' },
+  { id: 'packs',   label: 'Pack'   },
 ]
 
 // WebkitAppRegion is Electron-specific and not in standard React.CSSProperties
