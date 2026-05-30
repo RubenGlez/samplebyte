@@ -14,7 +14,7 @@ import { formatTime, toLocalFileUrl } from '@/utils'
 import type { Sample, Project } from '@/types'
 
 // Column layout — Name flex, then fixed narrow cols
-const GRID = 'grid-cols-[1fr_64px_52px_72px_140px_52px]'
+const GRID = 'grid-cols-[1fr_80px_64px_52px_72px_140px_52px]'
 
 export default function LibraryView() {
   const { isLoading, fetchSamples, deleteSample, updateSample, toggleTagFilter } = useLibraryStore()
@@ -58,6 +58,7 @@ export default function LibraryView() {
           {/* Column headers */}
           <div className={cn('grid shrink-0 px-4 h-8 items-center border-b border-border bg-surface', GRID)}>
             <ColHeader label="Name" />
+            <ColHeader label="" />
             <ColHeader label="Duration" right />
             <ColHeader label="BPM"      right />
             <ColHeader label="Key" />
@@ -177,7 +178,7 @@ function LibraryRow({
         )}
         onClick={() => !isRenaming && toggle()}
       >
-        {/* Name + play indicator + waveform miniature */}
+        {/* Name + play indicator */}
         <div className="flex items-center gap-2 min-w-0 pr-2">
           <div className={cn(
             'w-5 h-5 flex items-center justify-center rounded-full shrink-0 transition-colors',
@@ -209,9 +210,12 @@ function LibraryRow({
               {item.name}
             </span>
           )}
-          {/* Waveform miniature */}
-          {waveformData && !isRenaming && (
-            <svg viewBox="0 0 100 100" className="w-20 shrink-0 h-4" preserveAspectRatio="none">
+        </div>
+
+        {/* Waveform */}
+        <div className="flex items-center pr-2">
+          {waveformData && (
+            <svg viewBox="0 0 100 100" className="w-full h-4" preserveAspectRatio="none">
               {waveformData.map((v, i) => {
                 const barW = 100 / waveformData.length
                 const h = Math.max(2, v * 100)
