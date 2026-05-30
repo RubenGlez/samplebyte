@@ -197,7 +197,7 @@ function LibraryRow({
               autoFocus
             />
           ) : (
-            <span className={cn('text-[13px] truncate shrink-0', isPlaying && 'text-ink font-medium')}>
+            <span className={cn('text-[13px] truncate min-w-0', isPlaying && 'text-ink font-medium')}>
               {item.name}
             </span>
           )}
