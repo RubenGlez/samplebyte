@@ -103,10 +103,16 @@ export function updateSample(id: string, data: Partial<Pick<Sample, 'name' | 'bp
   values.push(id)
 
   db.prepare(`UPDATE samples SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+
+  if (data.name !== undefined) {
+    db.prepare('UPDATE pack_slots SET display_name = ? WHERE sample_id = ?').run(data.name, id)
+  }
 }
 
-export function deleteSample(id: string): void {
+export function deleteSample(id: string): string | null {
   const db = getDb()
+  const row = db.prepare('SELECT file_path FROM samples WHERE id = ?').get(id) as { file_path: string } | undefined
   db.prepare('DELETE FROM pack_slots WHERE sample_id = ?').run(id)
   db.prepare('DELETE FROM samples WHERE id = ?').run(id)
+  return row?.file_path ?? null
 }

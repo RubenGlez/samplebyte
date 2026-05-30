@@ -21,7 +21,10 @@ export function registerLibraryHandlers(): void {
   })
 
   ipcMain.handle('library:deleteSample', (_, id: string) => {
-    samples.deleteSample(id)
+    const filePath = samples.deleteSample(id)
+    if (filePath) {
+      try { fs.unlinkSync(filePath) } catch { /* file already gone, ignore */ }
+    }
   })
 
   ipcMain.handle('library:saveChops', async (_, params: {
