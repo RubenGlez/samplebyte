@@ -23,7 +23,7 @@ export default function Toolbar() {
     >
       {/* Traffic lights gap + sidebar toggle */}
       <div
-        className="flex items-center pl-[72px] pr-2 shrink-0"
+        className="flex items-center pl-[88px] pr-2 shrink-0"
         style={{ WebkitAppRegion: 'no-drag' } as ElectronStyle}
       >
         <button

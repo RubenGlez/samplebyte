@@ -39,12 +39,12 @@ export default function AppSidebar() {
 
 function SectionHeader({ label, onAdd }: { label: string; onAdd?: () => void }) {
   return (
-    <div className="flex items-center justify-between px-3 pt-3 pb-1">
+    <div className="flex items-center justify-between px-3 pt-2 pb-1">
       <p className="text-[11px] font-semibold text-faint select-none tracking-wide">{label}</p>
       {onAdd && (
         <button
           onClick={onAdd}
-          className="w-6 h-6 shrink-0 flex items-center justify-center text-accent hover:text-accent-bright rounded bg-transparent border-0 cursor-pointer transition-colors"
+          className="w-6 h-6 shrink-0 flex items-center justify-center text-muted hover:text-ink rounded bg-transparent border-0 cursor-pointer transition-colors"
         >
           <Plus size={16} strokeWidth={2} />
         </button>
