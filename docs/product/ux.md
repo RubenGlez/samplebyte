@@ -4,13 +4,13 @@
 
 1. Import or record a sound.
 2. Chop and refine it inside a project.
-3. Project regions/chops are persisted automatically and become visible in the Library/source browser.
+3. Project regions/chops are persisted automatically and become visible in the Browse view.
 4. Send chops to a pack or open Pack Builder.
 5. Assemble pads or folder outputs from project chops and loose samples through one unified source browser.
 6. Choose a target profile.
 7. Export predictable, target-ready files.
 
-The Library is the searchable index of project regions/chops and loose imported samples. It is not a manual export checkpoint in the happy path.
+The Browse view is the searchable index of project regions/chops and loose imported samples. It is not a manual export checkpoint in the happy path. Sample rows and project-chop rows both display a waveform miniature in a dedicated column.
 
 ## Interaction model
 

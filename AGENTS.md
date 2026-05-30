@@ -79,8 +79,10 @@ v4 with `@tailwindcss/vite`. No `tailwind.config.js` — theme extensions go in 
 
 ## Current state
 
-Phases 1–4 are complete. The full three-view workflow is working end-to-end: Chop (waveform editor with region creation, auto-saves on every edit with a debounce), Library (SQLite-backed sample browser with BPM/key filters), and Packs (4×4 pad grid → hardware export with stale-source detection). Freesound search and download are live.
+Phases 1–4 are complete. The full three-view workflow is working end-to-end: Chop (waveform editor with region creation, auto-saves on every edit with a debounce), Browse (SQLite-backed sample browser with BPM/key filters — UI label was "Library", domain layer is unchanged), and Pack (4×4 pad grid → hardware export with stale-source detection — UI label was "Packs"). Freesound search and download are live.
 
-Phase 3 (intelligence) is complete: BPM detection, key detection, transient-based auto-chop, and BPM/key filtering in the Library view are all shipped. The Chop view no longer has an explicit save button — projects auto-save on every region change (1500ms debounce, 5s max-wait).
+Phase 3 (intelligence) is complete: BPM detection, key detection, transient-based auto-chop, and BPM/key filtering in the Browse view are all shipped. The Chop view no longer has an explicit save button — projects auto-save on every region change (1500ms debounce, 5s max-wait).
+
+Browse rows show a waveform miniature (120px column). Peak extraction runs in `src/workers/waveformPeaks.worker.ts` off the main thread. `src/hooks/useChopWaveform.ts` decodes source audio client-side and caches `AudioBuffer` objects by URL so multiple chops from the same file share one decode pass.
 
 Phase 5 (Import, Library, Recording) is the remaining work: batch folder import (5.1), library metadata management — tagging, cleanup, auditioning (5.2), and direct recording into projects (5.3). Pitch shift on export and time stretch on export are also not yet shipped.

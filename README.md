@@ -29,8 +29,8 @@ This is not a commercial product. It's open source, free to use, and built in my
 ## What It Does
 
 - **Chop:** load any local audio file or search Freesound, draw regions on the waveform to mark your chops, name them — chops save automatically
-- **Library:** browse everything you've ever sampled, search and filter by BPM, key, or tag, preview with a click
-- **Packs:** drag samples onto a 4x4 pad grid, pick your hardware target, export a ready-to-load folder with correctly named and formatted files
+- **Browse:** browse everything you've ever sampled, search and filter by BPM, key, or tag, preview with a click — each row shows a waveform miniature
+- **Pack:** drag samples onto a 4x4 pad grid, pick your hardware target, export a ready-to-load folder with correctly named and formatted files
 
 ---
 
@@ -50,7 +50,7 @@ Adding a new hardware target is just one config object, no code changes needed. 
 ## Audio Sources
 
 - **Local files:** drag and drop any audio file (WAV, MP3, FLAC, AIFF, OGG)
-- **Freesound:** search 650,000+ Creative Commons sounds directly in the app
+- **Freesound:** search 650,000+ Creative Commons sounds directly in the app — category shortcut chips (Kick, Snare, Hi-Hat, 808, etc.) on the empty state let you jump in fast, and sort/duration pill filters re-run the query instantly
 
 No YouTube. Not because it isn't useful (the original version of this app was built around it), but building on top of bypassing another platform's ToS is a dead end. Freesound covers discovery legally and with solid content. Local files cover everything else.
 
@@ -68,19 +68,6 @@ No YouTube. Not because it isn't useful (the original version of this app was bu
 - **Tailwind CSS v4** + **shadcn/ui**
 
 For the full architecture breakdown, see [architecture.md](docs/engineering/architecture.md).
-
----
-
-## Roadmap
-
-See [roadmap.md](docs/product/roadmap.md) for the full phased plan.
-
-| Phase | Focus |
-|---|---|
-| 1 - Foundation | SQLite database, typed IPC, Zustand state management |
-| 2 - Core | Chop, Library, Packs views + Freesound integration |
-| 3 - Intelligence | BPM/key detection, auto-chop on transients |
-| 4 - AI | Auto-tagging, stem separation, smart chop suggestions |
 
 ---
 
@@ -147,17 +134,6 @@ Requires Node.js v18+ and pnpm. The project pins its pnpm version in `package.js
 | `Backspace` | Delete selected region |
 | `Left / Right` | Select previous / next region |
 | `Mouse wheel` | Zoom waveform |
-
----
-
-## Contributing
-
-SampleByte is still working toward its first real MVP. Contributions are welcome.
-
-Before starting:
-1. Read the [Roadmap](docs/product/roadmap.md) to see what's planned and what's in progress
-2. Read the [Architecture](docs/engineering/architecture.md) to understand the codebase structure and conventions
-3. Open an issue before starting anything large
 
 ---
 

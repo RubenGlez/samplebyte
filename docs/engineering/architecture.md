@@ -33,7 +33,8 @@ Owns UI, waveform interaction, and user-facing workflow surfaces:
 
 - Chop workspace for source loading, recording entry points, live chops, naming, and refinement.
 - Pack Builder for assembling slots from the unified source browser of project chops and loose samples.
-- Library/source management for project regions, reusable assets, search, filtering, preview, tagging, and cleanup.
+- Browse view for project regions, reusable assets, search, filtering, preview, tagging, and cleanup. Rows display a waveform miniature in a dedicated 120px column.
+- Web Workers (`src/workers/`) for off-main-thread computation such as waveform peak extraction.
 
 ## State Stores
 
@@ -117,6 +118,8 @@ When a user drops a file, the renderer asks the preload bridge for the native pa
 ## Audio Analysis
 
 BPM, key, and transient detection stay in the renderer using the Web Audio API and the custom algorithms in `src/lib/audioAnalysis.ts`. Analysis remains offline and local. Results can be persisted to project chops, reusable library samples, or future snapshot metadata when needed.
+
+Waveform peak extraction for Browse view miniatures runs in a shared Web Worker (`src/workers/waveformPeaks.worker.ts`) to avoid blocking the UI thread. Decoded `AudioBuffer` objects are cached by URL in the `useChopWaveform` hook (`src/hooks/useChopWaveform.ts`) so multiple chops from the same source file share one decode pass; only the relevant time slice is transferred to the worker.
 
 ## Freesound
 
