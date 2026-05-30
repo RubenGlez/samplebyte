@@ -164,6 +164,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Acceptance criteria**: Users can import a folder of supported audio files; imported assets appear in Library and Pack Builder; duplicates are handled predictably; `pnpm tsc` passes.
 
+**Current implementation**: Shipped. An "Import folder" button in the Library sidebar recursively scans a selected folder for supported audio files, skips duplicates, and runs BPM/key analysis in the background. Imported assets appear in Browse and the Pack Builder source browser.
+
 **Depends on**: Phase 4.
 
 ### Task 5.2 - Improve library metadata management

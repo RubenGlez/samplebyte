@@ -20,7 +20,7 @@ Phase 3 intelligence work is mostly complete: BPM detection, key detection, and 
 ## Should-have
 
 - [ ] Direct recording into a project - capture audio from interfaces, turntables, keyboards, or phones without leaving the app.
-- [ ] Batch folder import and source-agnostic ingestion - bring existing sample folders into the workflow quickly.
+- [x] Batch folder import and source-agnostic ingestion - bring existing sample folders into the workflow quickly.
 - [x] Update-from-source affordance - show when a pack slot's original chop has changed and let the user refresh intentionally.
 - [ ] Library management tools - support tagging, cleanup, auditioning, and metadata maintenance.
 - [ ] Pitch shift/time stretch export options - tune or tempo-match exported packs without requiring a DAW. Quality should be competitive with Serato Pitch 'n Time as the market benchmark — the goal is not just having the feature but being good enough that producers do not feel they are downgrading from their DAW.

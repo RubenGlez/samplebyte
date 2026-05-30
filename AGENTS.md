@@ -85,4 +85,4 @@ Phase 3 (intelligence) is complete: BPM detection, key detection, transient-base
 
 Browse rows show a waveform miniature (120px column). Peak extraction runs in `src/workers/waveformPeaks.worker.ts` off the main thread. `src/hooks/useChopWaveform.ts` decodes source audio client-side and caches `AudioBuffer` objects by URL so multiple chops from the same file share one decode pass.
 
-Phase 5 (Import, Library, Recording) is the remaining work: batch folder import (5.1), library metadata management — tagging, cleanup, auditioning (5.2), and direct recording into projects (5.3). Pitch shift on export and time stretch on export are also not yet shipped.
+Phase 5 is partially complete: batch folder import (5.1) is shipped — an "Import folder" button in the Library sidebar recursively scans for audio files, skips duplicates, and runs BPM/key analysis in the background. Remaining: library metadata management — tagging, cleanup, auditioning (5.2) — and direct recording into projects (5.3). Pitch shift on export and time stretch on export are also not yet shipped.
