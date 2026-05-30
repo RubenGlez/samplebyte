@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crop, Grid2x2, Pause, Play, Redo2, Save, Scissors, Undo2 } from 'lucide-react'
+import { Check, Crop, Grid2x2, Pause, Play, Redo2, Scissors, Undo2 } from 'lucide-react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useTrimRange } from '@/hooks/useTrimRange'
@@ -13,7 +13,6 @@ import { useToastStore } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
 import TrimOverlay from './TrimOverlay'
@@ -39,9 +38,7 @@ const MIN_AUTO_CHOP_REGION_SECONDS = {
 } as const
 
 const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
-  const { activeProject, isProjectDirty, saveProject, updateActiveProject, updateActiveRegions, applyLocalTrim } =
-    useProjectsStore()
-  const { autosaveActiveRegions } = useProjectsStore()
+  const { activeProject, autosaveActiveRegions, applyLocalTrim } = useProjectsStore()
   const { createPack, setSlot, hardwareProfileId } = usePacksStore()
   const { setView } = useUiStore()
   const { setAudio } = usePlayerStore()
@@ -66,8 +63,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     initialRegions,
   })
   const [isSaving, setIsSaving] = useState(false)
-  const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const [projectName, setProjectName] = useState(audioName.replace(/\.[^.]+$/, ''))
+  const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [sensitivity, setSensitivity] = useState<'coarse' | 'medium' | 'fine'>('medium')
   const [isAutoChopping, setIsAutoChopping] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
@@ -84,6 +81,11 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   )
 
   const autosaveTimer = useRef<number | null>(null)
+  const saveStatusTimer = useRef<number | null>(null)
+  const lastSavedAt = useRef<number>(0)
+  const isFirstAutosave = useRef(true)
+  const DEBOUNCE_MS = 1500
+  const MAX_WAIT_MS = 5000
 
   const syncHistoryState = useCallback(() => {
     setHistoryState({
@@ -134,44 +136,34 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   useEffect(() => {
     if (!filePath || !regions?.length) return
     if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
+
+    const isFirst = isFirstAutosave.current
+    if (isFirst) isFirstAutosave.current = false
+
+    const elapsed = Date.now() - lastSavedAt.current
+    const delay = !isFirst && elapsed >= MAX_WAIT_MS ? 0 : DEBOUNCE_MS
+
+    if (!isFirst) setSaveStatus('saving')
+
     autosaveTimer.current = window.setTimeout(() => {
-      void autosaveActiveRegions(currentRegions(), {
+      autosaveActiveRegions(currentRegions(), {
         name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
         sourcePath: filePath,
         sourceName: audioName,
-      })
-    }, 500)
+      }).then(() => {
+        lastSavedAt.current = Date.now()
+        if (!isFirst) {
+          setSaveStatus('saved')
+          if (saveStatusTimer.current !== null) window.clearTimeout(saveStatusTimer.current)
+          saveStatusTimer.current = window.setTimeout(() => setSaveStatus('idle'), 2000)
+        }
+      }).catch(() => setSaveStatus('idle'))
+    }, delay)
+
     return () => {
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
     }
   }, [audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regions?.length, revision])
-
-  const handleSaveProject = useCallback(async () => {
-    if (!projectName.trim() || !regions?.length) return
-    setIsSaving(true)
-    try {
-      await saveProject({ name: projectName.trim(), sourcePath: filePath, sourceName: audioName, regions: currentRegions() })
-      setShowSaveDialog(false)
-      toast('Project saved')
-    } finally {
-      setIsSaving(false)
-    }
-  }, [audioName, filePath, projectName, regions, currentRegions, saveProject, toast])
-
-  const handleUpdateProject = useCallback(async () => {
-    if (!isProjectDirty && !regions?.length) return
-    setIsSaving(true)
-    try {
-      if (isProjectDirty) {
-        await updateActiveProject()
-      } else {
-        await updateActiveRegions(currentRegions())
-      }
-      toast('Project updated')
-    } finally {
-      setIsSaving(false)
-    }
-  }, [isProjectDirty, regions, currentRegions, updateActiveProject, updateActiveRegions, toast])
 
   const handleSendToPack = useCallback(async () => {
     if (!regions?.length || !filePath) return
@@ -269,6 +261,13 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         end: trimOut,
       })
 
+      const saved = await autosaveActiveRegions(kept, {
+        name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
+        sourcePath: trimmedPath,
+        sourceName: audioName,
+      })
+      if (saved) lastSavedAt.current = Date.now()
+
       if (activeProject) {
         applyLocalTrim({ sourcePath: trimmedPath, regions: kept })
       }
@@ -285,7 +284,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       const droppedMsg = trimPreview.dropped > 0
         ? ` · ${trimPreview.dropped} chop${trimPreview.dropped !== 1 ? 's' : ''} removed`
         : ''
-      toast(`Source trimmed to ${formatTime(trimmedDuration)}${droppedMsg}`)
+      toast(`Source trimmed to ${formatTime(trimmedDuration)}${saved ? ' · Saved' : ''}${droppedMsg}`)
     } catch {
       toast('Trim failed', 'error')
     } finally {
@@ -295,8 +294,10 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     activeProject,
     applyLocalTrim,
     audioName,
+    autosaveActiveRegions,
     canApplyTrim,
     filePath,
+    projectName,
     regionNames,
     regions,
     setAudio,
@@ -324,25 +325,16 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
   const actions = (
     <>
+      {saveStatus !== 'idle' && (
+        <span className={cn('flex items-center gap-1 text-[11px] select-none transition-opacity', saveStatus === 'saved' ? 'text-faint/50' : 'text-faint/30')}>
+          {saveStatus === 'saved' && <Check size={10} />}
+          {saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+        </span>
+      )}
       <Button variant="outline" size="sm" onClick={handleSendToPack} disabled={isSaving || !hasRegions}>
         <Grid2x2 size={12} />
         Send to Pack
       </Button>
-      {activeProject ? (
-        <Button
-          size="sm"
-          onClick={handleUpdateProject}
-          disabled={isSaving || (!isProjectDirty && !hasRegions)}
-        >
-          <Save size={12} />
-          {isSaving ? 'Saving…' : isProjectDirty ? 'Update Project •' : 'Update Project'}
-        </Button>
-      ) : (
-        <Button size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
-          <Save size={12} />
-          Save Project
-        </Button>
-      )}
     </>
   )
 
@@ -484,26 +476,6 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-        <DialogContent>
-          <DialogTitle>Save Project</DialogTitle>
-          <Input
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            placeholder="Project name"
-            onKeyDown={(e) => e.key === 'Enter' && handleSaveProject()}
-            autoFocus
-          />
-          <div className="flex justify-end gap-2 mt-4">
-            <DialogClose asChild>
-              <Button variant="ghost" size="sm">Cancel</Button>
-            </DialogClose>
-            <Button size="sm" onClick={handleSaveProject} disabled={isSaving || !projectName.trim()}>
-              {isSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

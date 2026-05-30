@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Download, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Check, Download, RefreshCw } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
@@ -29,6 +29,8 @@ export default function PacksView() {
   const { toast } = useToastStore()
 
   const [activeSource, setActiveSource] = useState<PackSourceItem | null>(null)
+  const [packSaveStatus, setPackSaveStatus] = useState<'idle' | 'saved'>('idle')
+  const packSaveTimer = useRef<number | null>(null)
   const [projectChops, setProjectChops] = useState<Array<ProjectChop & { projectName: string; sourcePath: string | null }>>([])
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'local' | 'freesound'>('all')
@@ -49,6 +51,12 @@ export default function PacksView() {
     } finally {
       setIsExporting(false)
     }
+  }
+
+  const flashPackSaved = () => {
+    setPackSaveStatus('saved')
+    if (packSaveTimer.current !== null) window.clearTimeout(packSaveTimer.current)
+    packSaveTimer.current = window.setTimeout(() => setPackSaveStatus('idle'), 2000)
   }
 
   const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
@@ -104,7 +112,12 @@ export default function PacksView() {
     if (!over || !currentPack) return
     const slotNumber = Number(over.id)
     const source = sourceItems.find((s) => s.id === active.id)
-    if (source !== undefined) setSlot(slotNumber, source)
+    if (source !== undefined) setSlot(slotNumber, source).then(flashPackSaved)
+  }
+
+  const handleClearSlot = async (slotNumber: number) => {
+    await clearSlot(slotNumber)
+    flashPackSaved()
   }
 
   const refreshSlotFromSource = async (slot: PackSlot) => {
@@ -112,10 +125,19 @@ export default function PacksView() {
     const chop = projectChops.find((item) => item.id === slot.projectChopId)
     if (!chop?.sourcePath) return
     await setSlot(slot.slotNumber, chopToSourceItem(chop))
+    flashPackSaved()
     toast(`${chop.name} refreshed from source`)
   }
 
   const filledSlots = Object.keys(slots).length
+
+  const stalePads = Array.from({ length: 16 }, (_, i) => {
+    const slot = slots[i]
+    if (!slot?.projectChopId) return null
+    const chop = projectChops.find((c) => c.id === slot.projectChopId)
+    if (!chop || !slot.sourceChopUpdatedAt || chop.updatedAt <= slot.sourceChopUpdatedAt) return null
+    return { slotNumber: i, slot, chop }
+  }).filter(Boolean) as Array<{ slotNumber: number; slot: PackSlot; chop: ProjectChop & { projectName: string; sourcePath: string | null } }>
 
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -169,6 +191,12 @@ export default function PacksView() {
               ) : (
                 <span className="text-[13px] text-faint">No pack selected</span>
               )}
+              {packSaveStatus === 'saved' && (
+                <span className="flex items-center gap-1 text-[11px] text-faint/50 select-none">
+                  <Check size={10} />
+                  Saved
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -195,7 +223,7 @@ export default function PacksView() {
           </div>
 
           {/* Pad grid */}
-          <div className="flex-1 flex flex-col items-center justify-center p-8 gap-5">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
             {currentPack ? (
               <>
                 <div
@@ -207,16 +235,42 @@ export default function PacksView() {
                       key={i}
                       slotNumber={i}
                       slot={slots[i] ?? null}
-                      sourceChop={slots[i]?.projectChopId ? projectChops.find((chop) => chop.id === slots[i].projectChopId) : undefined}
-                      onRefreshFromSource={() => slots[i] && refreshSlotFromSource(slots[i])}
-                      onClear={() => clearSlot(i)}
+                      sourceChanged={stalePads.some((s) => s.slotNumber === i)}
+                      onClear={() => handleClearSlot(i)}
                       isDraggingAny={!!activeSource}
                     />
                   ))}
                 </div>
-                <p className="text-[11px] text-faint/60 select-none">
-                  Drag chops or samples from the panel onto pads
-                </p>
+
+                {stalePads.length > 0 ? (
+                  <div className="border border-border rounded-lg bg-surface overflow-hidden" style={{ width: 'min(100%, 400px)' }}>
+                    <div className="px-3 h-8 flex items-center gap-2 border-b border-border">
+                      <AlertTriangle size={13} className="text-yellow-400 shrink-0" />
+                      <span className="text-[11px] text-muted">
+                        {stalePads.length === 1 ? '1 pad has' : `${stalePads.length} pads have`} an updated source
+                      </span>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {stalePads.map(({ slotNumber, slot }) => (
+                        <div key={slotNumber} className="flex items-center gap-2.5 px-3 h-9">
+                          <span className="text-[10px] font-mono text-faint/50 shrink-0 w-4">
+                            {String(slotNumber + 1).padStart(2, '0')}
+                          </span>
+                          <span className="text-[12px] text-ink flex-1 truncate">{slot.displayName}</span>
+                          <span className="text-[11px] text-faint shrink-0">Source was edited</span>
+                          <Button size="sm" onClick={() => refreshSlotFromSource(slot)}>
+                            <RefreshCw size={10} />
+                            Refresh
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-faint/60 select-none">
+                    Drag chops or samples from the panel onto pads
+                  </p>
+                )}
               </>
             ) : (
               <div className="flex flex-col items-center gap-3 text-faint">
@@ -310,11 +364,43 @@ function DraggableSource({ source }: { source: PackSourceItem }) {
   )
 }
 
-function PadSlot({ slotNumber, slot, sourceChop, onRefreshFromSource, onClear, isDraggingAny }: {
+function MarqueeText({ text }: { text: string }) {
+  const outerRef = useRef<HTMLDivElement>(null)
+  const [isOverflowing, setIsOverflowing] = useState(false)
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current
+    if (!outer) return
+    const probe = document.createElement('span')
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-size:11px;font-weight:500'
+    probe.textContent = text
+    outer.appendChild(probe)
+    const overflows = probe.scrollWidth > outer.clientWidth
+    outer.removeChild(probe)
+    setIsOverflowing(overflows)
+  }, [text])
+
+  return (
+    <div ref={outerRef} className="overflow-hidden">
+      {isOverflowing ? (
+        <div
+          className="inline-flex whitespace-nowrap"
+          style={{ animation: 'marquee-slide 6s linear infinite' }}
+        >
+          <span className="text-[11px] font-medium text-ink leading-tight pr-8">{text}</span>
+          <span className="text-[11px] font-medium text-ink leading-tight pr-8">{text}</span>
+        </div>
+      ) : (
+        <span className="text-[11px] font-medium text-ink leading-tight block">{text}</span>
+      )}
+    </div>
+  )
+}
+
+function PadSlot({ slotNumber, slot, sourceChanged, onClear, isDraggingAny }: {
   slotNumber: number
   slot: PackSlot | null
-  sourceChop?: ProjectChop & { projectName: string; sourcePath: string | null }
-  onRefreshFromSource: () => void
+  sourceChanged: boolean
   onClear: () => void
   isDraggingAny: boolean
 }) {
@@ -322,10 +408,6 @@ function PadSlot({ slotNumber, slot, sourceChop, onRefreshFromSource, onClear, i
   const { isPlaying, play, stop } = useAudioPlayer(slot ? toLocalFileUrl(slot.sourcePath) : null)
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
-  const sourceChanged = !!slot?.projectChopId &&
-    !!sourceChop &&
-    !!slot.sourceChopUpdatedAt &&
-    sourceChop.updatedAt > slot.sourceChopUpdatedAt
 
   return (
     <div
@@ -344,50 +426,46 @@ function PadSlot({ slotNumber, slot, sourceChop, onRefreshFromSource, onClear, i
         isDraggingAny && 'cursor-copy',
       )}
     >
-      <div className="absolute inset-0 p-2.5 flex flex-col justify-between">
-        <div className="flex items-start justify-between">
+      <div className="absolute inset-0 p-2.5 flex flex-col">
+        {/* Top row: pad number + clear */}
+        <div className="flex items-center justify-between">
           <span className={cn('text-[10px] tabular-nums leading-none font-mono', slot ? 'text-faint/60' : 'text-faint/30')}>
             {padLabel}
           </span>
           {slot && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {sourceChanged && (
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); onRefreshFromSource() }}
-                  title="Refresh from source chop"
-                  className="w-4 h-4 flex items-center justify-center text-faint hover:text-accent rounded-sm bg-transparent border-0 cursor-pointer transition-colors"
-                >
-                  <RefreshCw size={10} />
-                </button>
-              )}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); onClear() }}
-                className="w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 rounded-sm bg-transparent border-0 cursor-pointer text-[13px] leading-none"
-              >
-                ×
-              </button>
-            </div>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onClear() }}
+              className="w-5 h-5 flex items-center justify-center text-faint opacity-0 group-hover:opacity-100 hover:text-red-400 rounded bg-transparent border-0 cursor-pointer text-[17px] leading-none transition-opacity"
+            >
+              ×
+            </button>
           )}
         </div>
 
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Bottom block */}
         {slot ? (
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-[11px] font-medium text-ink leading-tight truncate">{slot.displayName}</p>
-            {slot.start !== null && slot.end !== null && (
-              <p className="text-[10px] text-faint/60 tabular-nums font-mono">
-                {formatTime(slot.end - slot.start)}
-              </p>
-            )}
-            {sourceChanged && (
-              <p className="text-[9px] text-accent/80 leading-none truncate">
-                Source changed
-              </p>
-            )}
+          <div className="flex flex-col gap-1 min-w-0">
+            {/* Upper bottom: scrolling title */}
+            <MarqueeText text={slot.displayName} />
+            {/* Lower bottom: warning + duration */}
+            <div className="flex items-center justify-between">
+              <AlertTriangle
+                size={12}
+                className={cn('shrink-0', sourceChanged ? 'text-yellow-400' : 'invisible')}
+              />
+              {slot.start !== null && slot.end !== null && (
+                <span className="text-[10px] text-faint/60 tabular-nums font-mono leading-none">
+                  {formatTime(slot.end - slot.start)}
+                </span>
+              )}
+            </div>
           </div>
         ) : (
-          <div className="self-center text-[11px] text-faint/20 select-none">
+          <div className="text-[11px] text-faint/20 select-none text-center pb-1">
             {isOver ? '↓' : ''}
           </div>
         )}

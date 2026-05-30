@@ -75,7 +75,7 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   autosaveActiveRegions: async (regions, fallback) => {
     let { activeProject } = get()
     if (!activeProject) {
-      if (!fallback.sourcePath || regions.length === 0) return null
+      if (!fallback.sourcePath) return null
       activeProject = await window.api.projects.save({
         name: fallback.name.trim() || 'Untitled Project',
         sourcePath: fallback.sourcePath,

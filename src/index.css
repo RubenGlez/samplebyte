@@ -55,6 +55,12 @@ input, textarea, [contenteditable] {
   user-select: text;
 }
 
+/* Pad title marquee */
+@keyframes marquee-slide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 /* WaveSurfer region parts */
 :root {
   --region-bg:            rgba(255, 100, 30, 0.10);
