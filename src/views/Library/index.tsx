@@ -211,7 +211,7 @@ function LibraryRow({
           )}
           {/* Waveform miniature */}
           {waveformData && !isRenaming && (
-            <svg viewBox="0 0 100 100" className="flex-1 h-4 min-w-0" preserveAspectRatio="none">
+            <svg viewBox="0 0 100 100" className="w-20 shrink-0 h-4" preserveAspectRatio="none">
               {waveformData.map((v, i) => {
                 const barW = 100 / waveformData.length
                 const h = Math.max(2, v * 100)
