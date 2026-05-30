@@ -60,7 +60,7 @@ export default function Loader() {
     }
 
     setActiveProject(null)
-    setAudio({ name: file.name, path: toLocalFileUrl(filePath), filePath, size: file.size, type: file.type || mimeTypeFromPath(filePath) })
+    setAudio({ name: file.name, path: toLocalFileUrl(filePath), filePath, size: file.size, type: file.type || mimeTypeFromPath(filePath), source: 'local' })
   }
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }
@@ -76,12 +76,12 @@ export default function Loader() {
     const filePath = await window.api.fs.pickFile()
     if (!filePath) return
     setActiveProject(null)
-    setAudio({ name: filePath.split('/').pop() ?? 'audio', path: toLocalFileUrl(filePath), filePath, size: 0, type: mimeTypeFromPath(filePath) })
+    setAudio({ name: filePath.split('/').pop() ?? 'audio', path: toLocalFileUrl(filePath), filePath, size: 0, type: mimeTypeFromPath(filePath), source: 'local' })
   }
 
   const handleFreesoundLoad = ({ name, filePath }: { name: string; filePath: string }) => {
     setActiveProject(null)
-    setAudio({ name, path: toLocalFileUrl(filePath), filePath, size: 0, type: 'audio/mpeg' })
+    setAudio({ name, path: toLocalFileUrl(filePath), filePath, size: 0, type: 'audio/mpeg', source: 'freesound' })
     setView('chop')
     toast(`"${name}" ready to chop`)
   }

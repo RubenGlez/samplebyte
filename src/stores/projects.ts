@@ -12,7 +12,7 @@ interface ProjectsState {
   saveProject: (data: { name: string; sourcePath: string; sourceName?: string | null; regions: ProjectRegion[] }) => Promise<Project>
   updateActiveProject: () => Promise<void>
   updateActiveRegions: (regions: ProjectRegion[]) => Promise<void>
-  autosaveActiveRegions: (regions: ProjectRegion[], fallback: { name: string; sourcePath: string | null; sourceName?: string | null }) => Promise<Project | null>
+  autosaveActiveRegions: (regions: ProjectRegion[], fallback: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound' }) => Promise<Project | null>
   applyLocalTrim: (data: { sourcePath: string; regions: ProjectRegion[] }) => void
   renameProject: (id: string, name: string) => Promise<void>
   duplicateProject: (id: string) => Promise<Project | null>
@@ -80,6 +80,7 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
         name: fallback.name.trim() || 'Untitled Project',
         sourcePath: fallback.sourcePath,
         sourceName: fallback.sourceName ?? null,
+        source: fallback.source ?? 'local',
         regions,
       })
       set((s) => ({

@@ -8,6 +8,7 @@ function deserialize(row: Record<string, unknown>): Project {
     name: row.name as string,
     sourcePath: row.source_path as string | null,
     sourceName: row.source_name as string | null,
+    source: (row.source as 'local' | 'freesound') || 'local',
     regions: getProjectChops(id),
     createdAt: row.created_at as number,
   }
@@ -34,10 +35,11 @@ export function getProject(id: string): Project | null {
   return row ? deserialize(row) : null
 }
 
-export function saveProject(data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }): Project {
+export function saveProject(data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }): Project {
   const db = getDb()
   const id = crypto.randomUUID()
   const createdAt = Date.now()
+  const source = data.source ?? 'local'
   const regions = data.regions.map((region, index) => ({
     ...region,
     id: region.id ?? crypto.randomUUID(),
@@ -47,11 +49,12 @@ export function saveProject(data: { name: string; sourcePath: string | null; sou
     updatedAt: createdAt,
   }))
 
-  db.prepare('INSERT INTO projects (id, name, source_path, source_name, regions, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO projects (id, name, source_path, source_name, source, regions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
     id,
     data.name,
     data.sourcePath ?? null,
     data.sourceName ?? null,
+    source,
     JSON.stringify(regions.map(({ id, start, end, name }) => ({ id, start, end, name }))),
     createdAt
   )
@@ -67,7 +70,7 @@ export function saveProject(data: { name: string; sourcePath: string | null; sou
   })
   tx()
 
-  return { id, name: data.name, sourcePath: data.sourcePath, sourceName: data.sourceName ?? null, regions, createdAt }
+  return { id, name: data.name, sourcePath: data.sourcePath, sourceName: data.sourceName ?? null, source, regions, createdAt }
 }
 
 export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>): void {
@@ -117,10 +120,10 @@ export function getProjectChops(projectId: string): ProjectChop[] {
     .all(projectId) as Record<string, unknown>[]).map(deserializeChop)
 }
 
-export function getAllProjectChops(): Array<ProjectChop & { projectName: string; sourcePath: string | null }> {
+export function getAllProjectChops(): Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound' }> {
   return (getDb()
     .prepare(`
-      SELECT project_chops.*, projects.name as project_name, projects.source_path
+      SELECT project_chops.*, projects.name as project_name, projects.source_path, projects.source
       FROM project_chops
       JOIN projects ON projects.id = project_chops.project_id
       ORDER BY projects.created_at DESC, project_chops.start ASC
@@ -129,6 +132,7 @@ export function getAllProjectChops(): Array<ProjectChop & { projectName: string;
       ...deserializeChop(row),
       projectName: row.project_name as string,
       sourcePath: row.source_path as string | null,
+      source: (row.source as 'local' | 'freesound') || 'local',
     }))
 }
 

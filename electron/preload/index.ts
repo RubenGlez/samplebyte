@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('api', {
       regions: Array<{ start: number; end: number; name: string }>
       projectId?: string
     }): Promise<Sample[]> => ipcRenderer.invoke('library:saveChops', params),
+
+    importFolder: (folderPath: string): Promise<{ imported: number; skipped: number }> =>
+      ipcRenderer.invoke('library:importFolder', folderPath),
   },
 
   projects: {

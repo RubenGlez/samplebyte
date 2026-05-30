@@ -13,14 +13,15 @@ declare global {
           regions: Array<{ start: number; end: number; name: string }>
           projectId?: string
         }) => Promise<Sample[]>
+        importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
       }
       projects: {
         getAll: () => Promise<Project[]>
         get: (id: string) => Promise<Project | null>
-        save: (data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }) => Promise<Project>
+        save: (data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }) => Promise<Project>
         update: (id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => Promise<void>
         getChops: (projectId: string) => Promise<ProjectChop[]>
-        getAllChops: () => Promise<Array<ProjectChop & { projectName: string; sourcePath: string | null }>>
+        getAllChops: () => Promise<Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound' }>>
         upsertChops: (projectId: string, regions: ProjectRegion[]) => Promise<ProjectChop[]>
         delete: (id: string) => Promise<void>
         duplicate: (id: string) => Promise<Project | null>

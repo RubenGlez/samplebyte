@@ -41,7 +41,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const { activeProject, autosaveActiveRegions, applyLocalTrim } = useProjectsStore()
   const { createPack, setSlot, hardwareProfileId } = usePacksStore()
   const { setView } = useUiStore()
-  const { setAudio } = usePlayerStore()
+  const { audio, setAudio } = usePlayerStore()
   const { toast } = useToastStore()
   const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
 
@@ -150,6 +150,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
         sourcePath: filePath,
         sourceName: audioName,
+        source: audio?.source ?? 'local',
       }).then(() => {
         lastSavedAt.current = Date.now()
         if (!isFirst) {
@@ -278,6 +279,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         filePath: trimmedPath,
         size: 0,
         type: 'audio/wav',
+        source: audio?.source ?? 'local',
         initialRegions: kept,
       })
 

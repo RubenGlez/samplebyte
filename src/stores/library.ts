@@ -13,7 +13,7 @@ type Filters = {
 
 type LibraryState = {
   samples: Sample[]
-  projectChops: Array<ProjectChop & { projectName: string; sourcePath: string | null }>
+  projectChops: Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound' }>
   searchQuery: string
   filters: Filters
   projectFilter: string | null
@@ -25,6 +25,7 @@ type LibraryState = {
   updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
   deleteSample: (id: string) => Promise<void>
   saveChops: (params: { sourceFilePath: string; regions: Array<{ start: number; end: number; name: string }>; projectId?: string }) => Promise<void>
+  importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
   setSearchQuery: (query: string) => void
   setFilters: (filters: Filters) => void
   setProjectFilter: (projectId: string | null) => void
@@ -71,6 +72,24 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       samples: state.samples.filter((s) => s.id !== id),
       selectedSample: state.selectedSample?.id === id ? null : state.selectedSample,
     }))
+  },
+
+  importFolder: async (folderPath) => {
+    const beforeIds = new Set(get().samples.map((s) => s.id))
+    const result = await window.api.library.importFolder(folderPath)
+    const allSamples = await window.api.library.getSamples()
+    set({ samples: allSamples })
+    const newSamples = allSamples.filter((s) => !beforeIds.has(s.id))
+    ;(async () => {
+      const { updateSample } = get()
+      for (const sample of newSamples) {
+        try {
+          const analysis = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
+          await updateSample(sample.id, analysis)
+        } catch { /* non-fatal */ }
+      }
+    })()
+    return result
   },
 
   saveChops: async (params) => {

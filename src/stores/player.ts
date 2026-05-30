@@ -7,6 +7,7 @@ export type AudioSource = {
   filePath: string  // native FS path — used by ffmpeg
   size: number
   type: string
+  source: 'local' | 'freesound'
   /** Regions to restore on the next waveform mount (e.g. after trim). */
   initialRegions?: ProjectRegion[]
 }

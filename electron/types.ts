@@ -41,6 +41,7 @@ export type Project = {
   name: string
   sourcePath: string | null
   sourceName: string | null
+  source: 'local' | 'freesound'
   regions: ProjectRegion[]
   createdAt: number
 }

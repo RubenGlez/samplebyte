@@ -79,6 +79,9 @@ function runMigrations(): void {
   if (!projectCols.includes('source_name')) {
     db.exec('ALTER TABLE projects ADD COLUMN source_name TEXT')
   }
+  if (!projectCols.includes('source')) {
+    db.exec("ALTER TABLE projects ADD COLUMN source TEXT NOT NULL DEFAULT 'local'")
+  }
 
   migrateProjectRegionsToChops()
   migratePackSlotsToSnapshots()

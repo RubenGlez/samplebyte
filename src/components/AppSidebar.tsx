@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Pencil, Trash2, Copy, Grid2x2, FolderOpen, Plus } from 'lucide-react'
+import { Pencil, Trash2, Copy, Grid2x2, FolderOpen, FolderInput, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
 import { useLibraryStore } from '@/stores/library'
 import { usePacksStore } from '@/stores/packs'
+import { useToastStore } from '@/stores/toast'
 import { useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useInlineRename } from '@/hooks/useInlineRename'
 import { fileNameFromPath, mimeTypeFromPath, toLocalFileUrl } from '@/utils'
@@ -59,6 +60,7 @@ function ChopContent() {
   const { projects, activeProject, renameProject, duplicateProject, deleteProject } = useProjectsStore()
   const { setAudio, clearAudio } = usePlayerStore()
   const { setActiveProject } = useProjectsStore()
+  const [pendingDelete, setPendingDelete] = useState<Project | null>(null)
 
   const loadProject = (project: Project) => {
     if (!project.sourcePath) return
@@ -69,14 +71,16 @@ function ChopContent() {
       filePath: project.sourcePath,
       size: 0,
       type: mimeTypeFromPath(project.sourcePath),
+      source: project.source,
     })
   }
 
-  const handleDeleteProject = async (project: Project) => {
+  const confirmDeleteProject = async (project: Project) => {
     const remaining = projects.filter((p) => p.id !== project.id)
     const nextProject = project.id === activeProject?.id ? remaining[0] : activeProject
 
     await deleteProject(project.id)
+    setPendingDelete(null)
 
     if (project.id !== activeProject?.id) return
     if (nextProject?.sourcePath) {
@@ -107,11 +111,28 @@ function ChopContent() {
               onLoad={() => loadProject(project)}
               onRename={(name) => renameProject(project.id, name)}
               onDuplicate={() => duplicateProject(project.id)}
-              onDelete={() => handleDeleteProject(project)}
+              onDelete={() => setPendingDelete(project)}
             />
           ))
         )}
       </ul>
+
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogTitle>Delete project?</DialogTitle>
+          <p className="text-[13px] text-muted">
+            "{pendingDelete?.name}" and all its chops will be permanently deleted.
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button size="sm" variant="danger" onClick={() => pendingDelete && confirmDeleteProject(pendingDelete)}>
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -176,13 +197,32 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
 // ─── Library ─────────────────────────────────────────────────────────────────
 
 function LibraryContent() {
-  const { samples, searchQuery, projectFilter, filters, setSearchQuery, setProjectFilter, toggleTagFilter, setFilters } = useLibraryStore()
+  const { samples, searchQuery, projectFilter, filters, setSearchQuery, setProjectFilter, toggleTagFilter, setFilters, importFolder } = useLibraryStore()
   const { projects } = useProjectsStore()
+  const { toast } = useToastStore()
   const filtered = useFilteredSamples()
+  const [importing, setImporting] = useState(false)
 
   const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
   const activeTags = filters.tags ?? []
   const activeSource = (filters.source ?? 'all') as 'all' | 'local' | 'freesound'
+
+  const handleImportFolder = async () => {
+    const folderPath = await window.api.fs.pickFolder()
+    if (!folderPath) return
+    setImporting(true)
+    try {
+      const { imported, skipped } = await importFolder(folderPath)
+      const msg = imported === 0
+        ? `No new files found (${skipped} already in library)`
+        : skipped > 0
+          ? `Imported ${imported} sample${imported !== 1 ? 's' : ''} (${skipped} skipped)`
+          : `Imported ${imported} sample${imported !== 1 ? 's' : ''}`
+      toast(msg, imported === 0 ? 'info' : 'success')
+    } finally {
+      setImporting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-2 py-1 px-2">
@@ -206,6 +246,16 @@ function LibraryContent() {
       <p className="text-[11px] text-faint/60 px-1">
         {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}
       </p>
+      <div className="px-1 pt-1 border-t border-border">
+        <button
+          onClick={handleImportFolder}
+          disabled={importing}
+          className="w-full flex items-center gap-2 px-2 h-[28px] rounded-md text-[12px] text-muted hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <FolderInput size={13} strokeWidth={1.5} />
+          {importing ? 'Importing…' : 'Import folder'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -216,12 +266,18 @@ function PacksContent() {
   const { packs, currentPack, hardwareProfileId, setCurrentPack, renamePack, deletePack, createPack } = usePacksStore()
   const [showDialog, setShowDialog] = useState(false)
   const [packName, setPackName] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<Pack | null>(null)
 
   const handleCreate = async () => {
     if (!packName.trim()) return
     await createPack(packName.trim(), hardwareProfileId)
     setPackName('')
     setShowDialog(false)
+  }
+
+  const confirmDeletePack = async (pack: Pack) => {
+    await deletePack(pack.id)
+    setPendingDelete(null)
   }
 
   return (
@@ -238,7 +294,7 @@ function PacksContent() {
               isActive={pack.id === currentPack?.id}
               onSelect={() => setCurrentPack(pack)}
               onRename={(name) => renamePack(pack.id, name)}
-              onDelete={() => deletePack(pack.id)}
+              onDelete={() => setPendingDelete(pack)}
             />
           ))
         )}
@@ -259,6 +315,23 @@ function PacksContent() {
               <Button variant="ghost" size="sm">Cancel</Button>
             </DialogClose>
             <Button size="sm" onClick={handleCreate} disabled={!packName.trim()}>Create</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogTitle>Delete pack?</DialogTitle>
+          <p className="text-[13px] text-muted">
+            "{pendingDelete?.name}" will be permanently deleted.
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button size="sm" variant="danger" onClick={() => pendingDelete && confirmDeletePack(pendingDelete)}>
+              Delete
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

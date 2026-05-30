@@ -2,6 +2,24 @@ import { ipcMain, app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import * as samples from '../db/queries/samples'
+
+const AUDIO_EXTS = new Set(['wav', 'mp3', 'flac', 'aiff', 'aif', 'ogg', 'm4a'])
+
+function scanAudioFiles(dir: string): string[] {
+  let found: string[] = []
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return found }
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      found = found.concat(scanAudioFiles(full))
+    } else if (entry.isFile() && AUDIO_EXTS.has(path.extname(entry.name).slice(1).toLowerCase())) {
+      found.push(full)
+    }
+  }
+  return found
+}
 import * as projects from '../db/queries/projects'
 import { trimToWav } from '../services/trim'
 import { extractWaveformData } from '../audio/waveform'
@@ -18,6 +36,17 @@ export function registerLibraryHandlers(): void {
 
   ipcMain.handle('library:updateSample', (_, id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => {
     samples.updateSample(id, data)
+  })
+
+  ipcMain.handle('library:importFolder', (_, folderPath: string) => {
+    const existing = new Set(samples.getAllSamples().map((s) => s.filePath))
+    const allFiles = scanAudioFiles(folderPath)
+    const newFiles = allFiles.filter((f) => !existing.has(f))
+    for (const filePath of newFiles) {
+      const name = path.basename(filePath, path.extname(filePath))
+      samples.addSample({ name, filePath, source: 'local' })
+    }
+    return { imported: newFiles.length, skipped: allFiles.length - newFiles.length }
   })
 
   ipcMain.handle('library:deleteSample', (_, id: string) => {
@@ -68,7 +97,7 @@ export function registerLibraryHandlers(): void {
     return projects.getProject(id)
   })
 
-  ipcMain.handle('projects:save', (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }) => {
+  ipcMain.handle('projects:save', (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }) => {
     return projects.saveProject(data)
   })
 
