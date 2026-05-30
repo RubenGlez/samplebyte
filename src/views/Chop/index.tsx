@@ -31,10 +31,8 @@ export default function ChopView() {
   }
 
   return (
-    <div className="flex items-center justify-center h-full px-8 py-6 overflow-y-auto">
-      <div className="w-full max-w-xl">
-        <Loader />
-      </div>
+    <div className="h-full flex flex-col overflow-hidden">
+      <Loader />
     </div>
   )
 }

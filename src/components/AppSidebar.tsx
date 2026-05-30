@@ -37,11 +37,19 @@ export default function AppSidebar() {
 
 // ─── Section header ─────────────────────────────────────────────────────────
 
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({ label, onAdd }: { label: string; onAdd?: () => void }) {
   return (
-    <p className="px-3 pt-3 pb-1 text-[11px] font-semibold text-faint select-none tracking-wide">
-      {label}
-    </p>
+    <div className="flex items-center justify-between px-3 pt-3 pb-1">
+      <p className="text-[11px] font-semibold text-faint select-none tracking-wide">{label}</p>
+      {onAdd && (
+        <button
+          onClick={onAdd}
+          className="w-6 h-6 shrink-0 flex items-center justify-center text-accent hover:text-accent-bright rounded bg-transparent border-0 cursor-pointer transition-colors"
+        >
+          <Plus size={16} strokeWidth={2} />
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -86,7 +94,7 @@ function ChopContent() {
 
   return (
     <div className="flex flex-col h-full">
-      <SectionHeader label="Projects" />
+      <SectionHeader label="Projects" onAdd={handleNew} />
       <ul className="flex-1 overflow-y-auto list-none m-0 p-0 px-1 min-h-0">
         {projects.length === 0 ? (
           <p className="text-[12px] text-faint/50 text-center mt-6 px-3">No projects yet</p>
@@ -104,15 +112,6 @@ function ChopContent() {
           ))
         )}
       </ul>
-      <div className="shrink-0 px-2 py-2 border-t border-border">
-        <button
-          onClick={handleNew}
-          className="w-full flex items-center gap-1.5 px-2 h-7 rounded-md text-[12px] text-muted hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer"
-        >
-          <Plus size={13} strokeWidth={2} />
-          New Project
-        </button>
-      </div>
     </div>
   )
 }
@@ -227,7 +226,7 @@ function PacksContent() {
 
   return (
     <div className="flex flex-col h-full">
-      <SectionHeader label="Packs" />
+      <SectionHeader label="Packs" onAdd={() => setShowDialog(true)} />
       <ul className="flex-1 overflow-y-auto list-none m-0 p-0 px-1 min-h-0">
         {packs.length === 0 ? (
           <p className="text-[12px] text-faint/50 text-center mt-6 px-3">No packs yet</p>
@@ -244,15 +243,6 @@ function PacksContent() {
           ))
         )}
       </ul>
-      <div className="shrink-0 px-2 py-2 border-t border-border">
-        <button
-          onClick={() => setShowDialog(true)}
-          className="w-full flex items-center gap-1.5 px-2 h-7 rounded-md text-[12px] text-muted hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer"
-        >
-          <Plus size={13} strokeWidth={2} />
-          New Pack
-        </button>
-      </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>

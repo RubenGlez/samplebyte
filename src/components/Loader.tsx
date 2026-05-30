@@ -9,8 +9,6 @@ import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { cn } from '@/lib/utils'
 import { formatTime, mimeTypeFromPath, toLocalFileUrl } from '@/utils'
 import type { FreesoundResult } from '@/types'
-import CardRoot from './Card/CardRoot'
-
 const AUDIO_EXTENSIONS = /\.(wav|mp3|flac|aiff?|ogg|m4a)$/i
 const FORMATS = ['WAV', 'MP3', 'FLAC', 'AIFF', 'OGG']
 
@@ -59,8 +57,8 @@ export default function Loader() {
   }
 
   return (
-    <CardRoot>
-      {/* Source tab bar — segmented control style */}
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Tab bar */}
       <div className="flex items-center gap-px px-4 py-3 border-b border-border bg-surface shrink-0">
         <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
           {(['local', 'freesound'] as Tab[]).map((t) => (
@@ -82,14 +80,14 @@ export default function Loader() {
 
       {tab === 'local' ? (
         <div
-          className="relative flex flex-col items-center justify-center h-64 gap-5"
+          className="relative flex flex-col items-center justify-center flex-1 gap-5"
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           {isDragging ? (
-            <div className="absolute inset-0 rounded-b-xl border-2 border-dashed border-accent bg-accent/5 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 border-2 border-dashed border-accent bg-accent/5 flex items-center justify-center pointer-events-none">
               <p className="text-accent text-[13px] font-medium">Drop to load</p>
             </div>
           ) : (
@@ -120,7 +118,7 @@ export default function Loader() {
       ) : (
         <FreesoundTab onLoad={handleFreesoundLoad} />
       )}
-    </CardRoot>
+    </div>
   )
 }
 
@@ -137,7 +135,7 @@ function FreesoundTab({ onLoad }: { onLoad: (file: { name: string; filePath: str
 
   if (!keyLoaded) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center flex-1 h-full">
         <Loader2 size={16} className="text-faint animate-spin" />
       </div>
     )
@@ -164,7 +162,7 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-4 px-8">
+    <div className="flex flex-col items-center justify-center flex-1 gap-4 px-8">
       <div className="w-10 h-10 rounded-xl bg-raised border border-border-bright flex items-center justify-center">
         <Key size={16} className="text-muted" />
       </div>
@@ -219,9 +217,9 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* Search bar */}
-      <form onSubmit={handleSearch} className="flex gap-2 p-3 border-b border-border">
+      <form onSubmit={handleSearch} className="flex gap-2 p-3 border-b border-border shrink-0">
         <div className="relative flex-1">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
           <input
@@ -249,7 +247,7 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
       </form>
 
       {/* Results */}
-      <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
+      <div className="overflow-y-auto flex-1">
         {results.length === 0 && !isSearching ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2 text-faint">
             <p className="text-sm">Search for sounds on Freesound.org</p>
