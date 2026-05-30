@@ -1,5 +1,5 @@
 import { getDb } from '../index'
-import type { Pack, PackSlot } from '../../../types'
+import type { Pack, PackSlot, PackSourceItem } from '../../../types'
 
 type PackWithSlots = Pack & { slots: PackSlot[] }
 
@@ -16,7 +16,17 @@ function deserializeSlot(row: Record<string, unknown>): PackSlot {
   return {
     packId: row.pack_id as string,
     slotNumber: row.slot_number as number,
-    sampleId: row.sample_id as string,
+    sourceType: row.source_type as PackSlot['sourceType'],
+    sourcePath: row.source_path as string,
+    projectId: row.project_id as string | null,
+    projectChopId: row.project_chop_id as string | null,
+    sampleId: row.sample_id as string | null,
+    start: row.start as number | null,
+    end: row.end as number | null,
+    displayName: row.display_name as string,
+    sourceChopUpdatedAt: row.source_chop_updated_at as number | null,
+    pitchShiftSemitones: row.pitch_shift_semitones as number | null,
+    timeStretchRatio: row.time_stretch_ratio as number | null,
   }
 }
 
@@ -45,10 +55,40 @@ export function createPack(data: Pick<Pack, 'name' | 'hardwareProfile'>): Pack {
   return { id, name: data.name, hardwareProfile: data.hardwareProfile, createdAt }
 }
 
-export function upsertSlot(packId: string, slotNumber: number, sampleId: string): void {
+export function upsertSlot(packId: string, slotNumber: number, source: PackSourceItem): void {
   getDb()
-    .prepare('INSERT OR REPLACE INTO pack_slots (pack_id, slot_number, sample_id) VALUES (?, ?, ?)')
-    .run(packId, slotNumber, sampleId)
+    .prepare(`
+      INSERT OR REPLACE INTO pack_slots (
+        pack_id,
+        slot_number,
+        source_type,
+        source_path,
+        project_id,
+        project_chop_id,
+        sample_id,
+        start,
+        end,
+        display_name,
+        source_chop_updated_at,
+        pitch_shift_semitones,
+        time_stretch_ratio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(
+      packId,
+      slotNumber,
+      source.sourceType,
+      source.sourcePath,
+      source.projectId,
+      source.projectChopId,
+      source.sampleId,
+      source.start,
+      source.end,
+      source.displayName,
+      source.sourceChopUpdatedAt,
+      null,
+      null
+    )
 }
 
 export function removeSlot(packId: string, slotNumber: number): void {

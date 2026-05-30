@@ -23,21 +23,61 @@ export type Pack = {
 export type PackSlot = {
   packId: string
   slotNumber: number
-  sampleId: string
+  sourceType: 'project-chop' | 'library-sample'
+  sourcePath: string
+  projectId: string | null
+  projectChopId: string | null
+  sampleId: string | null
+  start: number | null
+  end: number | null
+  displayName: string
+  sourceChopUpdatedAt: number | null
+  pitchShiftSemitones: number | null
+  timeStretchRatio: number | null
 }
 
 export type Project = {
   id: string
   name: string
   sourcePath: string | null
+  sourceName: string | null
   regions: ProjectRegion[]
   createdAt: number
 }
 
 export type ProjectRegion = {
+  id?: string
   start: number
   end: number
   name: string
+}
+
+export type ProjectChop = {
+  id: string
+  projectId: string
+  name: string
+  start: number
+  end: number
+  createdAt: number
+  updatedAt: number
+}
+
+export type PackSourceItem = {
+  id: string
+  sourceType: 'project-chop' | 'library-sample'
+  displayName: string
+  sourcePath: string
+  projectId: string | null
+  projectName: string | null
+  projectChopId: string | null
+  sampleId: string | null
+  start: number | null
+  end: number | null
+  duration: number | null
+  bpm: number | null
+  musicalKey: string | null
+  tags: string[]
+  sourceChopUpdatedAt: number | null
 }
 
 export type ExportRegionsParams = {

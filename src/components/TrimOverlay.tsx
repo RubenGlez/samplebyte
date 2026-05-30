@@ -88,6 +88,7 @@ export default function TrimOverlay({
         time={trimIn}
         x={inX}
         labelSide="right"
+        edge="left"
         onPointerDown={(e) => startDrag('in', e)}
       />
       <TrimHandle
@@ -95,6 +96,7 @@ export default function TrimOverlay({
         time={trimOut}
         x={outX}
         labelSide="left"
+        edge="right"
         onPointerDown={(e) => startDrag('out', e)}
       />
     </div>
@@ -105,25 +107,36 @@ function TrimHandle({
   label,
   time,
   x,
+  edge,
   labelSide = 'right',
   onPointerDown,
 }: {
   label: string
   time: number
   x: number
+  edge: 'left' | 'right'
   labelSide?: 'left' | 'right'
   onPointerDown: (e: React.PointerEvent) => void
 }) {
   return (
     <div
-      className="absolute top-0 bottom-0 w-2 -ml-1 pointer-events-auto cursor-ew-resize group"
-      style={{ left: x }}
+      className="absolute top-0 bottom-0 w-5 pointer-events-auto cursor-ew-resize group"
+      style={{ left: x, transform: edge === 'left' ? 'translateX(0)' : 'translateX(-100%)' }}
       onPointerDown={onPointerDown}
     >
-      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-sky-400/90 group-hover:bg-sky-300" />
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 w-3 h-9 border border-sky-300/40 bg-sky-400/15 group-hover:bg-sky-400/25 ${
+          edge === 'left'
+            ? 'left-0 rounded-r-[4px] border-l-0'
+            : 'right-0 rounded-l-[4px] border-r-0'
+        }`}
+      >
+        <span className="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-sky-300/70" />
+      </div>
+      <div className={`absolute inset-y-0 w-px bg-sky-400/90 group-hover:bg-sky-300 ${edge === 'left' ? 'left-0' : 'right-0'}`} />
       <span
         className={`absolute top-1 text-[9px] font-mono text-sky-300/90 whitespace-nowrap select-none pointer-events-none ${
-          labelSide === 'left' ? 'right-2 text-right' : 'left-2'
+          labelSide === 'left' ? 'right-3.5 text-right' : 'left-3.5'
         }`}
       >
         {label} {formatTime(time)}

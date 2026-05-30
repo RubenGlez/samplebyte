@@ -1,10 +1,10 @@
 import { create } from 'zustand'
-import type { Pack, Sample } from '../../electron/types'
+import type { Pack, PackSlot, PackSourceItem } from '../../electron/types'
 
 type PacksState = {
   packs: Pack[]
   currentPack: Pack | null
-  slots: Record<number, Sample>
+  slots: Record<number, PackSlot>
   hardwareProfileId: string
   exportProgress: number | null
 
@@ -12,8 +12,9 @@ type PacksState = {
   createPack: (name: string, hardwareProfile: string) => Promise<Pack>
   renamePack: (id: string, name: string) => Promise<void>
   setCurrentPack: (pack: Pack | null) => void
-  initSlots: (slots: Record<number, Sample>) => void
-  setSlot: (slotNumber: number, sample: Sample) => void
+  loadSlots: () => Promise<void>
+  initSlots: (slots: Record<number, PackSlot>) => void
+  setSlot: (slotNumber: number, source: PackSourceItem) => Promise<void>
   clearSlot: (slotNumber: number) => void
   setHardwareProfile: (profileId: string) => void
   exportPack: (outputDir: string) => Promise<{ filesWritten: number }>
@@ -47,14 +48,35 @@ export const usePacksStore = create<PacksState>((set, get) => ({
   },
 
   setCurrentPack: (currentPack) => set({ currentPack, slots: {} }),
+  loadSlots: async () => {
+    const { currentPack } = get()
+    if (!currentPack) return
+    const packSlots = await window.api.packs.getSlots(currentPack.id)
+    set({ slots: Object.fromEntries(packSlots.map((slot) => [slot.slotNumber, slot])) })
+  },
   initSlots: (slots) => set({ slots }),
 
-  setSlot: async (slotNumber, sample) => {
+  setSlot: async (slotNumber, source) => {
     const { currentPack } = get()
     if (!currentPack) return
 
-    await window.api.packs.upsertSlot(currentPack.id, slotNumber, sample.id)
-    set((state) => ({ slots: { ...state.slots, [slotNumber]: sample } }))
+    await window.api.packs.upsertSlot(currentPack.id, slotNumber, source)
+    const slot: PackSlot = {
+      packId: currentPack.id,
+      slotNumber,
+      sourceType: source.sourceType,
+      sourcePath: source.sourcePath,
+      projectId: source.projectId,
+      projectChopId: source.projectChopId,
+      sampleId: source.sampleId,
+      start: source.start,
+      end: source.end,
+      displayName: source.displayName,
+      sourceChopUpdatedAt: source.sourceChopUpdatedAt,
+      pitchShiftSemitones: null,
+      timeStretchRatio: null,
+    }
+    set((state) => ({ slots: { ...state.slots, [slotNumber]: slot } }))
   },
 
   clearSlot: async (slotNumber) => {

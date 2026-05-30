@@ -1,1 +1,12 @@
-export type { Sample, Pack, PackSlot, Project, ProjectRegion, ExportRegionsParams, FreesoundResult, FreesoundPage } from '../../electron/types'
+export type {
+  Sample,
+  Pack,
+  PackSlot,
+  Project,
+  ProjectRegion,
+  ProjectChop,
+  PackSourceItem,
+  ExportRegionsParams,
+  FreesoundResult,
+  FreesoundPage,
+} from '../../electron/types'

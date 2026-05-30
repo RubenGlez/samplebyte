@@ -1,4 +1,4 @@
-import type { Sample, Pack, PackSlot, Project, ProjectRegion, ExportRegionsParams, FreesoundPage } from '../../electron/types'
+import type { Sample, Pack, PackSlot, Project, ProjectRegion, ProjectChop, PackSourceItem, ExportRegionsParams, FreesoundPage } from '../../electron/types'
 
 declare global {
   interface Window {
@@ -17,8 +17,11 @@ declare global {
       projects: {
         getAll: () => Promise<Project[]>
         get: (id: string) => Promise<Project | null>
-        save: (data: { name: string; sourcePath: string | null; regions: ProjectRegion[] }) => Promise<Project>
+        save: (data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }) => Promise<Project>
         update: (id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => Promise<void>
+        getChops: (projectId: string) => Promise<ProjectChop[]>
+        getAllChops: () => Promise<Array<ProjectChop & { projectName: string; sourcePath: string | null }>>
+        upsertChops: (projectId: string, regions: ProjectRegion[]) => Promise<ProjectChop[]>
         delete: (id: string) => Promise<void>
         duplicate: (id: string) => Promise<Project | null>
       }
@@ -47,7 +50,7 @@ declare global {
         getSlots: (packId: string) => Promise<PackSlot[]>
         getProfiles: () => Promise<Array<{ id: string; name: string; padCount: number }>>
         create: (data: Pick<Pack, 'name' | 'hardwareProfile'>) => Promise<Pack>
-        upsertSlot: (packId: string, slotNumber: number, sampleId: string) => Promise<void>
+        upsertSlot: (packId: string, slotNumber: number, source: PackSourceItem) => Promise<void>
         removeSlot: (packId: string, slotNumber: number) => Promise<void>
         delete: (id: string) => Promise<void>
         rename: (id: string, name: string) => Promise<void>

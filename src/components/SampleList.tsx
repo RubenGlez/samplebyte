@@ -9,11 +9,12 @@ interface SampleListProps {
   selectedSample?: Region
   regionNames?: Record<string, string>
   onClick: (region: Region) => void
+  onPlay?: (region: Region) => void
   onNameChange?: (regionId: string, name: string) => void
   onClearAll?: () => void
 }
 
-const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onNameChange, onClearAll }: SampleListProps) => {
+const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onPlay, onNameChange, onClearAll }: SampleListProps) => {
   const [showClearDialog, setShowClearDialog] = useState(false)
 
   const handleConfirmClearAll = () => {
@@ -24,7 +25,7 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
 
   return (
     <div className="px-4 pb-2">
-      <div className="flex justify-between items-center px-1 py-2 gap-2">
+      <div className="sticky top-0 z-10 flex justify-between items-center px-1 py-2 gap-2 bg-base/95 backdrop-blur border-b border-border/60">
         <span className="text-[11px] font-semibold text-faint tracking-wide select-none">
           Regions
         </span>
@@ -48,6 +49,7 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onName
             index={index}
             initialName={regionNames?.[sample.id]}
             onClick={onClick}
+            onPlay={onPlay}
             onNameChange={onNameChange}
           />
         ))}

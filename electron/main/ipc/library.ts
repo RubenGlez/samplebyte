@@ -65,12 +65,24 @@ export function registerLibraryHandlers(): void {
     return projects.getProject(id)
   })
 
-  ipcMain.handle('projects:save', (_, data: { name: string; sourcePath: string | null; regions: ProjectRegion[] }) => {
+  ipcMain.handle('projects:save', (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }) => {
     return projects.saveProject(data)
   })
 
   ipcMain.handle('projects:update', (_, id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => {
     projects.updateProject(id, data)
+  })
+
+  ipcMain.handle('projects:getChops', (_, projectId: string) => {
+    return projects.getProjectChops(projectId)
+  })
+
+  ipcMain.handle('projects:getAllChops', () => {
+    return projects.getAllProjectChops()
+  })
+
+  ipcMain.handle('projects:upsertChops', (_, projectId: string, regions: ProjectRegion[]) => {
+    return projects.upsertProjectChops(projectId, regions)
   })
 
   ipcMain.handle('projects:delete', (_, id: string) => {

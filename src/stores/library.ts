@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { analyzeAudioUrl } from '@/lib/audioAnalysis'
 import { toLocalFileUrl } from '@/utils'
 import { withLoading } from './utils'
-import type { Sample } from '../../electron/types'
+import type { ProjectChop, Sample } from '../../electron/types'
 
 type Filters = {
   bpm?: number
@@ -13,6 +13,7 @@ type Filters = {
 
 type LibraryState = {
   samples: Sample[]
+  projectChops: Array<ProjectChop & { projectName: string; sourcePath: string | null }>
   searchQuery: string
   filters: Filters
   projectFilter: string | null
@@ -33,6 +34,7 @@ type LibraryState = {
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   samples: [],
+  projectChops: [],
   searchQuery: '',
   filters: {},
   projectFilter: null,
@@ -42,8 +44,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   fetchSamples: () => withLoading(
     (v) => set({ isLoading: v }),
     async () => {
-      const samples = await window.api.library.getSamples()
-      set({ samples })
+      const [samples, projectChops] = await Promise.all([
+        window.api.library.getSamples(),
+        window.api.projects.getAllChops(),
+      ])
+      set({ samples, projectChops })
     }
   ),
 

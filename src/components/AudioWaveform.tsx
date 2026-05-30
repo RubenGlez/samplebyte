@@ -1,15 +1,16 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Play, Pause } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Crop, Grid2x2, Pause, Play, Redo2, Save, Scissors, Undo2 } from 'lucide-react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useTrimRange } from '@/hooks/useTrimRange'
 import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis'
-import { useLibraryStore } from '@/stores/library'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
+import { usePacksStore } from '@/stores/packs'
 import { useToastStore } from '@/stores/toast'
+import { useUiStore } from '@/stores/ui'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
@@ -31,10 +32,18 @@ interface AudioWaveformProps {
   initialRegions?: ProjectRegion[]
 }
 
+const MIN_AUTO_CHOP_REGION_SECONDS = {
+  coarse: 1.6,
+  medium: 0.8,
+  fine: 0.4,
+} as const
 
 const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
   const { activeProject, isProjectDirty, saveProject, updateActiveProject, updateActiveRegions, applyLocalTrim } =
     useProjectsStore()
+  const { autosaveActiveRegions } = useProjectsStore()
+  const { createPack, setSlot, hardwareProfileId } = usePacksStore()
+  const { setView } = useUiStore()
   const { setAudio } = usePlayerStore()
   const { toast } = useToastStore()
   const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
@@ -52,52 +61,102 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     canApplyTrim,
     viewportTick,
   } = useTrimRange(wavesurfer)
-  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, autoChop, clearAllRegions } = useRegions({
+  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, replaceRegions, autoChop, clearAllRegions, revision } = useRegions({
     wavesurfer,
     initialRegions,
   })
-  const { saveChops } = useLibraryStore()
-
   const [isSaving, setIsSaving] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [projectName, setProjectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [sensitivity, setSensitivity] = useState<'coarse' | 'medium' | 'fine'>('medium')
   const [isAutoChopping, setIsAutoChopping] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
   const [showTrimDialog, setShowTrimDialog] = useState(false)
+  const historyRef = useRef<ProjectRegion[][]>([])
+  const historyIndexRef = useRef(-1)
+  const isRestoringHistory = useRef(false)
+  const lastHistorySnapshot = useRef('')
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false })
 
   const currentRegions = useCallback(() =>
-    (regions ?? []).map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
+    (regions ?? []).map((r, index) => ({ id: r.id, start: r.start, end: r.end, name: regionNames[r.id] ?? `Chop ${index + 1}` })),
     [regions, regionNames]
   )
 
-  const handleSaveToLibrary = useCallback(async () => {
-    if (!regions?.length) return
-    setIsSaving(true)
-    try {
-      await saveChops({
-        sourceFilePath: filePath,
-        regions: regions.map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? '' })),
-        projectId: activeProject?.id,
-      })
-      toast(`${regions.length} chop${regions.length !== 1 ? 's' : ''} saved to Library`)
-    } finally {
-      setIsSaving(false)
+  const autosaveTimer = useRef<number | null>(null)
+
+  const syncHistoryState = useCallback(() => {
+    setHistoryState({
+      canUndo: historyIndexRef.current > 0,
+      canRedo: historyIndexRef.current >= 0 && historyIndexRef.current < historyRef.current.length - 1,
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!regions) return
+    const snapshot = currentRegions()
+    const serialized = JSON.stringify(snapshot)
+    if (serialized === lastHistorySnapshot.current) return
+
+    lastHistorySnapshot.current = serialized
+    if (isRestoringHistory.current) {
+      isRestoringHistory.current = false
+      syncHistoryState()
+      return
     }
-  }, [filePath, regions, regionNames, saveChops, toast, activeProject?.id])
+
+    const nextHistory = historyRef.current.slice(0, historyIndexRef.current + 1)
+    nextHistory.push(snapshot)
+    historyRef.current = nextHistory.slice(-80)
+    historyIndexRef.current = historyRef.current.length - 1
+    syncHistoryState()
+  }, [currentRegions, regions, revision, syncHistoryState])
+
+  const restoreHistory = useCallback((index: number) => {
+    const snapshot = historyRef.current[index]
+    if (!snapshot) return
+    isRestoringHistory.current = true
+    historyIndexRef.current = index
+    replaceRegions(snapshot)
+    syncHistoryState()
+  }, [replaceRegions, syncHistoryState])
+
+  const undoRegions = useCallback(() => {
+    if (historyIndexRef.current <= 0) return
+    restoreHistory(historyIndexRef.current - 1)
+  }, [restoreHistory])
+
+  const redoRegions = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return
+    restoreHistory(historyIndexRef.current + 1)
+  }, [restoreHistory])
+
+  useEffect(() => {
+    if (!filePath || !regions?.length) return
+    if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
+    autosaveTimer.current = window.setTimeout(() => {
+      void autosaveActiveRegions(currentRegions(), {
+        name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
+        sourcePath: filePath,
+        sourceName: audioName,
+      })
+    }, 500)
+    return () => {
+      if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
+    }
+  }, [audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regions?.length, revision])
 
   const handleSaveProject = useCallback(async () => {
     if (!projectName.trim() || !regions?.length) return
     setIsSaving(true)
     try {
-      await saveProject({ name: projectName.trim(), sourcePath: filePath, regions: currentRegions() })
+      await saveProject({ name: projectName.trim(), sourcePath: filePath, sourceName: audioName, regions: currentRegions() })
       setShowSaveDialog(false)
       toast('Project saved')
     } finally {
       setIsSaving(false)
     }
-  }, [filePath, projectName, regions, currentRegions, saveProject, toast])
+  }, [audioName, filePath, projectName, regions, currentRegions, saveProject, toast])
 
   const handleUpdateProject = useCallback(async () => {
     if (!isProjectDirty && !regions?.length) return
@@ -114,24 +173,58 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     }
   }, [isProjectDirty, regions, currentRegions, updateActiveProject, updateActiveRegions, toast])
 
-  const handleExport = useCallback(async () => {
-    if (!regions?.length) return
-    const outputDir = await window.api.fs.pickFolder()
-    if (!outputDir) return
-
-    setIsExporting(true)
+  const handleSendToPack = useCallback(async () => {
+    if (!regions?.length || !filePath) return
+    setIsSaving(true)
     try {
-      const result = await window.api.audio.exportRegions({
-        regions: regions.map((r) => ({ start: r.start, end: r.end, name: regionNames[r.id] ?? r.id })),
-        sourceFilePath: filePath,
-        outputDir,
-        profileId: 'generic',
+      const project = await autosaveActiveRegions(currentRegions(), {
+        name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
+        sourcePath: filePath,
+        sourceName: audioName,
       })
-      toast(`${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} exported`)
+      if (!project) return
+
+      const pack = await createPack(`${project.name} Pack`, hardwareProfileId)
+      const chops = (await window.api.projects.getChops(project.id)).slice(0, 16)
+      for (const [index, chop] of chops.entries()) {
+        await setSlot(index, {
+          id: `project-chop:${chop.id}`,
+          sourceType: 'project-chop',
+          displayName: chop.name,
+          sourcePath: project.sourcePath ?? filePath,
+          projectId: project.id,
+          projectName: project.name,
+          projectChopId: chop.id,
+          sampleId: null,
+          start: chop.start,
+          end: chop.end,
+          duration: chop.end - chop.start,
+          bpm,
+          musicalKey,
+          tags: [],
+          sourceChopUpdatedAt: chop.updatedAt,
+        })
+      }
+      setView('packs')
+      toast(`${chops.length} chop${chops.length !== 1 ? 's' : ''} sent to ${pack.name}`)
     } finally {
-      setIsExporting(false)
+      setIsSaving(false)
     }
-  }, [filePath, regions, regionNames, toast])
+  }, [
+    audioName,
+    autosaveActiveRegions,
+    bpm,
+    createPack,
+    currentRegions,
+    filePath,
+    hardwareProfileId,
+    musicalKey,
+    projectName,
+    regions,
+    setSlot,
+    setView,
+    toast,
+  ])
 
   const handleAutoChop = useCallback(async () => {
     if (!wavesurfer) return
@@ -142,7 +235,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         toast('No transients found — try Fine sensitivity', 'info')
         return
       }
-      autoChop(transients, wavesurfer.getDuration(), { start: trimIn, end: trimOut })
+      autoChop(
+        transients,
+        wavesurfer.getDuration(),
+        { start: trimIn, end: trimOut },
+        MIN_AUTO_CHOP_REGION_SECONDS[sensitivity]
+      )
       const inner = transients.filter((t) => t > trimIn && t < trimOut)
       const count = inner.length + 1
       toast(`${count} chop${count !== 1 ? 's' : ''} created`)
@@ -209,32 +307,42 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   ])
 
   useZoom({ waveformRef, wavesurfer })
-  useShortcuts({ wavesurfer, selectedRegion, regions, onSelectRegion: handleSelectRegion })
+  const playRegion = useCallback((region: { play: (loop?: boolean) => void }) => {
+    region.play(true)
+  }, [])
+
+  useShortcuts({
+    wavesurfer,
+    selectedRegion,
+    regions,
+    onSelectRegion: handleSelectRegion,
+    onUndo: undoRegions,
+    onRedo: redoRegions,
+  })
 
   const hasRegions = !!regions?.length
 
   const actions = (
     <>
-      <Button variant="ghost" size="sm" onClick={handleExport} disabled={isExporting || !hasRegions}>
-        {isExporting ? 'Exporting…' : 'Export WAV'}
+      <Button variant="outline" size="sm" onClick={handleSendToPack} disabled={isSaving || !hasRegions}>
+        <Grid2x2 size={12} />
+        Send to Pack
       </Button>
       {activeProject ? (
         <Button
-          variant="outline"
           size="sm"
           onClick={handleUpdateProject}
           disabled={isSaving || (!isProjectDirty && !hasRegions)}
         >
+          <Save size={12} />
           {isSaving ? 'Saving…' : isProjectDirty ? 'Update Project •' : 'Update Project'}
         </Button>
       ) : (
-        <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
+        <Button size="sm" onClick={() => setShowSaveDialog(true)} disabled={!hasRegions}>
+          <Save size={12} />
           Save Project
         </Button>
       )}
-      <Button size="sm" onClick={handleSaveToLibrary} disabled={isSaving || !hasRegions}>
-        {isSaving ? 'Saving…' : 'Save to Library'}
-      </Button>
     </>
   )
 
@@ -268,6 +376,26 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             : <Play  size={11} fill="currentColor" className="translate-x-px" />
           }
         </button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Undo region edit (⌘Z)"
+            onClick={undoRegions}
+            disabled={!historyState.canUndo}
+          >
+            <Undo2 size={12} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Redo region edit (⇧⌘Z)"
+            onClick={redoRegions}
+            disabled={!historyState.canRedo}
+          >
+            <Redo2 size={12} />
+          </Button>
+        </div>
         <span className="text-[11px] text-faint/70 flex-1 select-none">
           {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom, shift+scroll or swipe sideways to pan
         </span>
@@ -290,7 +418,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
               </button>
             ))}
           </div>
-          <Button size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
+          <Button variant="outline" size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
+            <Scissors size={12} />
             {isAutoChopping ? 'Chopping…' : 'Auto-chop'}
           </Button>
           <Button
@@ -300,6 +429,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             disabled={!canApplyTrim || !canTrimFile || isTrimming}
             title={!canTrimFile ? 'Save file to disk before trimming' : undefined}
           >
+            <Crop size={12} />
             {isTrimming ? 'Trimming…' : 'Trim source'}
           </Button>
         </div>
@@ -311,13 +441,14 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           selectedSample={selectedRegion}
           regionNames={regionNames}
           onClick={handleSelectRegion}
+          onPlay={playRegion}
           onNameChange={updateRegionName}
           onClearAll={clearAllRegions}
         />
       </div>
 
       <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
-        {([['Space', 'Play / Pause'], ['Return', 'Play region'], ['⌫', 'Delete region'], ['←/→', 'Prev / Next region']] as const).map(([key, label]) => (
+        {([['Space', 'Play / Pause'], ['Return', 'Play region'], ['⌫', 'Delete region'], ['↑/↓', 'Prev / Next region'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}

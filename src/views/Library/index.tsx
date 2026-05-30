@@ -3,7 +3,7 @@ import { Play, Square, Pencil, Tag, X, Trash2 } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
-import { useFilteredSamples } from '@/hooks/useFilteredSamples'
+import { type LibraryBrowserItem, useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { useInlineRename } from '@/hooks/useInlineRename'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
@@ -67,14 +67,14 @@ export default function LibraryView() {
           {/* Rows */}
           <div className="flex-1 overflow-y-auto">
             {filtered.map((sample, i) => (
-              <SampleRow
+              <LibraryRow
                 key={sample.id}
-                sample={sample}
+                item={sample}
                 project={sample.projectId ? projectsById[sample.projectId] : undefined}
                 striped={i % 2 === 1}
-                onDeleteRequest={() => setPendingDelete(sample)}
-                onRename={(name) => handleRename(sample, name)}
-                onTagsChange={(tags) => handleTagsChange(sample, tags)}
+                onDeleteRequest={sample.kind === 'sample' ? () => setPendingDelete(sample.sample) : undefined}
+                onRename={sample.kind === 'sample' ? (name) => handleRename(sample.sample, name) : undefined}
+                onTagsChange={sample.kind === 'sample' ? (tags) => handleTagsChange(sample.sample, tags) : undefined}
                 onTagClick={(tag) => toggleTagFilter(tag)}
               />
             ))}
@@ -119,7 +119,7 @@ function EmptyState() {
       </svg>
       <div className="text-center">
         <p className="text-[13px] text-muted">No samples yet</p>
-        <p className="text-[12px] text-faint/70 mt-1">Chop some audio and save to Library</p>
+        <p className="text-[12px] text-faint/70 mt-1">Create regions in a project or import loose samples</p>
       </div>
     </div>
   )
@@ -133,24 +133,26 @@ function ColHeader({ label, right }: { label: string; right?: boolean }) {
   )
 }
 
-function SampleRow({
-  sample, project, striped,
+function LibraryRow({
+  item, project, striped,
   onDeleteRequest, onRename, onTagsChange, onTagClick,
 }: {
-  sample: Sample
+  item: LibraryBrowserItem
   project: Project | undefined
   striped: boolean
-  onDeleteRequest: () => void
-  onRename: (name: string) => void
-  onTagsChange: (tags: string[]) => void
+  onDeleteRequest?: () => void
+  onRename?: (name: string) => void
+  onTagsChange?: (tags: string[]) => void
   onTagClick: (tag: string) => void
 }) {
-  const { isPlaying, toggle } = useAudioPlayer(toLocalFileUrl(sample.filePath))
+  const region = item.kind === 'project-chop' ? { start: item.start, end: item.end } : null
+  const { isPlaying, toggle } = useAudioPlayer(toLocalFileUrl(item.filePath), region)
   const { isRenaming, draftName, inputRef, setDraftName, startRename, commitRename, cancelRename } =
-    useInlineRename(sample.name, onRename)
+    useInlineRename(item.name, onRename ?? (() => {}))
   const [isEditingTags, setIsEditingTags] = useState(false)
 
-  const hasTags = sample.tags.length > 0
+  const hasTags = item.tags.length > 0
+  const canEdit = item.kind === 'sample' && onRename && onTagsChange && onDeleteRequest
 
   return (
     <>
@@ -179,7 +181,7 @@ function SampleRow({
             }
           </div>
 
-          {isRenaming ? (
+          {isRenaming && canEdit ? (
             <input
               ref={inputRef}
               value={draftName}
@@ -196,14 +198,14 @@ function SampleRow({
             />
           ) : (
             <span className={cn('text-[13px] truncate shrink-0', isPlaying && 'text-ink font-medium')}>
-              {sample.name}
+              {item.name}
             </span>
           )}
           {/* Waveform miniature */}
-          {sample.waveformData && !isRenaming && (
+          {item.kind === 'sample' && item.sample.waveformData && !isRenaming && (
             <svg viewBox="0 0 100 100" className="flex-1 h-4 min-w-0" preserveAspectRatio="none">
-              {sample.waveformData.map((v, i) => {
-                const barW = 100 / sample.waveformData!.length
+              {item.sample.waveformData.map((v, i) => {
+                const barW = 100 / item.sample.waveformData!.length
                 const h = Math.max(2, v * 100)
                 return (
                   <rect
@@ -222,30 +224,34 @@ function SampleRow({
 
         {/* Duration */}
         <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
-          {sample.duration != null ? formatTime(sample.duration) : '—'}
+          {item.duration != null ? formatTime(item.duration) : '—'}
         </span>
 
         {/* BPM */}
         <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
-          {sample.bpm != null ? Math.round(sample.bpm) : '—'}
+          {item.bpm != null ? Math.round(item.bpm) : '—'}
         </span>
 
         {/* Key */}
         <span className="text-[12px] text-faint font-mono whitespace-nowrap">
-          {sample.musicalKey ?? '—'}
+          {item.musicalKey ?? '—'}
         </span>
 
         {/* Project */}
         <span className="text-[12px] text-faint/80 truncate pr-2">
-          {project?.name ?? '—'}
+          {project?.name ?? (item.kind === 'project-chop' ? item.projectName : '—')}
         </span>
 
         {/* Row actions */}
-        <div className="flex items-center gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-          <RowBtn icon={Pencil} title="Rename"    onClick={(e) => { e.stopPropagation(); startRename() }} />
-          <RowBtn icon={Tag}    title="Edit tags" onClick={(e) => { e.stopPropagation(); setIsEditingTags(true) }} />
-          <RowBtn icon={Trash2} title="Delete"    onClick={(e) => { e.stopPropagation(); onDeleteRequest() }} danger />
-        </div>
+        {canEdit ? (
+          <div className="flex items-center gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+            <RowBtn icon={Pencil} title="Rename"    onClick={(e) => { e.stopPropagation(); startRename() }} />
+            <RowBtn icon={Tag}    title="Edit tags" onClick={(e) => { e.stopPropagation(); setIsEditingTags(true) }} />
+            <RowBtn icon={Trash2} title="Delete"    onClick={(e) => { e.stopPropagation(); onDeleteRequest() }} danger />
+          </div>
+        ) : (
+          <span className="text-[10px] text-faint/50 text-right pr-1">Region</span>
+        )}
       </div>
 
       {/* Tags — shown inline below the row */}
@@ -254,7 +260,7 @@ function SampleRow({
           'flex items-center gap-1 px-11 pb-1.5 flex-wrap',
           striped ? 'bg-[rgba(255,255,255,0.015)]' : ''
         )}>
-          {sample.tags.slice(0, 5).map((tag) => (
+          {item.tags.slice(0, 5).map((tag) => (
             <button
               key={tag}
               onClick={(e) => { e.stopPropagation(); onTagClick(tag) }}
@@ -263,18 +269,20 @@ function SampleRow({
               {tag}
             </button>
           ))}
-          {sample.tags.length > 5 && (
-            <span className="text-[10px] text-faint/50">+{sample.tags.length - 5}</span>
+          {item.tags.length > 5 && (
+            <span className="text-[10px] text-faint/50">+{item.tags.length - 5}</span>
           )}
         </div>
       )}
 
-      <TagDialog
-        sample={sample}
-        open={isEditingTags}
-        onOpenChange={setIsEditingTags}
-        onTagsChange={onTagsChange}
-      />
+      {item.kind === 'sample' && onTagsChange && (
+        <TagDialog
+          sample={item.sample}
+          open={isEditingTags}
+          onOpenChange={setIsEditingTags}
+          onTagsChange={onTagsChange}
+        />
+      )}
     </>
   )
 }

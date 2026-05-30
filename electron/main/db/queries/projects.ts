@@ -1,13 +1,27 @@
 import { getDb } from '../index'
-import type { Project, ProjectRegion } from '../../../types'
+import type { Project, ProjectChop, ProjectRegion } from '../../../types'
 
 function deserialize(row: Record<string, unknown>): Project {
+  const id = row.id as string
   return {
-    id: row.id as string,
+    id,
     name: row.name as string,
     sourcePath: row.source_path as string | null,
-    regions: JSON.parse((row.regions as string) || '[]') as ProjectRegion[],
+    sourceName: row.source_name as string | null,
+    regions: getProjectChops(id),
     createdAt: row.created_at as number,
+  }
+}
+
+function deserializeChop(row: Record<string, unknown>): ProjectChop {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    name: row.name as string,
+    start: row.start as number,
+    end: row.end as number,
+    createdAt: row.created_at as number,
+    updatedAt: row.updated_at as number,
   }
 }
 
@@ -20,20 +34,40 @@ export function getProject(id: string): Project | null {
   return row ? deserialize(row) : null
 }
 
-export function saveProject(data: Pick<Project, 'name' | 'sourcePath' | 'regions'>): Project {
+export function saveProject(data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }): Project {
   const db = getDb()
   const id = crypto.randomUUID()
   const createdAt = Date.now()
+  const regions = data.regions.map((region, index) => ({
+    ...region,
+    id: region.id ?? crypto.randomUUID(),
+    projectId: id,
+    name: region.name || `Chop ${index + 1}`,
+    createdAt,
+    updatedAt: createdAt,
+  }))
 
-  db.prepare('INSERT INTO projects (id, name, source_path, regions, created_at) VALUES (?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO projects (id, name, source_path, source_name, regions, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
     id,
     data.name,
     data.sourcePath ?? null,
-    JSON.stringify(data.regions),
+    data.sourceName ?? null,
+    JSON.stringify(regions.map(({ id, start, end, name }) => ({ id, start, end, name }))),
     createdAt
   )
 
-  return { id, ...data, createdAt }
+  const insertChop = db.prepare(`
+    INSERT INTO project_chops (id, project_id, name, start, end, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `)
+  const tx = db.transaction(() => {
+    for (const region of regions) {
+      insertChop.run(region.id, id, region.name, region.start, region.end, region.createdAt, region.updatedAt)
+    }
+  })
+  tx()
+
+  return { id, name: data.name, sourcePath: data.sourcePath, sourceName: data.sourceName ?? null, regions, createdAt }
 }
 
 export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>): void {
@@ -43,7 +77,19 @@ export function updateProject(id: string, data: Partial<Pick<Project, 'name' | '
 
   if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
   if (data.sourcePath !== undefined) { fields.push('source_path = ?'); values.push(data.sourcePath) }
-  if (data.regions !== undefined) { fields.push('regions = ?'); values.push(JSON.stringify(data.regions)) }
+  if ('sourceName' in data) { fields.push('source_name = ?'); values.push(data.sourceName) }
+  if (data.regions !== undefined) {
+    const now = Date.now()
+    upsertProjectChops(id, data.regions)
+    fields.push('regions = ?')
+    values.push(JSON.stringify(data.regions.map((region, index) => ({
+      id: region.id,
+      start: region.start,
+      end: region.end,
+      name: region.name || `Chop ${index + 1}`,
+      updatedAt: 'updatedAt' in region ? region.updatedAt : now,
+    }))))
+  }
 
   if (fields.length === 0) return
   values.push(id)
@@ -63,4 +109,66 @@ export function duplicateProject(id: string): Project | null {
     sourcePath: original.sourcePath,
     regions: original.regions,
   })
+}
+
+export function getProjectChops(projectId: string): ProjectChop[] {
+  return (getDb()
+    .prepare('SELECT * FROM project_chops WHERE project_id = ? ORDER BY start, created_at')
+    .all(projectId) as Record<string, unknown>[]).map(deserializeChop)
+}
+
+export function getAllProjectChops(): Array<ProjectChop & { projectName: string; sourcePath: string | null }> {
+  return (getDb()
+    .prepare(`
+      SELECT project_chops.*, projects.name as project_name, projects.source_path
+      FROM project_chops
+      JOIN projects ON projects.id = project_chops.project_id
+      ORDER BY projects.created_at DESC, project_chops.start ASC
+    `)
+    .all() as Record<string, unknown>[]).map((row) => ({
+      ...deserializeChop(row),
+      projectName: row.project_name as string,
+      sourcePath: row.source_path as string | null,
+    }))
+}
+
+export function upsertProjectChops(projectId: string, regions: ProjectRegion[]): ProjectChop[] {
+  const db = getDb()
+  const now = Date.now()
+  const existing = getProjectChops(projectId)
+  const existingById = new Map(existing.map((chop) => [chop.id, chop]))
+  const incomingIds = new Set<string>()
+  const saved: ProjectChop[] = []
+
+  const upsert = db.prepare(`
+    INSERT INTO project_chops (id, project_id, name, start, end, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      start = excluded.start,
+      end = excluded.end,
+      updated_at = excluded.updated_at
+  `)
+  const remove = db.prepare('DELETE FROM project_chops WHERE project_id = ? AND id = ?')
+
+  const tx = db.transaction(() => {
+    regions.forEach((region, index) => {
+      const id = region.id ?? crypto.randomUUID()
+      const previous = existingById.get(id)
+      const name = region.name || `Chop ${index + 1}`
+      const createdAt = previous?.createdAt ?? now
+      const changed = !previous || previous.name !== name || previous.start !== region.start || previous.end !== region.end
+      const updatedAt = changed ? now : previous.updatedAt
+      incomingIds.add(id)
+      upsert.run(id, projectId, name, region.start, region.end, createdAt, updatedAt)
+      saved.push({ id, projectId, name, start: region.start, end: region.end, createdAt, updatedAt })
+    })
+
+    for (const chop of existing) {
+      if (!incomingIds.has(chop.id)) remove.run(projectId, chop.id)
+    }
+  })
+
+  tx()
+  return saved
 }

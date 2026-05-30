@@ -8,7 +8,7 @@ import { useLibraryStore } from '@/stores/library'
 import { usePacksStore } from '@/stores/packs'
 import { useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useInlineRename } from '@/hooks/useInlineRename'
-import { mimeTypeFromPath, toLocalFileUrl } from '@/utils'
+import { fileNameFromPath, mimeTypeFromPath, toLocalFileUrl } from '@/utils'
 import { FilterControls } from '@/components/FilterControls'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
@@ -56,12 +56,27 @@ function ChopContent() {
     if (!project.sourcePath) return
     setActiveProject(project)
     setAudio({
-      name: project.name,
+      name: project.sourceName ?? fileNameFromPath(project.sourcePath),
       path: toLocalFileUrl(project.sourcePath),
       filePath: project.sourcePath,
       size: 0,
       type: mimeTypeFromPath(project.sourcePath),
     })
+  }
+
+  const handleDeleteProject = async (project: Project) => {
+    const remaining = projects.filter((p) => p.id !== project.id)
+    const nextProject = project.id === activeProject?.id ? remaining[0] : activeProject
+
+    await deleteProject(project.id)
+
+    if (project.id !== activeProject?.id) return
+    if (nextProject?.sourcePath) {
+      loadProject(nextProject)
+    } else {
+      setActiveProject(null)
+      clearAudio()
+    }
   }
 
   const handleNew = () => {
@@ -84,7 +99,7 @@ function ChopContent() {
               onLoad={() => loadProject(project)}
               onRename={(name) => renameProject(project.id, name)}
               onDuplicate={() => duplicateProject(project.id)}
-              onDelete={() => deleteProject(project.id)}
+              onDelete={() => handleDeleteProject(project)}
             />
           ))
         )}
@@ -184,6 +199,10 @@ function LibraryContent() {
         allTags={allTags}
         activeTags={activeTags}
         onTagToggle={toggleTagFilter}
+        bpm={filters.bpm}
+        onBpmChange={(bpm) => setFilters({ ...filters, bpm })}
+        musicalKey={filters.key}
+        onKeyChange={(key) => setFilters({ ...filters, key })}
       />
       <p className="text-[11px] text-faint/60 px-1">
         {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}

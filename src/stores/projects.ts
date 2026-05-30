@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { withLoading } from './utils'
-import type { Project } from '@/types'
+import type { Project, ProjectRegion } from '@/types'
 
 interface ProjectsState {
   projects: Project[]
@@ -9,10 +9,11 @@ interface ProjectsState {
   isLoading: boolean
   fetchProjects: () => Promise<void>
   setActiveProject: (project: Project | null) => void
-  saveProject: (data: { name: string; sourcePath: string; regions: Project['regions'] }) => Promise<Project>
+  saveProject: (data: { name: string; sourcePath: string; sourceName?: string | null; regions: ProjectRegion[] }) => Promise<Project>
   updateActiveProject: () => Promise<void>
-  updateActiveRegions: (regions: Project['regions']) => Promise<void>
-  applyLocalTrim: (data: { sourcePath: string; regions: Project['regions'] }) => void
+  updateActiveRegions: (regions: ProjectRegion[]) => Promise<void>
+  autosaveActiveRegions: (regions: ProjectRegion[], fallback: { name: string; sourcePath: string | null; sourceName?: string | null }) => Promise<Project | null>
+  applyLocalTrim: (data: { sourcePath: string; regions: ProjectRegion[] }) => void
   renameProject: (id: string, name: string) => Promise<void>
   duplicateProject: (id: string) => Promise<Project | null>
   deleteProject: (id: string) => Promise<void>
@@ -69,6 +70,41 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       activeProject: s.activeProject ? { ...s.activeProject, regions } : null,
       projects: s.projects.map((p) => (p.id === activeProject.id ? { ...p, regions } : p)),
     }))
+  },
+
+  autosaveActiveRegions: async (regions, fallback) => {
+    let { activeProject } = get()
+    if (!activeProject) {
+      if (!fallback.sourcePath || regions.length === 0) return null
+      activeProject = await window.api.projects.save({
+        name: fallback.name.trim() || 'Untitled Project',
+        sourcePath: fallback.sourcePath,
+        sourceName: fallback.sourceName ?? null,
+        regions,
+      })
+      set((s) => ({
+        projects: [activeProject!, ...s.projects],
+        activeProject,
+        isProjectDirty: false,
+      }))
+      return activeProject
+    }
+
+    const saved = await window.api.projects.upsertChops(activeProject.id, regions)
+    const updated = {
+      ...activeProject,
+      sourcePath: fallback.sourcePath ?? activeProject.sourcePath,
+      regions: saved,
+    }
+    if (fallback.sourcePath !== undefined && fallback.sourcePath !== activeProject.sourcePath) {
+      await window.api.projects.update(activeProject.id, { sourcePath: fallback.sourcePath, regions: saved })
+    }
+    set((s) => ({
+      activeProject: updated,
+      isProjectDirty: false,
+      projects: s.projects.map((p) => (p.id === activeProject.id ? updated : p)),
+    }))
+    return updated
   },
 
   renameProject: async (id, name) => {

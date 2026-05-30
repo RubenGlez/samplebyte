@@ -7,6 +7,9 @@ interface UseWavesurferProps {
   audioUrl: string;
 }
 
+const WAVEFORM_COLOR = "#5f5852";
+const CURSOR_COLOR = "rgba(255,255,255,0.9)";
+
 export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const [wavesurfer, setWavesurfer] = useState<WaveSurfer>();
@@ -19,9 +22,9 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
     if (waveformRef.current && !isConfigured.current) {
       const wsInstance = WaveSurfer.create({
         container: waveformRef.current,
-        waveColor: "rgba(240, 228, 210, 0.25)",
-        progressColor: "rgba(240, 228, 210, 0.55)",
-        cursorColor: "#FF5500",
+        waveColor: WAVEFORM_COLOR,
+        progressColor: WAVEFORM_COLOR,
+        cursorColor: CURSOR_COLOR,
         cursorWidth: 2,
         barWidth: 2,
         barGap: 1,
@@ -56,6 +59,14 @@ export const useWavesurfer = ({ audioUrl }: UseWavesurferProps) => {
       wavesurfer?.destroy();
     };
   }, [audioUrl, wavesurfer]);
+
+  useEffect(() => {
+    wavesurfer?.setOptions({
+      waveColor: WAVEFORM_COLOR,
+      progressColor: WAVEFORM_COLOR,
+      cursorColor: CURSOR_COLOR,
+    });
+  }, [wavesurfer]);
 
   return { waveformRef, wavesurfer, isPlaying };
 };

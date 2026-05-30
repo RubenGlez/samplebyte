@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
 import { type Region } from 'wavesurfer.js/dist/plugins/regions'
@@ -9,10 +10,11 @@ interface SampleProps {
   index: number
   initialName?: string
   onClick: (region: Region) => void
+  onPlay?: (region: Region) => void
   onNameChange?: (regionId: string, name: string) => void
 }
 
-export default function Sample({ sample, isSelected, index, initialName, onClick, onNameChange }: SampleProps) {
+export default function Sample({ sample, isSelected, index, initialName, onClick, onPlay, onNameChange }: SampleProps) {
   const [name, setName] = useState(initialName ?? `Chop ${String(index + 1).padStart(2, '0')}`)
   const [isEditing, setIsEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -36,6 +38,19 @@ export default function Sample({ sample, isSelected, index, initialName, onClick
       <span className="text-[10px] tabular-nums shrink-0 w-5 text-right text-faint font-mono">
         {String(index + 1).padStart(2, '0')}
       </span>
+
+      <button
+        type="button"
+        title="Play region"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick(sample)
+          onPlay?.(sample)
+        }}
+        className="w-5 h-5 flex items-center justify-center rounded-md bg-transparent border-0 text-faint hover:text-accent hover:bg-raised cursor-pointer transition-colors"
+      >
+        <Play size={10} fill="currentColor" className="translate-x-px" />
+      </button>
 
       {isEditing ? (
         <input

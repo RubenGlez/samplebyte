@@ -1,8 +1,7 @@
 import { ipcMain } from 'electron'
 import * as packsDb from '../db/queries/packs'
-import * as samplesDb from '../db/queries/samples'
 import { getProfile, applyProfileFormat, profiles } from '../hardware/profiles'
-import type { Pack } from '../../types'
+import type { Pack, PackSourceItem } from '../../types'
 import path from 'node:path'
 import fs from 'node:fs'
 import { configureFfmpeg, ffmpeg } from '../services/ffmpeg'
@@ -27,8 +26,8 @@ export function registerPacksHandlers(): void {
     return pack ? pack.slots : []
   })
 
-  ipcMain.handle('packs:upsertSlot', (_, packId: string, slotNumber: number, sampleId: string) => {
-    packsDb.upsertSlot(packId, slotNumber, sampleId)
+  ipcMain.handle('packs:upsertSlot', (_, packId: string, slotNumber: number, source: PackSourceItem) => {
+    packsDb.upsertSlot(packId, slotNumber, source)
   })
 
   ipcMain.handle('packs:removeSlot', (_, packId: string, slotNumber: number) => {
@@ -50,17 +49,16 @@ export function registerPacksHandlers(): void {
     const profile = getProfile(pack.hardwareProfile)
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true })
 
-    const allSamples = samplesDb.getAllSamples()
-
     await Promise.all(
       pack.slots.map((slot) =>
         new Promise<void>((resolve, reject) => {
-          const sample = allSamples.find((s) => s.id === slot.sampleId)
-          if (!sample) { resolve(); return }
+          const outputFile = path.join(outputDir, profile.fileName(slot.slotNumber, slot.displayName))
+          const input = ffmpeg(slot.sourcePath)
+          if (slot.start !== null && slot.end !== null) {
+            input.setStartTime(slot.start).setDuration(slot.end - slot.start)
+          }
 
-          const outputFile = path.join(outputDir, profile.fileName(slot.slotNumber, sample.name))
-
-          applyProfileFormat(profile, ffmpeg(sample.filePath))
+          applyProfileFormat(profile, input)
             .output(outputFile)
             .on('end', () => resolve())
             .on('error', reject)

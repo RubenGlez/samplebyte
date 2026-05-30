@@ -34,6 +34,9 @@ export const mimeTypeFromPath = (filePath: string): string => {
   return EXT_TO_MIME[ext] ?? 'audio/*'
 }
 
+export const fileNameFromPath = (filePath: string): string =>
+  filePath.split('/').pop() ?? 'audio'
+
 export const toLocalFileUrl = (filePath: string): string => {
   const encodedPath = filePath.split('/').map(encodeURIComponent).join('/')
   return `local-file://${encodedPath}`

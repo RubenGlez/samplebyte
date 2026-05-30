@@ -13,6 +13,10 @@ interface FilterControlsProps {
   allTags: string[]
   activeTags: string[]
   onTagToggle: (tag: string) => void
+  bpm?: number
+  onBpmChange?: (v: number | undefined) => void
+  musicalKey?: string
+  onKeyChange?: (v: string | undefined) => void
 }
 
 export function FilterControls({
@@ -20,6 +24,7 @@ export function FilterControls({
   source, onSourceChange,
   projects, projectFilter, onProjectFilterChange,
   allTags, activeTags, onTagToggle,
+  bpm, onBpmChange, musicalKey, onKeyChange,
 }: FilterControlsProps) {
   return (
     <div className="flex flex-col gap-2 px-1">
@@ -68,6 +73,29 @@ export function FilterControls({
             <option value="__none__">No project</option>
           </select>
           <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+        </div>
+      )}
+
+      {(onBpmChange || onKeyChange) && (
+        <div className="grid grid-cols-2 gap-1.5">
+          {onBpmChange && (
+            <input
+              type="number"
+              min="1"
+              value={bpm ?? ''}
+              onChange={(e) => onBpmChange(e.target.value ? Number(e.target.value) : undefined)}
+              placeholder="BPM"
+              className="bg-raised border border-border rounded-md px-2 h-[26px] text-[12px] text-ink placeholder:text-faint/60 focus:outline-none focus:border-accent/40 transition-colors"
+            />
+          )}
+          {onKeyChange && (
+            <input
+              value={musicalKey ?? ''}
+              onChange={(e) => onKeyChange(e.target.value.trim() || undefined)}
+              placeholder="Key"
+              className="bg-raised border border-border rounded-md px-2 h-[26px] text-[12px] text-ink placeholder:text-faint/60 focus:outline-none focus:border-accent/40 transition-colors"
+            />
+          )}
         </div>
       )}
 

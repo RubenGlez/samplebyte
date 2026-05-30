@@ -7,6 +7,8 @@ interface UseShortcutsProps {
   selectedRegion?: Region;
   regions?: Region[];
   onSelectRegion?: (region: Region) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const useShortcuts = ({
@@ -14,6 +16,8 @@ export const useShortcuts = ({
   selectedRegion,
   regions,
   onSelectRegion,
+  onUndo,
+  onRedo,
 }: UseShortcutsProps) => {
   // const regionsPlugin = getRegionsPlugin(wavesurfer);
 
@@ -64,16 +68,23 @@ export const useShortcuts = ({
       ) return
 
       const key = event.key;
+      const isUndoKey = key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey);
+      if (isUndoKey) {
+        event.preventDefault();
+        if (event.shiftKey) onRedo?.();
+        else onUndo?.();
+        return;
+      }
       if (key === " ") { event.preventDefault(); handlePressSpace(); }
       if (key === "Escape") handlePressEscape();
       if (key === "Enter") handlePressEnter();
       if (key === "Backspace") handlePressBackspace();
       if (key === "Tab") handlePressTab();
-      if (key === "ArrowLeft") {
+      if (key === "ArrowUp") {
         event.preventDefault();
         handleSelectAdjacentRegion(-1);
       }
-      if (key === "ArrowRight") {
+      if (key === "ArrowDown") {
         event.preventDefault();
         handleSelectAdjacentRegion(1);
       }
@@ -91,5 +102,7 @@ export const useShortcuts = ({
     handlePressBackspace,
     handlePressTab,
     handleSelectAdjacentRegion,
+    onRedo,
+    onUndo,
   ]);
 };

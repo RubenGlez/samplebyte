@@ -167,11 +167,11 @@ export function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey:
 }
 
 // Onset strength is computed as positive first-order RMS energy differences.
-// Local maxima above an adaptive threshold (mean + k*std of non-zero onsets)
-// are returned as transient timestamps. k is tuned per preset:
-//   coarse → fewer, dominant hits only
-//   medium → balanced
-//   fine   → catches subtle transients
+// Local maxima above an adaptive threshold are returned as transient timestamps.
+// The presets are intentionally phrase/sample oriented, not editor-microscopic:
+//   coarse → large sections and dominant hits
+//   medium → practical default chops
+//   fine   → smaller hits, while still rejecting tiny fragments
 export function detectTransients(
   buffer: AudioBuffer,
   preset: 'coarse' | 'medium' | 'fine' = 'medium'
@@ -207,7 +207,7 @@ export function detectTransients(
   if (nonzero.length === 0) return []
   const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length
   const std = Math.sqrt(nonzero.reduce((a, b) => a + (b - mean) ** 2, 0) / nonzero.length)
-  const K = { coarse: 2.0, medium: 1.0, fine: 0.3 }[preset]
+  const K = { coarse: 3.2, medium: 2.2, fine: 1.2 }[preset]
   const threshold = mean + std * K
 
   // Local maxima above threshold
@@ -218,8 +218,9 @@ export function detectTransients(
     }
   }
 
-  // Enforce 80 ms minimum gap between consecutive transients
-  const MIN_GAP = 0.08
+  // Enforce producer-usable spacing between chops. The old 80ms gap created
+  // tiny fragments that made sense visually but not as pack-building material.
+  const MIN_GAP = { coarse: 1.6, medium: 0.8, fine: 0.4 }[preset]
   const transients: number[] = []
   let lastTime = -Infinity
   for (const t of peaks) {

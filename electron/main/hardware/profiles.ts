@@ -50,6 +50,20 @@ export const profiles: HardwareProfile[] = [
     format: { container: 'wav', sampleRate: 44100, bitDepth: 24, sampleFmt: 's24' },
     fileName: (_, name) => `${sanitize(name)}.wav`,
   },
+  {
+    id: 'daw-folder',
+    name: 'DAW Folder',
+    padCount: 128,
+    format: { container: 'wav', sampleRate: 48000, bitDepth: 24, sampleFmt: 's24' },
+    fileName: (slot, name) => `${String(slot + 1).padStart(2, '0')}_${sanitize(name)}.wav`,
+  },
+  {
+    id: 'software-sampler',
+    name: 'Software Sampler',
+    padCount: 64,
+    format: { container: 'wav', sampleRate: 44100, bitDepth: 24, sampleFmt: 's24' },
+    fileName: (slot, name) => `pad_${String(slot + 1).padStart(2, '0')}_${sanitize(name)}.wav`,
+  },
 ]
 
 export function getProfile(id: string): HardwareProfile {

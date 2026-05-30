@@ -11,26 +11,31 @@ import { FilterControls } from '@/components/FilterControls'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
 import { Button } from '@/components/ui/Button'
-import type { Sample } from '@/types'
+import type { PackSlot, PackSourceItem, ProjectChop, Sample } from '@/types'
 
 const PROFILES = [
   { id: 'maschine-mk3', name: 'Maschine MK3' },
   { id: 'sp404-mkii',   name: 'Roland SP-404 MkII' },
   { id: 'mpc-generic',  name: 'Akai MPC' },
   { id: 'generic',      name: 'Generic WAV' },
+  { id: 'daw-folder',   name: 'DAW Folder' },
+  { id: 'software-sampler', name: 'Software Sampler' },
 ]
 
 export default function PacksView() {
-  const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, initSlots } = usePacksStore()
+  const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, loadSlots } = usePacksStore()
   const { samples, fetchSamples } = useLibraryStore()
-  const { projects } = useProjectsStore()
+  const { projects, activeProject, fetchProjects } = useProjectsStore()
   const { toast } = useToastStore()
 
-  const [activeSample, setActiveSample] = useState<Sample | null>(null)
+  const [activeSource, setActiveSource] = useState<PackSourceItem | null>(null)
+  const [projectChops, setProjectChops] = useState<Array<ProjectChop & { projectName: string; sourcePath: string | null }>>([])
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'local' | 'freesound'>('all')
   const [projectFilter, setProjectFilter] = useState<string | null>(null)
   const [activeTags, setActiveTags] = useState<string[]>([])
+  const [bpmFilter, setBpmFilter] = useState<number | undefined>()
+  const [keyFilter, setKeyFilter] = useState<string | undefined>()
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExport = async () => {
@@ -48,14 +53,47 @@ export default function PacksView() {
 
   const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
 
-  const filteredSamples = samples.filter((s) => {
-    if (search.trim() && !s.name.toLowerCase().includes(search.toLowerCase())) return false
-    if (sourceFilter !== 'all' && s.source !== sourceFilter) return false
-    if (projectFilter === '__none__' && s.projectId !== null) return false
-    if (projectFilter && projectFilter !== '__none__' && s.projectId !== projectFilter) return false
-    if (activeTags.length && !activeTags.some((t) => s.tags.includes(t))) return false
+  const sourceItems: PackSourceItem[] = [
+    ...projectChops
+      .filter((chop) => chop.sourcePath)
+      .map((chop) => ({
+        id: `project-chop:${chop.id}`,
+        sourceType: 'project-chop' as const,
+        displayName: chop.name,
+        sourcePath: chop.sourcePath!,
+        projectId: chop.projectId,
+        projectName: chop.projectName,
+        projectChopId: chop.id,
+        sampleId: null,
+        start: chop.start,
+        end: chop.end,
+        duration: chop.end - chop.start,
+        bpm: null,
+        musicalKey: null,
+        tags: [],
+        sourceChopUpdatedAt: chop.updatedAt,
+      })),
+    ...samples.map(sampleToSourceItem),
+  ]
+
+  const filteredSources = sourceItems.filter((source) => {
+    if (search.trim() && !source.displayName.toLowerCase().includes(search.toLowerCase())) return false
+    if (sourceFilter !== 'all' && source.sourceType === 'library-sample') {
+      const sample = samples.find((s) => s.id === source.sampleId)
+      if (sample?.source !== sourceFilter) return false
+    }
+    if (sourceFilter !== 'all' && source.sourceType === 'project-chop') return false
+    if (projectFilter === '__none__' && source.projectId !== null) return false
+    if (projectFilter && projectFilter !== '__none__' && source.projectId !== projectFilter) return false
+    if (activeTags.length && !activeTags.some((t) => source.tags.includes(t))) return false
+    if (bpmFilter !== undefined && (source.bpm === null || Math.abs(source.bpm - bpmFilter) > 5)) return false
+    if (keyFilter && source.musicalKey?.toLowerCase() !== keyFilter.toLowerCase()) return false
     return true
   })
+
+  const currentProjectSources = filteredSources.filter((source) => source.sourceType === 'project-chop' && source.projectId === activeProject?.id)
+  const otherProjectSources = filteredSources.filter((source) => source.sourceType === 'project-chop' && source.projectId !== activeProject?.id)
+  const librarySources = filteredSources.filter((source) => source.sourceType === 'library-sample')
 
   const toggleTag = (tag: string) =>
     setActiveTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])
@@ -63,35 +101,30 @@ export default function PacksView() {
   useEffect(() => {
     fetchPacks()
     fetchSamples()
-  }, [fetchPacks, fetchSamples])
+    fetchProjects()
+    window.api.projects.getAllChops().then(setProjectChops)
+  }, [fetchPacks, fetchSamples, fetchProjects])
 
   useEffect(() => {
-    if (!currentPack || samples.length === 0) return
-    window.api.packs.getSlots(currentPack.id).then((packSlots) => {
-      const resolved: Record<number, Sample> = {}
-      for (const slot of packSlots) {
-        const sample = samples.find((s) => s.id === slot.sampleId)
-        if (sample) resolved[slot.slotNumber] = sample
-      }
-      initSlots(resolved)
-    })
+    if (!currentPack) return
+    loadSlots()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPack?.id, samples.length])
+  }, [currentPack?.id])
 
   const handleDragStart = (event: DragStartEvent) => {
-    const sample = samples.find((s) => s.id === event.active.id)
-    setActiveSample(sample ?? null)
+    const source = sourceItems.find((s) => s.id === event.active.id)
+    setActiveSource(source ?? null)
     document.body.style.cursor = 'grabbing'
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveSample(null)
+    setActiveSource(null)
     document.body.style.cursor = ''
     const { active, over } = event
     if (!over || !currentPack) return
     const slotNumber = Number(over.id)
-    const sample = samples.find((s) => s.id === active.id)
-    if (sample !== undefined) setSlot(slotNumber, sample)
+    const source = sourceItems.find((s) => s.id === active.id)
+    if (source !== undefined) setSlot(slotNumber, source)
   }
 
   const filledSlots = Object.keys(slots).length
@@ -115,17 +148,23 @@ export default function PacksView() {
               allTags={allTags}
               activeTags={activeTags}
               onTagToggle={toggleTag}
+              bpm={bpmFilter}
+              onBpmChange={setBpmFilter}
+              musicalKey={keyFilter}
+              onKeyChange={setKeyFilter}
             />
           </div>
           <div className="flex-1 overflow-y-auto py-1 px-1 flex flex-col gap-px">
-            {samples.length === 0 ? (
-              <p className="text-faint text-[12px] p-3 leading-relaxed">No samples yet. Save some chops first.</p>
-            ) : filteredSamples.length === 0 ? (
+            {sourceItems.length === 0 ? (
+              <p className="text-faint text-[12px] p-3 leading-relaxed">No sources yet. Create chops or import samples.</p>
+            ) : filteredSources.length === 0 ? (
               <p className="text-faint text-[12px] p-3">No matches.</p>
             ) : (
-              filteredSamples.map((sample) => (
-                <DraggableSample key={sample.id} sample={sample} />
-              ))
+              <>
+                <SourceSection label="Current Project" sources={currentProjectSources} />
+                <SourceSection label="Other Projects" sources={otherProjectSources} />
+                <SourceSection label="Library" sources={librarySources} />
+              </>
             )}
           </div>
         </aside>
@@ -181,14 +220,14 @@ export default function PacksView() {
                     <PadSlot
                       key={i}
                       slotNumber={i}
-                      sample={slots[i] ?? null}
+                      slot={slots[i] ?? null}
                       onClear={() => clearSlot(i)}
-                      isDraggingAny={!!activeSample}
+                      isDraggingAny={!!activeSource}
                     />
                   ))}
                 </div>
                 <p className="text-[11px] text-faint/60 select-none">
-                  Drag samples from the panel onto pads
+                  Drag chops or samples from the panel onto pads
                 </p>
               </>
             ) : (
@@ -207,9 +246,9 @@ export default function PacksView() {
 
       {/* Drag overlay */}
       <DragOverlay>
-        {activeSample && (
+        {activeSource && (
           <div className="bg-overlay border border-accent/40 rounded px-3 py-2 text-xs text-ink shadow-xl shadow-black/50 opacity-95" style={{ cursor: 'grabbing' }}>
-            {activeSample.name}
+            {activeSource.displayName}
           </div>
         )}
       </DragOverlay>
@@ -218,8 +257,40 @@ export default function PacksView() {
   )
 }
 
-function DraggableSample({ sample }: { sample: Sample }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: sample.id })
+function sampleToSourceItem(sample: Sample): PackSourceItem {
+  return {
+    id: `library-sample:${sample.id}`,
+    sourceType: 'library-sample',
+    displayName: sample.name,
+    sourcePath: sample.filePath,
+    projectId: sample.projectId,
+    projectName: null,
+    projectChopId: null,
+    sampleId: sample.id,
+    start: null,
+    end: null,
+    duration: sample.duration,
+    bpm: sample.bpm,
+    musicalKey: sample.musicalKey,
+    tags: sample.tags,
+    sourceChopUpdatedAt: null,
+  }
+}
+
+function SourceSection({ label, sources }: { label: string; sources: PackSourceItem[] }) {
+  if (sources.length === 0) return null
+  return (
+    <div className="flex flex-col gap-px">
+      <p className="px-2 pt-2 pb-1 text-[10px] font-semibold text-faint/70 tracking-wide select-none">{label}</p>
+      {sources.map((source) => (
+        <DraggableSource key={source.id} source={source} />
+      ))}
+    </div>
+  )
+}
+
+function DraggableSource({ source }: { source: PackSourceItem }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: source.id })
 
   return (
     <div
@@ -233,24 +304,24 @@ function DraggableSample({ sample }: { sample: Sample }) {
         isDragging && 'opacity-30'
       )}
     >
-      <span className="flex-1 truncate">{sample.name}</span>
-      {sample.duration != null && (
+      <span className="flex-1 truncate">{source.displayName}</span>
+      {source.duration != null && (
         <span className="text-faint tabular-nums shrink-0 font-mono text-[10px]">
-          {formatTime(sample.duration)}
+          {formatTime(source.duration)}
         </span>
       )}
     </div>
   )
 }
 
-function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: {
+function PadSlot({ slotNumber, slot, onClear, isDraggingAny }: {
   slotNumber: number
-  sample: Sample | null
+  slot: PackSlot | null
   onClear: () => void
   isDraggingAny: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: slotNumber })
-  const { isPlaying, play, stop } = useAudioPlayer(sample ? toLocalFileUrl(sample.filePath) : null)
+  const { isPlaying, play, stop } = useAudioPlayer(slot ? toLocalFileUrl(slot.sourcePath) : null)
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
 
@@ -262,7 +333,7 @@ function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: {
       onPointerLeave={stop}
       className={cn(
         'group relative aspect-square rounded-lg border transition-all overflow-hidden',
-        sample
+        slot
           ? isPlaying
             ? 'bg-accent/20 border-accent/50 scale-[0.97]'
             : 'bg-[rgba(255,255,255,0.04)] border-border hover:border-border-bright hover:bg-[rgba(255,255,255,0.06)] cursor-pointer active:scale-[0.97]'
@@ -273,10 +344,10 @@ function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: {
     >
       <div className="absolute inset-0 p-2.5 flex flex-col justify-between">
         <div className="flex items-start justify-between">
-          <span className={cn('text-[10px] tabular-nums leading-none font-mono', sample ? 'text-faint/60' : 'text-faint/30')}>
+          <span className={cn('text-[10px] tabular-nums leading-none font-mono', slot ? 'text-faint/60' : 'text-faint/30')}>
             {padLabel}
           </span>
-          {sample && (
+          {slot && (
             <button
               onClick={(e) => { e.stopPropagation(); onClear() }}
               className="w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 rounded-sm bg-transparent border-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity text-[13px] leading-none"
@@ -286,12 +357,12 @@ function PadSlot({ slotNumber, sample, onClear, isDraggingAny }: {
           )}
         </div>
 
-        {sample ? (
+        {slot ? (
           <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-[11px] font-medium text-ink leading-tight truncate">{sample.name}</p>
-            {sample.duration != null && (
+            <p className="text-[11px] font-medium text-ink leading-tight truncate">{slot.displayName}</p>
+            {slot.start !== null && slot.end !== null && (
               <p className="text-[10px] text-faint/60 tabular-nums font-mono">
-                {formatTime(sample.duration)}
+                {formatTime(slot.end - slot.start)}
               </p>
             )}
           </div>

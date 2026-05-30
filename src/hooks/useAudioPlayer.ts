@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export function useAudioPlayer(url: string | null) {
+export function useAudioPlayer(url: string | null, region?: { start: number; end: number } | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
 
@@ -21,6 +21,14 @@ export function useAudioPlayer(url: string | null) {
       audioRef.current.currentTime = 0
     }
     const audio = new Audio(url)
+    if (region) audio.currentTime = region.start
+    audio.ontimeupdate = () => {
+      if (region && audio.currentTime >= region.end) {
+        audio.pause()
+        audio.currentTime = region.start
+        setIsPlaying(false)
+      }
+    }
     audio.onended = () => setIsPlaying(false)
     audioRef.current = audio
     audio.play()
