@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
@@ -95,8 +95,18 @@ function LibraryRow({
   const region = item.kind === 'project-chop' ? { start: item.start, end: item.end } : null
   const { isPlaying, toggle } = useAudioPlayer(toLocalFileUrl(item.filePath), region)
 
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = rowRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect() } }, { rootMargin: '200px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   const chopWaveform = useChopWaveform(
-    item.kind === 'project-chop' ? item.filePath : null,
+    item.kind === 'project-chop' && inView ? item.filePath : null,
     item.kind === 'project-chop' ? item.start : 0,
     item.kind === 'project-chop' ? item.end : 0,
   )
@@ -106,6 +116,7 @@ function LibraryRow({
   return (
     <>
       <div
+        ref={rowRef}
         className={cn(
           'group grid items-center px-4 cursor-pointer transition-colors',
           hasTags ? 'pt-[6px] pb-[2px]' : 'h-[34px]',

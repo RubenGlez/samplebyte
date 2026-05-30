@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
-import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, Check, Download, RefreshCw } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
 import { useLibraryStore } from '@/stores/library'
@@ -285,10 +284,15 @@ export default function PacksView() {
       </div>
 
       {/* Drag overlay */}
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {activeSource && (
-          <div className="bg-overlay border border-accent/40 rounded px-3 py-2 text-xs text-ink shadow-xl shadow-black/50 opacity-95" style={{ cursor: 'grabbing' }}>
-            {activeSource.displayName}
+          <div className="flex items-center gap-2 px-2 h-[28px] w-[184px] rounded-md text-[12px] text-ink bg-raised shadow-lg shadow-black/40 cursor-grabbing select-none">
+            <span className="flex-1 truncate">{activeSource.displayName}</span>
+            {activeSource.duration != null && (
+              <span className="text-faint tabular-nums shrink-0 font-mono text-[10px]">
+                {formatTime(activeSource.duration)}
+              </span>
+            )}
           </div>
         )}
       </DragOverlay>
@@ -345,9 +349,9 @@ function DraggableSource({ source }: { source: PackSourceItem }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      style={{ transform: isDragging ? undefined : CSS.Translate.toString(transform) }}
+      style={undefined}
       className={cn(
-        'flex items-center gap-2 px-2 h-[28px] rounded-md text-[12px] text-muted cursor-grab active:cursor-grabbing transition-colors select-none',
+        'flex items-center gap-2 px-2 h-[28px] shrink-0 rounded-md text-[12px] text-muted cursor-grab active:cursor-grabbing transition-colors select-none',
         'hover:bg-raised hover:text-ink',
         isDragging && 'opacity-30'
       )}
