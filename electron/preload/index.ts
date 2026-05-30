@@ -79,8 +79,8 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   freesound: {
-    search: (query: string, page?: number): Promise<FreesoundPage> =>
-      ipcRenderer.invoke('freesound:search', query, page),
+    search: (query: string, page?: number, sort?: string, filter?: string): Promise<FreesoundPage> =>
+      ipcRenderer.invoke('freesound:search', query, page, sort, filter),
     download: (soundId: number, name: string, previewUrl: string): Promise<{ name: string; filePath: string }> =>
       ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
   },

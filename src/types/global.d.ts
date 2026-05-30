@@ -39,7 +39,7 @@ declare global {
         set: (key: string, value: unknown) => Promise<void>
       }
       freesound: {
-        search: (query: string, page?: number) => Promise<FreesoundPage>
+        search: (query: string, page?: number, sort?: string, filter?: string) => Promise<FreesoundPage>
         download: (soundId: number, name: string, previewUrl: string) => Promise<{ name: string; filePath: string }>
       }
       shell: {

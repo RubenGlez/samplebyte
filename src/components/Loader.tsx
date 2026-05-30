@@ -2,15 +2,45 @@ import { DragEvent, useEffect, useState, FormEvent } from 'react'
 import { Search, Download, Play, Square, Loader2, Key } from 'lucide-react'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
-import { useFreesoundStore } from '@/stores/freesound'
+import { useFreesoundStore, type FreesoundSort, type FreesoundDuration } from '@/stores/freesound'
 import { useToastStore } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { cn } from '@/lib/utils'
 import { formatTime, mimeTypeFromPath, toLocalFileUrl } from '@/utils'
 import type { FreesoundResult } from '@/types'
+
 const AUDIO_EXTENSIONS = /\.(wav|mp3|flac|aiff?|ogg|m4a)$/i
 const FORMATS = ['WAV', 'MP3', 'FLAC', 'AIFF', 'OGG']
+
+const CATEGORIES = [
+  { label: 'Kick',    query: 'kick drum' },
+  { label: 'Snare',   query: 'snare' },
+  { label: 'Hi-Hat',  query: 'hi-hat' },
+  { label: '808',     query: '808' },
+  { label: 'Clap',    query: 'clap' },
+  { label: 'Cymbal',  query: 'cymbal' },
+  { label: 'Bass',    query: 'bass' },
+  { label: 'Synth',   query: 'synth' },
+  { label: 'Vocal',   query: 'vocal' },
+  { label: 'Foley',   query: 'foley' },
+  { label: 'Ambient', query: 'ambient' },
+  { label: 'Loop',    query: 'drum loop' },
+]
+
+const SORT_OPTIONS: { value: FreesoundSort; label: string }[] = [
+  { value: 'score',          label: 'Relevance' },
+  { value: 'downloads_desc', label: 'Downloads' },
+  { value: 'rating_desc',    label: 'Rating' },
+  { value: 'created_desc',   label: 'Newest' },
+]
+
+const DURATION_OPTIONS: { value: FreesoundDuration; label: string }[] = [
+  { value: 'any',    label: 'Any' },
+  { value: 'short',  label: '<5s' },
+  { value: 'medium', label: '5–30s' },
+  { value: 'long',   label: '>30s' },
+]
 
 type Tab = 'local' | 'freesound'
 
@@ -194,14 +224,18 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
 }
 
 function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string; filePath: string }) => void; onClearKey: () => void }) {
-  const { query, results, hasMore, isSearching, isDownloading, search, loadMore } = useFreesoundStore()
+  const { query, results, hasMore, isSearching, isDownloading, search, loadMore, sort, durationFilter, setSort, setDurationFilter, startDownload, endDownload } = useFreesoundStore()
   const [inputValue, setInputValue] = useState(query)
   const { toast } = useToastStore()
-  const { startDownload, endDownload } = useFreesoundStore()
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault()
     if (inputValue.trim()) search(inputValue.trim())
+  }
+
+  const handleCategoryClick = (categoryQuery: string) => {
+    setInputValue(categoryQuery)
+    search(categoryQuery)
   }
 
   const handleDownload = async (sound: FreesoundResult) => {
@@ -216,42 +250,63 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
     }
   }
 
+  const isEmpty = results.length === 0 && !isSearching
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Search bar */}
-      <form onSubmit={handleSearch} className="flex gap-2 p-3 border-b border-border shrink-0">
-        <div className="relative flex-1">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
-          <input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Search Freesound…"
-            className="w-full bg-raised border border-border rounded pl-9 pr-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
-          />
+      <form onSubmit={handleSearch} className="flex flex-col gap-2 p-3 border-b border-border shrink-0">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+            <input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Search Freesound…"
+              className="w-full bg-raised border border-border rounded pl-9 pr-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!inputValue.trim() || isSearching}
+            className="px-3 h-8 rounded-md bg-accent text-white text-[12px] font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 shrink-0"
+          >
+            {isSearching && results.length === 0 ? <Loader2 size={12} className="animate-spin" /> : 'Search'}
+          </button>
+          <button
+            type="button"
+            onClick={async () => { await window.api.settings.set('freesound_api_key', null); onClearKey() }}
+            className="text-[10px] text-faint/50 hover:text-faint bg-transparent border-0 cursor-pointer transition-colors px-1"
+            title="Change API key"
+          >
+            <Key size={12} />
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={!inputValue.trim() || isSearching}
-          className="px-3 h-8 rounded-md bg-accent text-white text-[12px] font-medium disabled:opacity-40 hover:bg-accent-bright transition-colors cursor-pointer border-0 shrink-0"
-        >
-          {isSearching && results.length === 0 ? <Loader2 size={12} className="animate-spin" /> : 'Search'}
-        </button>
-        <button
-          type="button"
-          onClick={async () => { await window.api.settings.set('freesound_api_key', null); onClearKey() }}
-          className="text-[10px] text-faint/50 hover:text-faint bg-transparent border-0 cursor-pointer transition-colors px-1"
-          title="Change API key"
-        >
-          <Key size={12} />
-        </button>
+        {/* Sort & duration controls */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <FilterPills label="Sort" options={SORT_OPTIONS} value={sort} onChange={setSort} />
+          <FilterPills label="Duration" options={DURATION_OPTIONS} value={durationFilter} onChange={setDurationFilter} />
+        </div>
       </form>
 
-      {/* Results */}
+      {/* Results / empty state */}
       <div className="overflow-y-auto flex-1">
-        {results.length === 0 && !isSearching ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2 text-faint">
-            <p className="text-sm">Search for sounds on Freesound.org</p>
-            <p className="text-xs text-faint/60">drums, synths, field recordings…</p>
+        {isEmpty ? (
+          <div className="flex flex-col gap-3 p-3">
+            <p className="text-[11px] font-semibold text-faint select-none tracking-wide">Browse by type</p>
+            <div className="flex flex-wrap gap-1.5">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.label}
+                  type="button"
+                  onClick={() => handleCategoryClick(cat.query)}
+                  className="px-2.5 py-1 rounded-md bg-raised border border-border text-[12px] text-muted hover:text-ink hover:border-border-bright hover:bg-overlay transition-colors cursor-pointer"
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-faint/50 mt-1">or type any search term above</p>
           </div>
         ) : (
           <>
@@ -274,6 +329,41 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
             )}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function FilterPills<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] text-faint/60 shrink-0">{label}:</span>
+      <div className="flex items-center gap-0.5">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'h-[20px] px-2 rounded text-[10px] font-medium transition-colors cursor-pointer border-0',
+              value === opt.value
+                ? 'bg-accent/20 text-accent'
+                : 'text-faint/60 hover:text-muted bg-transparent hover:bg-raised'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   )

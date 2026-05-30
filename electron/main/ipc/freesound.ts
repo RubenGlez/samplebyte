@@ -14,16 +14,19 @@ function getApiKey(): string {
 }
 
 export function registerFreesoundHandlers(): void {
-  ipcMain.handle('freesound:search', async (_, query: string, page = 1) => {
+  ipcMain.handle('freesound:search', async (_, query: string, page = 1, sort = 'score', filter = '') => {
     const token = getApiKey()
     if (!token) throw new Error('No Freesound API key configured')
-    const qs = new URLSearchParams({
+    const params: Record<string, string> = {
       query,
       token,
       page: String(page),
       page_size: '20',
       fields: 'id,name,username,duration,previews,tags,license',
-    })
+      sort,
+    }
+    if (filter) params.filter = filter
+    const qs = new URLSearchParams(params)
     const res = await net.fetch(`${BASE}/search/text/?${qs}`)
     if (!res.ok) throw new Error(`Freesound API error: ${res.status}`)
     return res.json()
