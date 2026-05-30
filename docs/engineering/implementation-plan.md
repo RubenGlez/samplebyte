@@ -185,3 +185,45 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 **Acceptance criteria**: A recorded source can be saved as project audio, chopped, assigned to pack slots as snapshots, and exported through profiles; `pnpm tsc` passes.
 
 **Depends on**: Phase 4.
+
+## Phase 6: Audio Intelligence and Melodic Sampling
+
+### Task 6.1 - Smart chop suggestions
+
+**Goal**: Surface a ranked list of candidate chop points so producers do not have to scan long sources manually.
+
+**Scope**: Extend `src/lib/audioAnalysis.ts` to score candidate points by transient density, energy level, and musical phrasing. Expose the ranked list as a UI affordance in the Chop view that the user can accept, reject, or adjust. Do not auto-apply — suggestions are proposals, not decisions. The reference is Serato Sample's "Auto-Sample" (up to 25 ranked candidates).
+
+**Acceptance criteria**: Chop view shows proposed points ranked by musical interest; user can accept individual suggestions or dismiss all; accepted suggestions become normal editable regions; `pnpm tsc` passes.
+
+**Depends on**: Phase 5.
+
+### Task 6.2 - Pitch shift and time stretch on export
+
+**Goal**: Let producers tune or tempo-match samples without opening a DAW.
+
+**Scope**: Add pitch shift and time stretch parameters to pack slot export settings. Implement via ffmpeg's `rubberband` or `atempo`/`asetrate` filters in `electron/main/`, or evaluate a higher-quality native library. Quality is the key constraint — the market benchmark is Serato Pitch 'n Time; the feature should be competitive, not just present.
+
+**Acceptance criteria**: Pack slot export settings accept semitone pitch offset and BPM ratio; exported files are audibly correct at moderate shifts (±4 semitones, 80–130% tempo); quality is acceptable for production use; `pnpm tsc` passes.
+
+**Depends on**: Phase 4.
+
+### Task 6.3 - Stem separation before chopping
+
+**Goal**: Let producers isolate drums, bass, melody, or vocals from a mixed source before marking chop points.
+
+**Scope**: Integrate a stem separation library (e.g. Demucs via a child process in Electron main, or a WebAssembly port) and expose it as a source pre-processing step in the Chop view. The separated stems become separate source audio that feeds the normal chop workflow. Serato Sample v2.0 proved producer demand — this is a first-class feature, not a fringe utility.
+
+**Acceptance criteria**: User can separate a source into stems from the Chop view; each stem opens as a separate source for chopping; separation runs locally with no external service dependency; `pnpm tsc` passes.
+
+**Depends on**: Phase 5.
+
+### Task 6.4 - Keyboard / melodic sampling mode
+
+**Goal**: Allow a chop or sample to be played chromatically across a keyboard range.
+
+**Scope**: Add a keyboard mode to the Chop view or Pack Builder that maps a selected region to a pitch range (C2–C5 or similar). In the renderer, use Web Audio API pitch shifting to preview pitched versions. On export, generate one file per semitone step (or a multi-sample format) through the target profile.
+
+**Acceptance criteria**: User can assign a chop to a keyboard range; previewing plays the correct pitch; export writes correctly named files per the selected target profile; `pnpm tsc` passes.
+
+**Depends on**: Task 6.2.
