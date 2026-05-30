@@ -23,13 +23,6 @@ export function applyProfileFormat(profile: HardwareProfile, cmd: FfmpegCommand)
 
 export const profiles: HardwareProfile[] = [
   {
-    id: 'maschine-mk3',
-    name: 'Maschine MK3',
-    padCount: 16,
-    format: { container: 'wav', sampleRate: 44100, bitDepth: 16, sampleFmt: 's16' },
-    fileName: (slot, name) => `${String(slot + 1).padStart(2, '0')}_${sanitize(name)}.wav`,
-  },
-  {
     id: 'sp404-mkii',
     name: 'Roland SP-404 MkII',
     padCount: 16,
@@ -38,10 +31,17 @@ export const profiles: HardwareProfile[] = [
   },
   {
     id: 'mpc-generic',
-    name: 'Akai MPC',
+    name: 'Akai MPC One',
     padCount: 16,
     format: { container: 'wav', sampleRate: 44100, bitDepth: 24, sampleFmt: 's24' },
     fileName: (_, name) => `${sanitize(name)}.wav`,
+  },
+  {
+    id: 'maschine-mk3',
+    name: 'Maschine MK3',
+    padCount: 16,
+    format: { container: 'wav', sampleRate: 44100, bitDepth: 16, sampleFmt: 's16' },
+    fileName: (slot, name) => `${String(slot + 1).padStart(2, '0')}_${sanitize(name)}.wav`,
   },
   {
     id: 'generic',
@@ -49,20 +49,6 @@ export const profiles: HardwareProfile[] = [
     padCount: 128,
     format: { container: 'wav', sampleRate: 44100, bitDepth: 24, sampleFmt: 's24' },
     fileName: (_, name) => `${sanitize(name)}.wav`,
-  },
-  {
-    id: 'daw-folder',
-    name: 'DAW Folder',
-    padCount: 128,
-    format: { container: 'wav', sampleRate: 48000, bitDepth: 24, sampleFmt: 's24' },
-    fileName: (slot, name) => `${String(slot + 1).padStart(2, '0')}_${sanitize(name)}.wav`,
-  },
-  {
-    id: 'software-sampler',
-    name: 'Software Sampler',
-    padCount: 64,
-    format: { container: 'wav', sampleRate: 44100, bitDepth: 24, sampleFmt: 's24' },
-    fileName: (slot, name) => `pad_${String(slot + 1).padStart(2, '0')}_${sanitize(name)}.wav`,
   },
 ]
 

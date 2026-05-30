@@ -14,12 +14,10 @@ import { Button } from '@/components/ui/Button'
 import type { PackSlot, PackSourceItem, ProjectChop, Sample } from '@/types'
 
 const PROFILES = [
+  { id: 'sp404-mkii',  name: 'Roland SP-404 MkII' },
+  { id: 'mpc-generic', name: 'Akai MPC One' },
   { id: 'maschine-mk3', name: 'Maschine MK3' },
-  { id: 'sp404-mkii',   name: 'Roland SP-404 MkII' },
-  { id: 'mpc-generic',  name: 'Akai MPC' },
-  { id: 'generic',      name: 'Generic WAV' },
-  { id: 'daw-folder',   name: 'DAW Folder' },
-  { id: 'software-sampler', name: 'Software Sampler' },
+  { id: 'generic',     name: 'Generic WAV' },
 ]
 
 export default function PacksView() {
