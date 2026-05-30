@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Download } from 'lucide-react'
+import { Download, RefreshCw } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
@@ -25,7 +25,7 @@ const PROFILES = [
 export default function PacksView() {
   const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, loadSlots } = usePacksStore()
   const { samples, fetchSamples } = useLibraryStore()
-  const { projects, activeProject, fetchProjects } = useProjectsStore()
+  const { projects, fetchProjects } = useProjectsStore()
   const { toast } = useToastStore()
 
   const [activeSource, setActiveSource] = useState<PackSourceItem | null>(null)
@@ -56,23 +56,7 @@ export default function PacksView() {
   const sourceItems: PackSourceItem[] = [
     ...projectChops
       .filter((chop) => chop.sourcePath)
-      .map((chop) => ({
-        id: `project-chop:${chop.id}`,
-        sourceType: 'project-chop' as const,
-        displayName: chop.name,
-        sourcePath: chop.sourcePath!,
-        projectId: chop.projectId,
-        projectName: chop.projectName,
-        projectChopId: chop.id,
-        sampleId: null,
-        start: chop.start,
-        end: chop.end,
-        duration: chop.end - chop.start,
-        bpm: null,
-        musicalKey: null,
-        tags: [],
-        sourceChopUpdatedAt: chop.updatedAt,
-      })),
+      .map(chopToSourceItem),
     ...samples.map(sampleToSourceItem),
   ]
 
@@ -90,10 +74,6 @@ export default function PacksView() {
     if (keyFilter && source.musicalKey?.toLowerCase() !== keyFilter.toLowerCase()) return false
     return true
   })
-
-  const currentProjectSources = filteredSources.filter((source) => source.sourceType === 'project-chop' && source.projectId === activeProject?.id)
-  const otherProjectSources = filteredSources.filter((source) => source.sourceType === 'project-chop' && source.projectId !== activeProject?.id)
-  const librarySources = filteredSources.filter((source) => source.sourceType === 'library-sample')
 
   const toggleTag = (tag: string) =>
     setActiveTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])
@@ -125,6 +105,14 @@ export default function PacksView() {
     const slotNumber = Number(over.id)
     const source = sourceItems.find((s) => s.id === active.id)
     if (source !== undefined) setSlot(slotNumber, source)
+  }
+
+  const refreshSlotFromSource = async (slot: PackSlot) => {
+    if (!slot.projectChopId) return
+    const chop = projectChops.find((item) => item.id === slot.projectChopId)
+    if (!chop?.sourcePath) return
+    await setSlot(slot.slotNumber, chopToSourceItem(chop))
+    toast(`${chop.name} refreshed from source`)
   }
 
   const filledSlots = Object.keys(slots).length
@@ -160,11 +148,9 @@ export default function PacksView() {
             ) : filteredSources.length === 0 ? (
               <p className="text-faint text-[12px] p-3">No matches.</p>
             ) : (
-              <>
-                <SourceSection label="Current Project" sources={currentProjectSources} />
-                <SourceSection label="Other Projects" sources={otherProjectSources} />
-                <SourceSection label="Library" sources={librarySources} />
-              </>
+              filteredSources.map((source) => (
+                <DraggableSource key={source.id} source={source} />
+              ))
             )}
           </div>
         </aside>
@@ -221,6 +207,8 @@ export default function PacksView() {
                       key={i}
                       slotNumber={i}
                       slot={slots[i] ?? null}
+                      sourceChop={slots[i]?.projectChopId ? projectChops.find((chop) => chop.id === slots[i].projectChopId) : undefined}
+                      onRefreshFromSource={() => slots[i] && refreshSlotFromSource(slots[i])}
                       onClear={() => clearSlot(i)}
                       isDraggingAny={!!activeSource}
                     />
@@ -257,6 +245,26 @@ export default function PacksView() {
   )
 }
 
+function chopToSourceItem(chop: ProjectChop & { projectName: string; sourcePath: string | null }): PackSourceItem {
+  return {
+    id: `project-chop:${chop.id}`,
+    sourceType: 'project-chop',
+    displayName: chop.name,
+    sourcePath: chop.sourcePath!,
+    projectId: chop.projectId,
+    projectName: chop.projectName,
+    projectChopId: chop.id,
+    sampleId: null,
+    start: chop.start,
+    end: chop.end,
+    duration: chop.end - chop.start,
+    bpm: null,
+    musicalKey: null,
+    tags: [],
+    sourceChopUpdatedAt: chop.updatedAt,
+  }
+}
+
 function sampleToSourceItem(sample: Sample): PackSourceItem {
   return {
     id: `library-sample:${sample.id}`,
@@ -275,18 +283,6 @@ function sampleToSourceItem(sample: Sample): PackSourceItem {
     tags: sample.tags,
     sourceChopUpdatedAt: null,
   }
-}
-
-function SourceSection({ label, sources }: { label: string; sources: PackSourceItem[] }) {
-  if (sources.length === 0) return null
-  return (
-    <div className="flex flex-col gap-px">
-      <p className="px-2 pt-2 pb-1 text-[10px] font-semibold text-faint/70 tracking-wide select-none">{label}</p>
-      {sources.map((source) => (
-        <DraggableSource key={source.id} source={source} />
-      ))}
-    </div>
-  )
 }
 
 function DraggableSource({ source }: { source: PackSourceItem }) {
@@ -314,9 +310,11 @@ function DraggableSource({ source }: { source: PackSourceItem }) {
   )
 }
 
-function PadSlot({ slotNumber, slot, onClear, isDraggingAny }: {
+function PadSlot({ slotNumber, slot, sourceChop, onRefreshFromSource, onClear, isDraggingAny }: {
   slotNumber: number
   slot: PackSlot | null
+  sourceChop?: ProjectChop & { projectName: string; sourcePath: string | null }
+  onRefreshFromSource: () => void
   onClear: () => void
   isDraggingAny: boolean
 }) {
@@ -324,6 +322,10 @@ function PadSlot({ slotNumber, slot, onClear, isDraggingAny }: {
   const { isPlaying, play, stop } = useAudioPlayer(slot ? toLocalFileUrl(slot.sourcePath) : null)
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
+  const sourceChanged = !!slot?.projectChopId &&
+    !!sourceChop &&
+    !!slot.sourceChopUpdatedAt &&
+    sourceChop.updatedAt > slot.sourceChopUpdatedAt
 
   return (
     <div
@@ -348,12 +350,25 @@ function PadSlot({ slotNumber, slot, onClear, isDraggingAny }: {
             {padLabel}
           </span>
           {slot && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onClear() }}
-              className="w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 rounded-sm bg-transparent border-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity text-[13px] leading-none"
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {sourceChanged && (
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); onRefreshFromSource() }}
+                  title="Refresh from source chop"
+                  className="w-4 h-4 flex items-center justify-center text-faint hover:text-accent rounded-sm bg-transparent border-0 cursor-pointer transition-colors"
+                >
+                  <RefreshCw size={10} />
+                </button>
+              )}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onClear() }}
+                className="w-4 h-4 flex items-center justify-center text-faint hover:text-red-400 rounded-sm bg-transparent border-0 cursor-pointer text-[13px] leading-none"
+              >
+                ×
+              </button>
+            </div>
           )}
         </div>
 
@@ -363,6 +378,11 @@ function PadSlot({ slotNumber, slot, onClear, isDraggingAny }: {
             {slot.start !== null && slot.end !== null && (
               <p className="text-[10px] text-faint/60 tabular-nums font-mono">
                 {formatTime(slot.end - slot.start)}
+              </p>
+            )}
+            {sourceChanged && (
+              <p className="text-[9px] text-accent/80 leading-none truncate">
+                Source changed
               </p>
             )}
           </div>

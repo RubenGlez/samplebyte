@@ -32,8 +32,8 @@ Provides a typed `contextBridge` Promise API only. It should not contain busines
 Owns UI, waveform interaction, and user-facing workflow surfaces:
 
 - Chop workspace for source loading, recording entry points, live chops, naming, and refinement.
-- Pack Builder for assembling slots from live project chops, other project chops, and library samples.
-- Library/Archive management for reusable assets, search, filtering, preview, tagging, and cleanup.
+- Pack Builder for assembling slots from the unified source browser of project chops and loose samples.
+- Library/source management for project regions, reusable assets, search, filtering, preview, tagging, and cleanup.
 
 ## State Stores
 
@@ -43,7 +43,7 @@ Zustand remains the renderer state layer.
 | --- | --- |
 | `projects` | Live project state, stable chops, source metadata, autosave orchestration. |
 | `packs` | Selected pack, slot snapshots, target profile, export orchestration. |
-| `library` | Reusable assets, archive search, filtering, preview metadata, maintenance actions. |
+| `library` | Indexed project regions/chops, reusable assets, search, filtering, preview metadata, maintenance actions. |
 | `player` | Preview and playback state across sources. |
 | `freesound` | Optional source input, search results, download/import state. |
 
@@ -67,7 +67,7 @@ SQLite stores:
 
 - Projects and source metadata.
 - Stable project chops with IDs and `updatedAt` timestamps in a normalized `project_chops` table.
-- Loose/reusable samples for the library/archive.
+- Loose/reusable samples for the Library/source browser.
 - Packs.
 - Metadata-first pack slot snapshots.
 
@@ -91,13 +91,14 @@ The current database uses `better-sqlite3` in Electron main, with the database f
 ```text
 Import, record, or open source
   -> project owns live chops
-  -> Pack Builder consumes current project chops, other project chops, and library samples
+  -> Library/source browser indexes project chops and loose samples
+  -> Pack Builder consumes the unified source browser
   -> assigning to a pack slot writes a metadata snapshot
   -> export renders from snapshots and source media through ffmpeg
   -> target profile writes hardware, software, or folder-ready files
 ```
 
-When a source chop changes, the UI can compare the stored `sourceChopUpdatedAt` on a slot snapshot to the current chop `updatedAt`. Refreshing a slot from source should be explicit.
+When a source chop changes, the UI compares the stored `sourceChopUpdatedAt` on a slot snapshot to the current chop `updatedAt`. Changed slots show an explicit refresh affordance; keeping the snapshot leaves export behavior unchanged.
 
 ## Export Pipeline
 
@@ -149,7 +150,8 @@ Freesound remains an optional source input rather than the core product promise.
 1. Keep the Electron/local-first architecture and refactor inside it.
 2. Give project chops stable IDs and `updatedAt` timestamps; do not add full version history yet.
 3. Store pack slots as metadata-first snapshots rendered on export; do not duplicate or render audio on assignment.
-4. Treat the library as an indexed asset archive and search surface, not a mandatory step in the happy path.
+4. Treat the Library as the indexed source browser for project regions and loose samples, not a mandatory export step in the happy path.
+5. Keep Pack Builder source browsing unified rather than splitting Current Project, Other Projects, and Library into separate sections.
 
 ## Open Questions
 

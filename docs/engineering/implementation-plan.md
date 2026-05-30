@@ -58,13 +58,13 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Depends on**: Task 1.3.
 
-### Task 2.2 - Demote Save to Library from the main path
+### Task 2.2 - Remove Save to Library from the main path
 
 **Goal**: Clarify that the library is an optional reusable archive, not the required transition between Chop and Pack.
 
-**Scope**: Update Chop view actions and store orchestration so Save to Library remains available as an explicit archive/reuse action, while the primary flow moves from project chops to Pack Builder.
+**Scope**: Remove Save to Library from the Chop workflow. Project chops are persisted automatically and indexed by the Library/source browser, while the primary flow moves from project chops to Pack Builder.
 
-**Acceptance criteria**: A user can chop source audio and proceed toward pack building without saving samples to the library; Save to Library still creates loose/reusable library samples; `pnpm tsc` passes.
+**Acceptance criteria**: A user can chop source audio and proceed toward pack building without saving or exporting samples to the library; the Library automatically includes project regions; loose/reusable sample import remains separate from project chopping; `pnpm tsc` passes.
 
 **Depends on**: Task 2.1.
 
@@ -90,13 +90,13 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Depends on**: Task 1.3, Task 1.4.
 
-### Task 3.2 - Build Pack Builder source browser sections
+### Task 3.2 - Build unified Pack Builder source browser
 
-**Goal**: Let users browse and search all valid pack sources from the Pack Builder.
+**Goal**: Let users browse and search all valid pack sources from the Pack Builder without duplicating the Library model.
 
-**Scope**: Update Packs/Pack Builder UI to include sections for Current Project, Other Projects, and Library, with search/filter behavior that matches the existing dense desktop UI style.
+**Scope**: Update Packs/Pack Builder UI to show one source list backed by project chops and loose library samples. Do not split the browser into Current Project, Other Projects, and Library sections; use search and filters to narrow by project/source metadata instead.
 
-**Acceptance criteria**: Current project chops appear immediately; other project chops and library samples are discoverable; search/filter works across the sections; `pnpm tsc` passes.
+**Acceptance criteria**: Current project chops appear immediately because they are indexed project regions; other project chops and library samples are discoverable in the same list; search/filter works across the source browser; `pnpm tsc` passes.
 
 **Depends on**: Task 3.1.
 
@@ -130,6 +130,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Acceptance criteria**: Changed project chop sources are detected; users can intentionally refresh the slot snapshot; keeping the snapshot leaves export behavior unchanged; `pnpm tsc` passes.
 
+**Current implementation**: Pack slots compare their stored `sourceChopUpdatedAt` with the current project chop row. Changed slots show a `Source changed` status in the pad and expose a refresh button that overwrites the slot snapshot from the current source chop. If the user does nothing, the existing snapshot remains the export source.
+
 **Depends on**: Task 4.1.
 
 ### Task 4.3 - Verify migration and export edge cases
@@ -139,6 +141,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 **Scope**: Manually exercise migrated projects, migrated packs, library sample slots, project chop slots, missing source files, and changed source chops. If a test runner is introduced later, add focused DB migration/query tests and export snapshot tests.
 
 **Acceptance criteria**: Documented manual checks pass; `pnpm tsc` passes; known missing-file behavior is explicit in UI or error handling.
+
+**Current documentation**: See `docs/engineering/migration-export-edge-cases.md` for the manual migration/export matrix and expected behavior.
 
 **Depends on**: Task 4.1, Task 4.2.
 

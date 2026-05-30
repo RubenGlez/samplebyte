@@ -4,7 +4,7 @@
 
 ## Context
 
-Pack slots currently point at library sample IDs. The product direction removes Save to Library as the required happy-path checkpoint, so slots must accept current project chops, other project chops, and loose library samples. Existing packs should not silently change when source chops are edited.
+Pack slots previously pointed at library sample IDs. The product direction removes Save to Library as the required happy-path checkpoint, so slots must accept project chops and loose library samples from a unified source browser. Existing packs should not silently change when source chops are edited.
 
 ## Options considered
 
@@ -18,4 +18,4 @@ Pack slots store metadata-first snapshots. Assignment captures source type/path,
 
 ## Consequences
 
-Packs stay stable by default, assignment remains fast, and users can intentionally update slots from changed source chops. Export logic becomes responsible for resolving snapshot metadata and handling missing files or migrated older slots, so migration and export edge cases need focused verification.
+Packs stay stable by default, assignment remains fast, and users can intentionally update slots from changed source chops. The UI compares the snapshot's stored source timestamp with the current project chop timestamp and exposes refresh as an explicit action instead of silently mutating the slot. Export logic becomes responsible for resolving snapshot metadata and handling missing files or migrated older slots, so migration and export edge cases need focused verification.
