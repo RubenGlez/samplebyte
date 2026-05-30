@@ -41,9 +41,9 @@ Zustand remains the renderer state layer.
 
 | Store | Responsibility |
 | --- | --- |
-| `projects` | Live project state, stable chops, source metadata, autosave orchestration. |
+| `projects` | Live project state, stable chops, source metadata, debounced autosave orchestration. |
 | `packs` | Selected pack, slot snapshots, target profile, export orchestration. |
-| `library` | Indexed project regions/chops, reusable assets, search, filtering, preview metadata, maintenance actions. |
+| `library` | Indexed project regions/chops, reusable assets, search, filtering (BPM, key), preview metadata, maintenance actions. |
 | `player` | Preview and playback state across sources. |
 | `freesound` | Optional source input, search results, download/import state. |
 

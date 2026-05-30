@@ -56,6 +56,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Acceptance criteria**: Editing chops updates persisted project chop rows without requiring Save to Library; reloading a project restores the same chop IDs and names; `pnpm tsc` passes.
 
+**Current implementation**: Region edits auto-save with a 1500ms debounce and a 5s maximum wait. A "Saving…" / "✓ Saved" status indicator appears in the Chop header for user-triggered changes. The explicit Save Project / Update Project buttons have been removed.
+
 **Depends on**: Task 1.3.
 
 ### Task 2.2 - Remove Save to Library from the main path
@@ -66,6 +68,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Acceptance criteria**: A user can chop source audio and proceed toward pack building without saving or exporting samples to the library; the Library automatically includes project regions; loose/reusable sample import remains separate from project chopping; `pnpm tsc` passes.
 
+**Current implementation**: Save to Library has been removed from the primary Chop workflow. Project chops persist automatically and appear in the Library source browser without a manual save step.
+
 **Depends on**: Task 2.1.
 
 ### Task 2.3 - Add create/send chops to pack shortcut
@@ -75,6 +79,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 **Scope**: Add a `Create pack from chops` or `Send chops to pack` action that creates a pack, assigns selected or all current project chops as slot snapshots, and routes the user to Pack Builder.
 
 **Acceptance criteria**: The shortcut creates a draft pack from current project chops; slots contain snapshot payloads, not only `sample_id`; Pack Builder opens with the new pack selected; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. The Chop view includes a "Create pack from chops" action that builds a draft pack from the current project chops and opens Pack Builder with the new pack selected.
 
 **Depends on**: Task 1.4, Task 2.1.
 
@@ -120,6 +126,8 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Acceptance criteria**: Export does not depend on a live project chop lookup unless the user explicitly refreshes a slot; migrated older packs export; exported files follow the selected profile naming and format; `pnpm tsc` passes.
 
+**Current implementation**: Shipped. Export resolves each slot's snapshot metadata and source path through the main process, applies the selected target profile via ffmpeg, and writes hardware/folder-ready files.
+
 **Depends on**: Task 1.4, Task 3.3.
 
 ### Task 4.2 - Detect changed source chops
@@ -142,7 +150,7 @@ Baseline verification for each code task is `pnpm tsc`. The repo has no test run
 
 **Acceptance criteria**: Documented manual checks pass; `pnpm tsc` passes; known missing-file behavior is explicit in UI or error handling.
 
-**Current documentation**: See `docs/engineering/migration-export-edge-cases.md` for the manual migration/export matrix and expected behavior.
+**Current implementation**: Shipped. Manual migration/export checks have been completed. See `docs/engineering/migration-export-edge-cases.md` for the verified matrix and expected behavior.
 
 **Depends on**: Task 4.1, Task 4.2.
 

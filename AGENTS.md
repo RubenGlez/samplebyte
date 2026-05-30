@@ -58,7 +58,7 @@ Adding a new IPC operation requires changes in three places: the handler in `ele
 Zustand stores live in `src/stores/`. They own async operations — components call store actions, not `window.api` directly.
 
 - `player` — current loaded audio source
-- `library` — sample list, search, filters, save-chops orchestration
+- `library` — sample list, search, filters, indexed project regions and loose samples
 - `packs` — pack being built, pad slots, hardware profile
 - `projects` — active project, save/load
 - `freesound` — search results, download state
@@ -79,6 +79,8 @@ v4 with `@tailwindcss/vite`. No `tailwind.config.js` — theme extensions go in 
 
 ## Current state
 
-Phases 1 and 2 are complete. The full three-view workflow is working end-to-end: Chop (waveform editor with region creation), Library (SQLite-backed sample browser), and Packs (4×4 pad grid → hardware export). Freesound search and download are live.
+Phases 1–4 are complete. The full three-view workflow is working end-to-end: Chop (waveform editor with region creation, auto-saves on every edit with a debounce), Library (SQLite-backed sample browser with BPM/key filters), and Packs (4×4 pad grid → hardware export with stale-source detection). Freesound search and download are live.
 
-Phase 3 (intelligence) is mostly complete: BPM detection, key detection, and transient-based auto-chop are all shipped. Remaining: BPM/key filter in the Library view, pitch shift on export, and time stretch on export.
+Phase 3 (intelligence) is complete: BPM detection, key detection, transient-based auto-chop, and BPM/key filtering in the Library view are all shipped. The Chop view no longer has an explicit save button — projects auto-save on every region change (1500ms debounce, 5s max-wait).
+
+Phase 5 (Import, Library, Recording) is the remaining work: batch folder import (5.1), library metadata management — tagging, cleanup, auditioning (5.2), and direct recording into projects (5.3). Pitch shift on export and time stretch on export are also not yet shipped.

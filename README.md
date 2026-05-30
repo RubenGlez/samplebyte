@@ -28,7 +28,7 @@ This is not a commercial product. It's open source, free to use, and built in my
 
 ## What It Does
 
-- **Chop:** load any local audio file or search Freesound, draw regions on the waveform to mark your chops, name them, save them to your library
+- **Chop:** load any local audio file or search Freesound, draw regions on the waveform to mark your chops, name them — chops save automatically
 - **Library:** browse everything you've ever sampled, search and filter by BPM, key, or tag, preview with a click
 - **Packs:** drag samples onto a 4x4 pad grid, pick your hardware target, export a ready-to-load folder with correctly named and formatted files
 
@@ -79,7 +79,7 @@ See [roadmap.md](docs/product/roadmap.md) for the full phased plan.
 |---|---|
 | 1 - Foundation | SQLite database, typed IPC, Zustand state management |
 | 2 - Core | Chop, Library, Packs views + Freesound integration |
-| 3 - Intelligence | BPM/key detection, auto-chop on transients, pitch shift |
+| 3 - Intelligence | BPM/key detection, auto-chop on transients |
 | 4 - AI | Auto-tagging, stem separation, smart chop suggestions |
 
 ---
