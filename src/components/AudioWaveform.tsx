@@ -49,7 +49,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const { setView } = useUiStore()
   const { audio, setAudio } = usePlayerStore()
   const { toast } = useToastStore()
-  const { bpm, musicalKey, isAnalyzing } = useAudioAnalysis(audioUrl)
+  const { bpm, musicalKey, beatPhase, loopBars, isAnalyzing } = useAudioAnalysis(audioUrl)
 
   const canTrimFile = !!filePath
 
@@ -72,6 +72,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [sensitivity, setSensitivity] = useState<ChopMode>('medium')
+  const [snapEnabled, setSnapEnabled] = useState(false)
   const [isAutoChopping, setIsAutoChopping] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
   const [showTrimDialog, setShowTrimDialog] = useState(false)
@@ -233,14 +234,29 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       if ((GRID_DIVISIONS as readonly string[]).includes(sensitivity)) {
         const n = parseInt(sensitivity)
         const step = (trimOut - trimIn) / n
-        const transients = Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step)
-        autoChop(transients, duration, { start: trimIn, end: trimOut }, 0)
+        let points = Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step)
+        if (snapEnabled && bpm !== null && beatPhase !== null) {
+          const sixteenth = (60 / bpm) / 4
+          points = points.map((t) => {
+            const k = Math.round((t - beatPhase) / sixteenth)
+            return beatPhase + k * sixteenth
+          })
+        }
+        const minGap = snapEnabled && bpm !== null ? (60 / bpm) / 8 : 0
+        autoChop(points, duration, { start: trimIn, end: trimOut }, minGap)
         toast(`${n} chops created`)
       } else {
-        const transients = await detectTransientsFromUrl(audioUrl, sensitivity as Sensitivity)
+        let transients = await detectTransientsFromUrl(audioUrl, sensitivity as Sensitivity)
         if (transients.length === 0) {
           toast('No transients found — try Fine sensitivity', 'info')
           return
+        }
+        if (snapEnabled && bpm !== null && beatPhase !== null) {
+          const sixteenth = (60 / bpm) / 4
+          transients = transients.map((t) => {
+            const n = Math.round((t - beatPhase) / sixteenth)
+            return beatPhase + n * sixteenth
+          })
         }
         autoChop(
           transients,
@@ -257,7 +273,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     } finally {
       setIsAutoChopping(false)
     }
-  }, [audioUrl, sensitivity, wavesurfer, autoChop, trimIn, trimOut, toast])
+  }, [audioUrl, sensitivity, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, trimIn, trimOut, toast])
 
   const trimPreview = useMemo(() => {
     if (!regions?.length) return { kept: 0, dropped: 0 }
@@ -357,7 +373,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <CardHeader name={audioName} size={size} type={type} bpm={bpm} musicalKey={musicalKey} isAnalyzing={isAnalyzing} actions={actions} />
+      <CardHeader name={audioName} size={size} type={type} bpm={bpm} musicalKey={musicalKey} loopBars={loopBars} isAnalyzing={isAnalyzing} actions={actions} />
 
       <div className="relative shrink-0">
         <div id="waveform" ref={waveformRef} />
@@ -442,6 +458,20 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setSnapEnabled((v) => !v)}
+            disabled={bpm === null}
+            title={bpm !== null ? `Snap to 1/16 beat grid (${bpm} BPM)` : 'BPM not yet detected'}
+            className={cn(
+              'h-[28px] w-[28px] flex items-center justify-center rounded-[6px] border transition-all cursor-pointer',
+              snapEnabled && bpm !== null
+                ? 'bg-[rgba(255,255,255,0.12)] text-ink border-[rgba(255,255,255,0.2)]'
+                : 'text-faint/70 hover:text-muted bg-transparent border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]',
+              bpm === null && 'opacity-40 cursor-not-allowed'
+            )}
+          >
+            <Grid2x2 size={12} />
+          </button>
           <Button variant="outline" size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
             <Scissors size={12} />
             {isAutoChopping ? 'Chopping…' : 'Auto-chop'}

@@ -7,11 +7,12 @@ interface CardHeaderProps {
   type: string
   bpm?: number | null
   musicalKey?: string | null
+  loopBars?: number | null
   isAnalyzing?: boolean
   actions?: React.ReactNode
 }
 
-export default function CardHeader({ name, size, type, bpm, musicalKey, isAnalyzing, actions }: CardHeaderProps) {
+export default function CardHeader({ name, size, type, bpm, musicalKey, loopBars, isAnalyzing, actions }: CardHeaderProps) {
   return (
     <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border bg-surface shrink-0">
       <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
@@ -32,6 +33,9 @@ export default function CardHeader({ name, size, type, bpm, musicalKey, isAnalyz
           )}
           {!isAnalyzing && musicalKey != null && (
             <span className="text-[11px] text-accent/60 font-mono">{musicalKey}</span>
+          )}
+          {!isAnalyzing && loopBars != null && (
+            <span className="text-[11px] text-accent/50 font-mono">{loopBars}-bar loop</span>
           )}
         </div>
       </div>

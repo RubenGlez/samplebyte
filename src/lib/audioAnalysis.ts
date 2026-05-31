@@ -22,7 +22,8 @@ function pearsonCorrelation(a: number[], b: number[]): number {
 
 // BPM via autocorrelation of onset-strength envelope (energy RMS differences).
 // Lags covering 60–200 BPM are tested; the lag with the highest dot product wins.
-function detectBpm(mono: Float32Array, sampleRate: number): number {
+// Returns { bpm, onset } so detectBeatPhase can reuse the envelope without recomputing.
+function detectBpm(mono: Float32Array, sampleRate: number): { bpm: number; onset: number[] } {
   const HOP = 512
   const FRAME = 1024
   const limit = Math.min(mono.length, MAX_ANALYSIS_SECONDS * sampleRate)
@@ -57,7 +58,28 @@ function detectBpm(mono: Float32Array, sampleRate: number): number {
     }
   }
 
-  return Math.round(bestBpm)
+  return { bpm: Math.round(bestBpm), onset }
+}
+
+// Beat phase: the time offset (seconds) of the first beat, found by summing onset
+// strength at positions offset + k*period across all k and picking the offset that
+// maximises the total. Reuses the onset envelope from detectBpm.
+function detectBeatPhase(onset: number[], sampleRate: number, bpm: number): number {
+  const HOP = 512
+  const frameRate = sampleRate / HOP
+  const period = Math.round(frameRate * 60 / bpm)
+  if (period <= 0) return 0
+
+  let bestPhase = 0
+  let bestScore = -Infinity
+
+  for (let phase = 0; phase < period; phase++) {
+    let score = 0
+    for (let k = phase; k < onset.length; k += period) score += onset[k]
+    if (score > bestScore) { bestScore = score; bestPhase = phase }
+  }
+
+  return (bestPhase * HOP) / sampleRate
 }
 
 // Chroma via Goertzel DFT at each MIDI pitch (C2–B7), folded into 12 pitch classes.
@@ -127,7 +149,18 @@ function detectKey(chroma: number[]): string {
   return bestKey
 }
 
-export function analyzeAudioBuffer(buffer: AudioBuffer): { bpm: number; musicalKey: string } {
+// Returns null if the duration doesn't align within 5% of a bar to a common loop length.
+function detectLoopBars(durationSeconds: number, bpm: number): number | null {
+  if (bpm <= 0) return null
+  const barLength = (60 / bpm) * 4
+  const barsFloat = durationSeconds / barLength
+  for (const n of [1, 2, 4, 8, 16]) {
+    if (Math.abs(barsFloat - n) < 0.05) return n
+  }
+  return null
+}
+
+export function analyzeAudioBuffer(buffer: AudioBuffer): { bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null } {
   // Mix down to mono
   const mono = new Float32Array(buffer.length)
   for (let c = 0; c < buffer.numberOfChannels; c++) {
@@ -136,16 +169,18 @@ export function analyzeAudioBuffer(buffer: AudioBuffer): { bpm: number; musicalK
   }
   for (let i = 0; i < mono.length; i++) mono[i] /= buffer.numberOfChannels
 
-  const bpm = detectBpm(mono, buffer.sampleRate)
+  const { bpm, onset } = detectBpm(mono, buffer.sampleRate)
+  const beatPhase = detectBeatPhase(onset, buffer.sampleRate, bpm)
   const chroma = extractChroma(mono, buffer.sampleRate)
   const musicalKey = detectKey(chroma)
+  const loopBars = detectLoopBars(buffer.duration, bpm)
 
-  return { bpm, musicalKey }
+  return { bpm, musicalKey, beatPhase, loopBars }
 }
 
-const analysisCache = new Map<string, Promise<{ bpm: number; musicalKey: string }>>()
+const analysisCache = new Map<string, Promise<{ bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null }>>()
 
-export function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey: string }> {
+export function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null }> {
   const cached = analysisCache.get(url)
   if (cached) return cached
 
@@ -166,9 +201,42 @@ export function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey:
   return result
 }
 
-// Onset strength is computed as positive first-order RMS energy differences.
-// Local maxima above an adaptive threshold are returned as transient timestamps.
-// The presets are intentionally phrase/sample oriented, not editor-microscopic:
+// Radix-2 Cooley-Tukey in-place FFT. Input arrays must have power-of-2 length.
+function fft(re: Float32Array, im: Float32Array): void {
+  const N = re.length
+  for (let i = 1, j = 0; i < N; i++) {
+    let bit = N >> 1
+    for (; j & bit; bit >>= 1) j ^= bit
+    j ^= bit
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t
+      t = im[i]; im[i] = im[j]; im[j] = t
+    }
+  }
+  for (let len = 2; len <= N; len <<= 1) {
+    const angle = -2 * Math.PI / len
+    const wr = Math.cos(angle)
+    const wi = Math.sin(angle)
+    for (let i = 0; i < N; i += len) {
+      let cr = 1, ci = 0
+      const half = len >> 1
+      for (let j = 0; j < half; j++) {
+        const ur = re[i + j], ui = im[i + j]
+        const vr = re[i + j + half] * cr - im[i + j + half] * ci
+        const vi = re[i + j + half] * ci + im[i + j + half] * cr
+        re[i + j] = ur + vr; im[i + j] = ui + vi
+        re[i + j + half] = ur - vr; im[i + j + half] = ui - vi
+        const ncr = cr * wr - ci * wi
+        ci = cr * wi + ci * wr
+        cr = ncr
+      }
+    }
+  }
+}
+
+// Onset strength via spectral flux: per-bin positive magnitude differences across
+// consecutive STFT frames. Catches hi-hats and ghost notes that RMS energy smears over.
+// Presets are producer-oriented (phrase/sample scale), not editor-microscopic:
 //   coarse → large sections and dominant hits
 //   medium → practical default chops
 //   fine   → smaller hits, while still rejecting tiny fragments
@@ -177,7 +245,7 @@ export function detectTransients(
   preset: 'coarse' | 'medium' | 'fine' = 'medium'
 ): number[] {
   const HOP = 256
-  const FRAME = 512
+  const FFT_SIZE = 1024
   const { sampleRate } = buffer
 
   // Mix to mono
@@ -188,21 +256,32 @@ export function detectTransients(
   }
   for (let i = 0; i < mono.length; i++) mono[i] /= buffer.numberOfChannels
 
-  // RMS energy per hop
-  const energies: number[] = []
-  for (let i = 0; i + FRAME < mono.length; i += HOP) {
-    let sum = 0
-    for (let j = 0; j < FRAME; j++) sum += mono[i + j] ** 2
-    energies.push(Math.sqrt(sum / FRAME))
+  // Hann window (computed once)
+  const hann = new Float32Array(FFT_SIZE)
+  for (let i = 0; i < FFT_SIZE; i++) hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FFT_SIZE)
+
+  const numBins = FFT_SIZE >> 1
+  const prevMags = new Float32Array(numBins)
+  const onset: number[] = []
+  const re = new Float32Array(FFT_SIZE)
+  const im = new Float32Array(FFT_SIZE)
+
+  for (let frameStart = 0; frameStart + FFT_SIZE <= mono.length; frameStart += HOP) {
+    for (let i = 0; i < FFT_SIZE; i++) {
+      re[i] = mono[frameStart + i] * hann[i]
+      im[i] = 0
+    }
+    fft(re, im)
+    let flux = 0
+    for (let k = 0; k < numBins; k++) {
+      const mag = Math.sqrt(re[k] * re[k] + im[k] * im[k])
+      flux += Math.max(0, mag - prevMags[k])
+      prevMags[k] = mag
+    }
+    onset.push(flux)
   }
 
-  // Onset strength: positive first-order differences
-  const onset: number[] = [0]
-  for (let i = 1; i < energies.length; i++) {
-    onset.push(Math.max(0, energies[i] - energies[i - 1]))
-  }
-
-  // Adaptive threshold: mean + k * std of non-zero onset values
+  // Adaptive threshold: mean + K * std of non-zero onset values
   const nonzero = onset.filter((v) => v > 0)
   if (nonzero.length === 0) return []
   const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length
@@ -218,8 +297,7 @@ export function detectTransients(
     }
   }
 
-  // Enforce producer-usable spacing between chops. The old 80ms gap created
-  // tiny fragments that made sense visually but not as pack-building material.
+  // Enforce producer-usable spacing between chops
   const MIN_GAP = { coarse: 1.6, medium: 0.8, fine: 0.4 }[preset]
   const transients: number[] = []
   let lastTime = -Infinity
