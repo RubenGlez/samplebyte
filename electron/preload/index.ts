@@ -25,6 +25,21 @@ contextBridge.exposeInMainWorld('api', {
 
     importFolder: (folderPath: string): Promise<{ imported: number; skipped: number }> =>
       ipcRenderer.invoke('library:importFolder', folderPath),
+
+    getPackSlotRefCount: (id: string, type: 'sample' | 'project-chop'): Promise<number> =>
+      ipcRenderer.invoke('library:getPackSlotRefCount', id, type),
+
+    getOrphans: (): Promise<Sample[]> =>
+      ipcRenderer.invoke('library:getOrphans'),
+
+    deleteOrphans: (ids: string[]): Promise<{ deleted: number }> =>
+      ipcRenderer.invoke('library:deleteOrphans', ids),
+
+    deleteProjectChop: (chopId: string): Promise<void> =>
+      ipcRenderer.invoke('library:deleteProjectChop', chopId),
+
+    renameProjectChop: (chopId: string, name: string): Promise<void> =>
+      ipcRenderer.invoke('library:renameProjectChop', chopId, name),
   },
 
   projects: {

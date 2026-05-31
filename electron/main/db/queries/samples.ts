@@ -116,3 +116,7 @@ export function deleteSample(id: string): string | null {
   db.prepare('DELETE FROM samples WHERE id = ?').run(id)
   return row?.file_path ?? null
 }
+
+export function getSamplePackSlotRefCount(sampleId: string): number {
+  return ((getDb().prepare('SELECT COUNT(*) as count FROM pack_slots WHERE sample_id = ?').get(sampleId)) as { count: number }).count
+}

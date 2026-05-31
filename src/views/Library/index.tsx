@@ -2,19 +2,32 @@ import { useEffect, useRef, useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
+import { usePlayerStore } from '@/stores/player'
+import { useUiStore } from '@/stores/ui'
 import { type LibraryBrowserItem, useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { useChopWaveform } from '@/hooks/useChopWaveform'
 import { cn } from '@/lib/utils'
-import { formatTime, toLocalFileUrl } from '@/utils'
+import { formatTime, toLocalFileUrl, fileNameFromPath, mimeTypeFromPath } from '@/utils'
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu'
+import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
+import { Button } from '@/components/ui/Button'
 import type { Project } from '@/types'
 
-// Column layout — Name flex, then fixed narrow cols
 const GRID = 'grid-cols-[1fr_120px_64px_52px_72px_140px]'
 
+type MenuState = { item: LibraryBrowserItem; x: number; y: number }
+type DeleteState = { item: LibraryBrowserItem; packRefs: number }
+
 export default function LibraryView() {
-  const { isLoading, fetchSamples, toggleTagFilter } = useLibraryStore()
-  const { projects, fetchProjects } = useProjectsStore()
+  const { isLoading, fetchSamples, deleteSample, deleteProjectChop } = useLibraryStore()
+  const { projects, fetchProjects, setActiveProject } = useProjectsStore()
+  const { setAudio } = usePlayerStore()
+  const { setView, setPendingFocusStart } = useUiStore()
+
+  const [menu, setMenu] = useState<MenuState | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DeleteState | null>(null)
+  const [pendingRename, setPendingRename] = useState<LibraryBrowserItem | null>(null)
 
   useEffect(() => {
     fetchSamples()
@@ -24,15 +37,66 @@ export default function LibraryView() {
   const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))
   const filtered = useFilteredSamples()
 
+  const handleEdit = (item: LibraryBrowserItem) => {
+    if (item.kind === 'project-chop') {
+      const project = projectsById[item.projectId]
+      if (!project?.sourcePath) return
+      setActiveProject(project)
+      setAudio({
+        name: project.sourceName ?? fileNameFromPath(project.sourcePath),
+        path: toLocalFileUrl(project.sourcePath),
+        filePath: project.sourcePath,
+        size: 0,
+        type: mimeTypeFromPath(project.sourcePath),
+        source: project.source,
+      })
+      setPendingFocusStart(item.chop.start)
+    } else {
+      setActiveProject(null)
+      setAudio({
+        name: item.name,
+        path: toLocalFileUrl(item.filePath),
+        filePath: item.filePath,
+        size: 0,
+        type: mimeTypeFromPath(item.filePath),
+        source: item.source,
+      })
+    }
+    setView('chop')
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!pendingDelete) return
+    const { item } = pendingDelete
+    if (item.kind === 'sample') {
+      await deleteSample(item.sample.id)
+    } else {
+      await deleteProjectChop(item.chop.id)
+    }
+    setPendingDelete(null)
+  }
+
+  const handleDeleteRequest = async (item: LibraryBrowserItem) => {
+    const id = item.kind === 'sample' ? item.sample.id : item.chop.id
+    const type = item.kind === 'sample' ? 'sample' : 'project-chop'
+    const packRefs = await window.api.library.getPackSlotRefCount(id, type)
+    setPendingDelete({ item, packRefs })
+  }
+
+  const menuItems = (item: LibraryBrowserItem): ContextMenuItem[] => [
+    { label: 'Edit in Chop', onClick: () => handleEdit(item) },
+    { label: 'Rename', onClick: () => setPendingRename(item) },
+    { label: 'Delete', onClick: () => handleDeleteRequest(item), danger: true },
+  ]
+
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-faint text-[13px]">Loading…</div>
       ) : filtered.length === 0 ? (
         <EmptyState />
       ) : (
         <>
-          {/* Column headers */}
           <div className={cn('grid shrink-0 px-4 h-8 items-center border-b border-border bg-surface', GRID)}>
             <ColHeader label="Name" />
             <ColHeader label="" />
@@ -42,7 +106,6 @@ export default function LibraryView() {
             <ColHeader label="Project" />
           </div>
 
-          {/* Rows */}
           <div className="flex-1 overflow-y-auto">
             {filtered.map((item, i) => (
               <LibraryRow
@@ -50,12 +113,52 @@ export default function LibraryView() {
                 item={item}
                 project={item.projectId ? projectsById[item.projectId] : undefined}
                 striped={i % 2 === 1}
-                onTagClick={toggleTagFilter}
+                isRenaming={pendingRename?.id === item.id}
+                onRenameCommit={() => setPendingRename(null)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setMenu({ item, x: e.clientX, y: e.clientY })
+                }}
+                onDoubleClickName={() => setPendingRename(item)}
               />
             ))}
           </div>
         </>
       )}
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems(menu.item)}
+          onClose={() => setMenu(null)}
+        />
+      )}
+
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogTitle>Delete "{pendingDelete?.item.name}"?</DialogTitle>
+          {pendingDelete && pendingDelete.packRefs > 0 ? (
+            <p className="text-[13px] text-muted">
+              This sound is used in {pendingDelete.packRefs} pack slot{pendingDelete.packRefs !== 1 ? 's' : ''}. Deleting it will remove those slots permanently.
+            </p>
+          ) : (
+            <p className="text-[13px] text-muted">
+              {pendingDelete?.item.kind === 'sample'
+                ? 'This sample will be permanently deleted from your library.'
+                : 'This chop will be removed from its project.'}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button size="sm" variant="danger" onClick={handleDeleteConfirm}>
+              Delete{pendingDelete && pendingDelete.packRefs > 0 ? ' anyway' : ''}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -85,13 +188,17 @@ function ColHeader({ label, right }: { label: string; right?: boolean }) {
 }
 
 function LibraryRow({
-  item, project, striped, onTagClick,
+  item, project, striped, isRenaming, onRenameCommit, onContextMenu, onDoubleClickName,
 }: {
   item: LibraryBrowserItem
   project: Project | undefined
   striped: boolean
-  onTagClick: (tag: string) => void
+  isRenaming: boolean
+  onRenameCommit: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onDoubleClickName: () => void
 }) {
+  const { updateSample, renameProjectChop } = useLibraryStore()
   const region = item.kind === 'project-chop' ? { start: item.start, end: item.end } : null
   const { isPlaying, toggle } = useAudioPlayer(toLocalFileUrl(item.filePath), region)
 
@@ -111,103 +218,124 @@ function LibraryRow({
     item.kind === 'project-chop' ? item.end : 0,
   )
   const waveformData = item.kind === 'sample' ? item.sample.waveformData : chopWaveform
-  const hasTags = item.tags.length > 0
+
+  const handleRename = (name: string) => {
+    if (item.kind === 'sample') void updateSample(item.sample.id, { name })
+    else void renameProjectChop(item.chop.id, name)
+    onRenameCommit()
+  }
+
+  const [draftName, setDraftName] = useState(item.name)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isRenaming) {
+      setDraftName(item.name)
+      setTimeout(() => inputRef.current?.select(), 0)
+    }
+  }, [isRenaming, item.name])
+
+  const commitRename = () => {
+    const trimmed = draftName.trim()
+    if (trimmed && trimmed !== item.name) handleRename(trimmed)
+    else onRenameCommit()
+  }
+
+  const cancelRename = () => onRenameCommit()
 
   return (
-    <>
-      <div
-        ref={rowRef}
-        className={cn(
-          'group grid items-center px-4 cursor-pointer transition-colors',
-          hasTags ? 'pt-[6px] pb-[2px]' : 'h-[34px]',
-          isPlaying
-            ? 'bg-accent/10'
-            : striped
-              ? 'bg-[rgba(255,255,255,0.015)] hover:bg-[rgba(255,255,255,0.04)]'
-              : 'hover:bg-[rgba(255,255,255,0.04)]',
-          GRID
-        )}
-        onClick={toggle}
-      >
-        {/* Name + play indicator */}
-        <div className="flex items-center gap-2 min-w-0 pr-2">
-          <div className={cn(
-            'w-5 h-5 flex items-center justify-center rounded-full shrink-0 transition-colors',
-            isPlaying ? 'text-accent' : 'text-faint/0 group-hover:text-faint'
-          )}>
-            {isPlaying
-              ? <Square size={9} fill="currentColor" />
-              : <Play   size={9} fill="currentColor" className="translate-x-px" />
-            }
-          </div>
-          <span className={cn('text-[13px] truncate min-w-0', isPlaying && 'text-ink font-medium')}>
+    <div
+      ref={rowRef}
+      className={cn(
+        'group grid items-center px-4 h-[34px] cursor-pointer transition-colors',
+        isPlaying
+          ? 'bg-accent/10'
+          : striped
+            ? 'bg-[rgba(255,255,255,0.015)] hover:bg-[rgba(255,255,255,0.04)]'
+            : 'hover:bg-[rgba(255,255,255,0.04)]',
+        GRID
+      )}
+      onClick={() => { if (!isRenaming) toggle() }}
+      onContextMenu={onContextMenu}
+    >
+      {/* Name + play indicator */}
+      <div className="flex items-center gap-2 min-w-0 pr-2">
+        <div className={cn(
+          'w-5 h-5 flex items-center justify-center rounded-full shrink-0 transition-colors',
+          isPlaying ? 'text-accent' : 'text-faint/0 group-hover:text-faint'
+        )}>
+          {isPlaying
+            ? <Square size={9} fill="currentColor" />
+            : <Play   size={9} fill="currentColor" className="translate-x-px" />
+          }
+        </div>
+
+        {isRenaming ? (
+          <input
+            ref={inputRef}
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); commitRename() }
+              if (e.key === 'Escape') { cancelRename(); onRenameCommit() }
+              e.stopPropagation()
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 min-w-0 bg-transparent border-0 border-b border-accent/40 outline-none text-[13px] text-ink py-0 px-0"
+            autoFocus
+          />
+        ) : (
+          <span
+            className={cn('flex-1 text-[13px] truncate min-w-0', isPlaying && 'text-ink font-medium')}
+            onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickName() }}
+          >
             {item.name}
           </span>
-        </div>
-
-        {/* Waveform */}
-        <div className="flex items-center pr-2">
-          {waveformData && (
-            <svg viewBox="0 0 100 100" className="w-full h-4" preserveAspectRatio="none">
-              {waveformData.map((v, i) => {
-                const barW = 100 / waveformData.length
-                const h = Math.max(2, v * 100)
-                return (
-                  <rect
-                    key={i}
-                    x={i * barW + 0.1}
-                    width={barW - 0.2}
-                    y={50 - h / 2}
-                    height={h}
-                    className={isPlaying ? 'fill-accent/60' : 'fill-[rgba(255,255,255,0.15)]'}
-                  />
-                )
-              })}
-            </svg>
-          )}
-        </div>
-
-        {/* Duration */}
-        <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
-          {item.duration != null ? formatTime(item.duration) : '—'}
-        </span>
-
-        {/* BPM */}
-        <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
-          {item.bpm != null ? Math.round(item.bpm) : '—'}
-        </span>
-
-        {/* Key */}
-        <span className="text-[12px] text-faint font-mono whitespace-nowrap">
-          {item.musicalKey ?? '—'}
-        </span>
-
-        {/* Project */}
-        <span className="text-[12px] text-faint/80 truncate pr-2">
-          {project?.name ?? (item.kind === 'project-chop' ? item.projectName : '—')}
-        </span>
+        )}
       </div>
 
-      {/* Tags — shown inline below the row */}
-      {hasTags && (
-        <div className={cn(
-          'flex items-center gap-1 px-11 pb-1.5 flex-wrap',
-          striped ? 'bg-[rgba(255,255,255,0.015)]' : ''
-        )}>
-          {item.tags.slice(0, 5).map((tag) => (
-            <button
-              key={tag}
-              onClick={(e) => { e.stopPropagation(); onTagClick(tag) }}
-              className="px-1.5 py-px rounded bg-accent/8 border border-accent/15 text-[10px] text-accent/60 hover:bg-accent/15 hover:text-accent/80 transition-colors cursor-pointer"
-            >
-              {tag}
-            </button>
-          ))}
-          {item.tags.length > 5 && (
-            <span className="text-[10px] text-faint/50">+{item.tags.length - 5}</span>
-          )}
-        </div>
-      )}
-    </>
+      {/* Waveform */}
+      <div className="flex items-center pr-2">
+        {waveformData && (
+          <svg viewBox="0 0 100 100" className="w-full h-4" preserveAspectRatio="none">
+            {waveformData.map((v, i) => {
+              const barW = 100 / waveformData.length
+              const h = Math.max(2, v * 100)
+              return (
+                <rect
+                  key={i}
+                  x={i * barW + 0.1}
+                  width={barW - 0.2}
+                  y={50 - h / 2}
+                  height={h}
+                  className={isPlaying ? 'fill-accent/60' : 'fill-[rgba(255,255,255,0.15)]'}
+                />
+              )
+            })}
+          </svg>
+        )}
+      </div>
+
+      {/* Duration */}
+      <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
+        {item.duration != null ? formatTime(item.duration) : '—'}
+      </span>
+
+      {/* BPM */}
+      <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
+        {item.bpm != null ? Math.round(item.bpm) : '—'}
+      </span>
+
+      {/* Key */}
+      <span className="text-[12px] text-faint font-mono whitespace-nowrap">
+        {item.musicalKey ?? '—'}
+      </span>
+
+      {/* Project */}
+      <span className="text-[12px] text-faint/80 truncate pr-2">
+        {project?.name ?? (item.kind === 'project-chop' ? item.projectName : '—')}
+      </span>
+    </div>
   )
 }

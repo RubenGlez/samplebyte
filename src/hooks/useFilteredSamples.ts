@@ -2,8 +2,8 @@ import { useLibraryStore } from '@/stores/library'
 import type { ProjectChop, Sample } from '@/types'
 
 export type LibraryBrowserItem =
-  | { kind: 'sample'; id: string; name: string; filePath: string; duration: number | null; bpm: number | null; musicalKey: string | null; tags: string[]; projectId: string | null; source: 'local' | 'freesound'; sample: Sample }
-  | { kind: 'project-chop'; id: string; name: string; filePath: string; duration: number; bpm: null; musicalKey: null; tags: string[]; projectId: string; projectName: string; source: 'local' | 'freesound'; start: number; end: number; chop: ProjectChop }
+  | { kind: 'sample'; id: string; name: string; filePath: string; duration: number | null; bpm: number | null; musicalKey: string | null; projectId: string | null; source: 'local' | 'freesound'; sample: Sample }
+  | { kind: 'project-chop'; id: string; name: string; filePath: string; duration: number; bpm: null; musicalKey: null; projectId: string; projectName: string; source: 'local' | 'freesound'; start: number; end: number; chop: ProjectChop }
 
 export function useFilteredSamples() {
   const { samples, projectChops, searchQuery, projectFilter, filters } = useLibraryStore()
@@ -19,7 +19,6 @@ export function useFilteredSamples() {
         duration: chop.end - chop.start,
         bpm: null,
         musicalKey: null,
-        tags: [],
         projectId: chop.projectId,
         projectName: chop.projectName,
         source: chop.source,
@@ -35,7 +34,6 @@ export function useFilteredSamples() {
       duration: sample.duration,
       bpm: sample.bpm,
       musicalKey: sample.musicalKey,
-      tags: sample.tags,
       projectId: sample.projectId,
       source: sample.source,
       sample,
@@ -46,7 +44,6 @@ export function useFilteredSamples() {
     if (!item.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
     if (projectFilter === '__none__' && item.projectId !== null) return false
     if (projectFilter !== null && projectFilter !== '__none__' && item.projectId !== projectFilter) return false
-    if (filters.tags?.length && !filters.tags.some((t) => item.tags.includes(t))) return false
     if (filters.source && item.source !== filters.source) return false
     if (filters.bpm !== undefined && (item.bpm === null || Math.abs(item.bpm - filters.bpm) > 5)) return false
     if (filters.key && item.musicalKey?.toLowerCase() !== filters.key.toLowerCase()) return false

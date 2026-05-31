@@ -37,6 +37,12 @@ const MIN_AUTO_CHOP_REGION_SECONDS = {
   fine: 0.4,
 } as const
 
+type Sensitivity = 'coarse' | 'medium' | 'fine'
+type GridDivisions = '4' | '8' | '16' | '32'
+type ChopMode = Sensitivity | GridDivisions
+
+const GRID_DIVISIONS = ['4', '8', '16', '32'] as const
+
 const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
   const { activeProject, autosaveActiveRegions, applyLocalTrim } = useProjectsStore()
   const { createPack, setSlot, hardwareProfileId } = usePacksStore()
@@ -65,7 +71,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [isSaving, setIsSaving] = useState(false)
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [sensitivity, setSensitivity] = useState<'coarse' | 'medium' | 'fine'>('medium')
+  const [sensitivity, setSensitivity] = useState<ChopMode>('medium')
   const [isAutoChopping, setIsAutoChopping] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
   const [showTrimDialog, setShowTrimDialog] = useState(false)
@@ -223,20 +229,29 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     if (!wavesurfer) return
     setIsAutoChopping(true)
     try {
-      const transients = await detectTransientsFromUrl(audioUrl, sensitivity)
-      if (transients.length === 0) {
-        toast('No transients found — try Fine sensitivity', 'info')
-        return
+      const duration = wavesurfer.getDuration()
+      if ((GRID_DIVISIONS as readonly string[]).includes(sensitivity)) {
+        const n = parseInt(sensitivity)
+        const step = (trimOut - trimIn) / n
+        const transients = Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step)
+        autoChop(transients, duration, { start: trimIn, end: trimOut }, 0)
+        toast(`${n} chops created`)
+      } else {
+        const transients = await detectTransientsFromUrl(audioUrl, sensitivity as Sensitivity)
+        if (transients.length === 0) {
+          toast('No transients found — try Fine sensitivity', 'info')
+          return
+        }
+        autoChop(
+          transients,
+          duration,
+          { start: trimIn, end: trimOut },
+          MIN_AUTO_CHOP_REGION_SECONDS[sensitivity as Sensitivity]
+        )
+        const inner = transients.filter((t) => t > trimIn && t < trimOut)
+        const count = inner.length + 1
+        toast(`${count} chop${count !== 1 ? 's' : ''} created`)
       }
-      autoChop(
-        transients,
-        wavesurfer.getDuration(),
-        { start: trimIn, end: trimOut },
-        MIN_AUTO_CHOP_REGION_SECONDS[sensitivity]
-      )
-      const inner = transients.filter((t) => t > trimIn && t < trimOut)
-      const count = inner.length + 1
-      toast(`${count} chop${count !== 1 ? 's' : ''} created`)
     } catch {
       toast('Auto-chop failed', 'error')
     } finally {
@@ -409,6 +424,21 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
                 )}
               >
                 {p}
+              </button>
+            ))}
+            <div className="w-px h-3 bg-[rgba(255,255,255,0.1)] mx-1" />
+            {GRID_DIVISIONS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setSensitivity(n)}
+                className={cn(
+                  'text-[11px] px-2 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
+                  sensitivity === n
+                    ? 'bg-[rgba(255,255,255,0.12)] text-ink'
+                    : 'text-faint/70 hover:text-muted bg-transparent'
+                )}
+              >
+                {n}
               </button>
             ))}
           </div>

@@ -10,9 +10,6 @@ interface FilterControlsProps {
   projects: Project[]
   projectFilter: string | null
   onProjectFilterChange: (v: string | null) => void
-  allTags: string[]
-  activeTags: string[]
-  onTagToggle: (tag: string) => void
   bpm?: number
   onBpmChange?: (v: number | undefined) => void
   musicalKey?: string
@@ -23,12 +20,10 @@ export function FilterControls({
   search, onSearchChange,
   source, onSourceChange,
   projects, projectFilter, onProjectFilterChange,
-  allTags, activeTags, onTagToggle,
   bpm, onBpmChange, musicalKey, onKeyChange,
 }: FilterControlsProps) {
   return (
     <div className="flex flex-col gap-2 px-1">
-      {/* macOS-style search field */}
       <div className="relative">
         <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
         <input
@@ -39,7 +34,6 @@ export function FilterControls({
         />
       </div>
 
-      {/* Source segmented control */}
       <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
         {(['all', 'local', 'freesound'] as const).map((s) => (
           <button
@@ -57,7 +51,6 @@ export function FilterControls({
         ))}
       </div>
 
-      {/* Project filter */}
       {projects.length > 0 && (
         <div className="relative">
           <FolderOpen size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
@@ -96,26 +89,6 @@ export function FilterControls({
               className="bg-raised border border-border rounded-md px-2 h-[26px] text-[12px] text-ink placeholder:text-faint/60 focus:outline-none focus:border-accent/40 transition-colors"
             />
           )}
-        </div>
-      )}
-
-      {/* Tag pills */}
-      {allTags.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
-          {allTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => onTagToggle(tag)}
-              className={cn(
-                'px-1.5 py-0.5 rounded text-[10px] transition-colors cursor-pointer border',
-                activeTags.includes(tag)
-                  ? 'border-accent/40 text-accent/80 bg-accent/10'
-                  : 'border-border text-faint hover:text-muted hover:border-border-bright bg-transparent'
-              )}
-            >
-              {tag}
-            </button>
-          ))}
         </div>
       )}
     </div>

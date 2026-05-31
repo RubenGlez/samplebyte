@@ -14,6 +14,11 @@ declare global {
           projectId?: string
         }) => Promise<Sample[]>
         importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
+        getPackSlotRefCount: (id: string, type: 'sample' | 'project-chop') => Promise<number>
+        getOrphans: () => Promise<Sample[]>
+        deleteOrphans: (ids: string[]) => Promise<{ deleted: number }>
+        deleteProjectChop: (chopId: string) => Promise<void>
+        renameProjectChop: (chopId: string, name: string) => Promise<void>
       }
       projects: {
         getAll: () => Promise<Project[]>

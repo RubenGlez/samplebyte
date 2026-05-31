@@ -7,7 +7,6 @@ import type { ProjectChop, Sample } from '../../electron/types'
 type Filters = {
   bpm?: number
   key?: string
-  tags?: string[]
   source?: 'local' | 'freesound'
 }
 
@@ -24,12 +23,13 @@ type LibraryState = {
   addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
   updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
   deleteSample: (id: string) => Promise<void>
+  deleteProjectChop: (chopId: string) => Promise<void>
+  renameProjectChop: (chopId: string, name: string) => Promise<void>
   saveChops: (params: { sourceFilePath: string; regions: Array<{ start: number; end: number; name: string }>; projectId?: string }) => Promise<void>
   importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
   setSearchQuery: (query: string) => void
   setFilters: (filters: Filters) => void
   setProjectFilter: (projectId: string | null) => void
-  toggleTagFilter: (tag: string) => void
   setSelectedSample: (sample: Sample | null) => void
 }
 
@@ -74,6 +74,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }))
   },
 
+  deleteProjectChop: async (chopId) => {
+    await window.api.library.deleteProjectChop(chopId)
+    set((state) => ({
+      projectChops: state.projectChops.filter((c) => c.id !== chopId),
+    }))
+  },
+
+  renameProjectChop: async (chopId, name) => {
+    await window.api.library.renameProjectChop(chopId, name)
+    set((state) => ({
+      projectChops: state.projectChops.map((c) => c.id === chopId ? { ...c, name } : c),
+    }))
+  },
+
   importFolder: async (folderPath) => {
     const beforeIds = new Set(get().samples.map((s) => s.id))
     const result = await window.api.library.importFolder(folderPath)
@@ -96,7 +110,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const saved = await window.api.library.saveChops(params)
     const samples = await window.api.library.getSamples()
     set({ samples })
-    // Fire-and-forget: analyze each chop and persist BPM + key
     ;(async () => {
       const { updateSample } = get()
       for (const sample of saved) {
@@ -111,10 +124,5 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setFilters: (filters) => set({ filters }),
   setProjectFilter: (projectFilter) => set({ projectFilter }),
-  toggleTagFilter: (tag) => set((s) => {
-    const current = s.filters.tags ?? []
-    const tags = current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]
-    return { filters: { ...s.filters, tags: tags.length ? tags : undefined } }
-  }),
   setSelectedSample: (selectedSample) => set({ selectedSample }),
 }))

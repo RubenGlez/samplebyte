@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type WaveSurfer from 'wavesurfer.js'
 import type { Region } from 'wavesurfer.js/dist/plugins/regions'
 import type { ProjectRegion } from '@/types'
+import { useUiStore } from '@/stores/ui'
 
 interface UseRegionsProps {
   wavesurfer?: WaveSurfer
@@ -85,6 +86,7 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
         // Restore saved regions before registering listeners so region-created events don't fire
         if (initialRegionsRef.current?.length) {
           const nameMap: Record<string, string> = {}
+          const restored: Region[] = []
           initialRegionsRef.current.forEach((saved) => {
             const region = regionsPlugin.addRegion({
               id: saved.id,
@@ -92,9 +94,20 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
               end: saved.end,
               color: 'var(--region-bg)',
             })
+            restored.push(region)
             if (saved.name) nameMap[region.id] = saved.name
           })
           setRegionNames(nameMap)
+
+          const { pendingFocusStart, setPendingFocusStart } = useUiStore.getState()
+          if (pendingFocusStart !== null) {
+            const match = restored.find((r) => Math.abs(r.start - pendingFocusStart) < 0.01)
+            if (match) {
+              setSelectedRegion(match)
+              toggleRegionsColor(restored, match)
+            }
+            setPendingFocusStart(null)
+          }
         }
 
         regionsPlugin.enableDragSelection({ color: 'var(--region-bg)' })

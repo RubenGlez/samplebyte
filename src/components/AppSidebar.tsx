@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Trash2, Copy, Grid2x2, FolderOpen, FolderInput, Plus } from 'lucide-react'
+import { Pencil, Trash2, Copy, Grid2x2, FolderOpen, FolderInput, Plus, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
 import { usePlayerStore } from '@/stores/player'
@@ -197,14 +197,14 @@ function ProjectRow({ project, isActive, onLoad, onRename, onDuplicate, onDelete
 // ─── Library ─────────────────────────────────────────────────────────────────
 
 function LibraryContent() {
-  const { samples, searchQuery, projectFilter, filters, setSearchQuery, setProjectFilter, toggleTagFilter, setFilters, importFolder } = useLibraryStore()
+  const { searchQuery, projectFilter, filters, setSearchQuery, setProjectFilter, setFilters, importFolder, fetchSamples } = useLibraryStore()
   const { projects } = useProjectsStore()
   const { toast } = useToastStore()
   const filtered = useFilteredSamples()
   const [importing, setImporting] = useState(false)
+  const [cleanDialog, setCleanDialog] = useState<{ orphans: import('../../electron/types').Sample[] } | null>(null)
+  const [cleaning, setCleaning] = useState(false)
 
-  const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
-  const activeTags = filters.tags ?? []
   const activeSource = (filters.source ?? 'all') as 'all' | 'local' | 'freesound'
 
   const handleImportFolder = async () => {
@@ -224,6 +224,24 @@ function LibraryContent() {
     }
   }
 
+  const handleCleanLibrary = async () => {
+    const orphans = await window.api.library.getOrphans()
+    setCleanDialog({ orphans })
+  }
+
+  const handleDeleteOrphans = async () => {
+    if (!cleanDialog) return
+    setCleaning(true)
+    try {
+      const { deleted } = await window.api.library.deleteOrphans(cleanDialog.orphans.map((o) => o.id))
+      await fetchSamples()
+      setCleanDialog(null)
+      toast(`Removed ${deleted} orphaned sample${deleted !== 1 ? 's' : ''}`, 'success')
+    } finally {
+      setCleaning(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2 py-1 px-2">
       <SectionHeader label="Filters" />
@@ -235,9 +253,6 @@ function LibraryContent() {
         projects={projects}
         projectFilter={projectFilter}
         onProjectFilterChange={setProjectFilter}
-        allTags={allTags}
-        activeTags={activeTags}
-        onTagToggle={toggleTagFilter}
         bpm={filters.bpm}
         onBpmChange={(bpm) => setFilters({ ...filters, bpm })}
         musicalKey={filters.key}
@@ -246,7 +261,7 @@ function LibraryContent() {
       <p className="text-[11px] text-faint/60 px-1">
         {filtered.length} {filtered.length === 1 ? 'sample' : 'samples'}
       </p>
-      <div className="px-1 pt-1 border-t border-border">
+      <div className="px-1 pt-1 border-t border-border flex flex-col gap-0.5">
         <button
           onClick={handleImportFolder}
           disabled={importing}
@@ -255,7 +270,49 @@ function LibraryContent() {
           <FolderInput size={13} strokeWidth={1.5} />
           {importing ? 'Importing…' : 'Import folder'}
         </button>
+        <button
+          onClick={handleCleanLibrary}
+          className="w-full flex items-center gap-2 px-2 h-[28px] rounded-md text-[12px] text-muted hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer"
+        >
+          <Sparkles size={13} strokeWidth={1.5} />
+          Clean library
+        </button>
       </div>
+
+      <Dialog open={!!cleanDialog} onOpenChange={(open) => !open && setCleanDialog(null)}>
+        <DialogContent>
+          <DialogTitle>Clean library</DialogTitle>
+          {cleanDialog?.orphans.length === 0 ? (
+            <p className="text-[13px] text-muted">No orphaned samples found. Your library is clean.</p>
+          ) : (
+            <>
+              <p className="text-[13px] text-muted mb-3">
+                {cleanDialog?.orphans.length} sample{cleanDialog?.orphans.length !== 1 ? 's' : ''} reference files that no longer exist on disk.
+              </p>
+              <ul className="max-h-40 overflow-y-auto mb-4 flex flex-col gap-1">
+                {cleanDialog?.orphans.map((o) => (
+                  <li key={o.id} className="text-[11px] text-faint truncate">{o.name}</li>
+                ))}
+              </ul>
+              <div className="flex justify-end gap-2">
+                <DialogClose asChild>
+                  <Button variant="ghost" size="sm">Cancel</Button>
+                </DialogClose>
+                <Button size="sm" variant="danger" onClick={handleDeleteOrphans} disabled={cleaning}>
+                  {cleaning ? 'Removing…' : `Remove ${cleanDialog?.orphans.length}`}
+                </Button>
+              </div>
+            </>
+          )}
+          {cleanDialog?.orphans.length === 0 && (
+            <div className="flex justify-end mt-4">
+              <DialogClose asChild>
+                <Button variant="ghost" size="sm">Close</Button>
+              </DialogClose>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

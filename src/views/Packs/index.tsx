@@ -32,7 +32,6 @@ export default function PacksView() {
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'local' | 'freesound'>('all')
   const [projectFilter, setProjectFilter] = useState<string | null>(null)
-  const [activeTags, setActiveTags] = useState<string[]>([])
   const [bpmFilter, setBpmFilter] = useState<number | undefined>()
   const [keyFilter, setKeyFilter] = useState<string | undefined>()
   const [isExporting, setIsExporting] = useState(false)
@@ -56,7 +55,6 @@ export default function PacksView() {
     packSaveTimer.current = window.setTimeout(() => setPackSaveStatus('idle'), 2000)
   }
 
-  const allTags = [...new Set(samples.flatMap((s) => s.tags))].sort()
 
   const sourceItems: PackSourceItem[] = [
     ...projectChops
@@ -74,14 +72,10 @@ export default function PacksView() {
     if (sourceFilter !== 'all' && source.sourceType === 'project-chop') return false
     if (projectFilter === '__none__' && source.projectId !== null) return false
     if (projectFilter && projectFilter !== '__none__' && source.projectId !== projectFilter) return false
-    if (activeTags.length && !activeTags.some((t) => source.tags.includes(t))) return false
     if (bpmFilter !== undefined && (source.bpm === null || Math.abs(source.bpm - bpmFilter) > 5)) return false
     if (keyFilter && source.musicalKey?.toLowerCase() !== keyFilter.toLowerCase()) return false
     return true
   })
-
-  const toggleTag = (tag: string) =>
-    setActiveTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])
 
   useEffect(() => {
     fetchPacks()
@@ -152,9 +146,6 @@ export default function PacksView() {
               projects={projects}
               projectFilter={projectFilter}
               onProjectFilterChange={setProjectFilter}
-              allTags={allTags}
-              activeTags={activeTags}
-              onTagToggle={toggleTag}
               bpm={bpmFilter}
               onBpmChange={setBpmFilter}
               musicalKey={keyFilter}

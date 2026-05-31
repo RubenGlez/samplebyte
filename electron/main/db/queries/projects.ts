@@ -136,6 +136,47 @@ export function getAllProjectChops(): Array<ProjectChop & { projectName: string;
     }))
 }
 
+export function deleteProjectChop(chopId: string): void {
+  const db = getDb()
+  const row = db.prepare('SELECT project_id FROM project_chops WHERE id = ?').get(chopId) as { project_id: string } | undefined
+  if (!row) return
+  const projectId = row.project_id
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM pack_slots WHERE project_chop_id = ?').run(chopId)
+    db.prepare('DELETE FROM project_chops WHERE id = ?').run(chopId)
+    const proj = db.prepare('SELECT regions FROM projects WHERE id = ?').get(projectId) as { regions: string } | undefined
+    if (proj) {
+      let regions: Array<{ id: string }> = []
+      try { regions = JSON.parse(proj.regions) } catch {}
+      db.prepare('UPDATE projects SET regions = ? WHERE id = ?').run(JSON.stringify(regions.filter((r) => r.id !== chopId)), projectId)
+    }
+  })()
+}
+
+export function renameProjectChop(chopId: string, name: string): void {
+  const db = getDb()
+  const row = db.prepare('SELECT project_id FROM project_chops WHERE id = ?').get(chopId) as { project_id: string } | undefined
+  if (!row) return
+
+  db.transaction(() => {
+    db.prepare('UPDATE project_chops SET name = ?, updated_at = ? WHERE id = ?').run(name, Date.now(), chopId)
+    const proj = db.prepare('SELECT regions FROM projects WHERE id = ?').get(row.project_id) as { regions: string } | undefined
+    if (proj) {
+      let regions: Array<{ id: string; [k: string]: unknown }> = []
+      try { regions = JSON.parse(proj.regions) } catch {}
+      db.prepare('UPDATE projects SET regions = ? WHERE id = ?').run(
+        JSON.stringify(regions.map((r) => r.id === chopId ? { ...r, name } : r)),
+        row.project_id
+      )
+    }
+  })()
+}
+
+export function getProjectChopPackSlotRefCount(chopId: string): number {
+  return ((getDb().prepare('SELECT COUNT(*) as count FROM pack_slots WHERE project_chop_id = ?').get(chopId)) as { count: number }).count
+}
+
 export function upsertProjectChops(projectId: string, regions: ProjectRegion[]): ProjectChop[] {
   const db = getDb()
   const now = Date.now()
