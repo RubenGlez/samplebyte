@@ -178,23 +178,37 @@ export function analyzeAudioBuffer(buffer: AudioBuffer): { bpm: number; musicalK
   return { bpm, musicalKey, beatPhase, loopBars }
 }
 
+// Shared buffer cache so analysis, transient detection, and loop finding
+// all decode each URL exactly once.
+const bufferCache = new Map<string, Promise<AudioBuffer>>()
+
+function getAudioBuffer(url: string): Promise<AudioBuffer> {
+  const cached = bufferCache.get(url)
+  if (cached) return cached
+
+  const result = (async () => {
+    const response = await fetch(url)
+    const ab = await response.arrayBuffer()
+    const ctx = new AudioContext()
+    try {
+      return await ctx.decodeAudioData(ab)
+    } finally {
+      ctx.close()
+    }
+  })()
+
+  bufferCache.set(url, result)
+  result.catch(() => bufferCache.delete(url))
+  return result
+}
+
 const analysisCache = new Map<string, Promise<{ bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null }>>()
 
 export function analyzeAudioUrl(url: string): Promise<{ bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null }> {
   const cached = analysisCache.get(url)
   if (cached) return cached
 
-  const result = (async () => {
-    const response = await fetch(url)
-    const arrayBuffer = await response.arrayBuffer()
-    const ctx = new AudioContext()
-    try {
-      const buffer = await ctx.decodeAudioData(arrayBuffer)
-      return analyzeAudioBuffer(buffer)
-    } finally {
-      ctx.close()
-    }
-  })()
+  const result = getAudioBuffer(url).then(analyzeAudioBuffer)
 
   analysisCache.set(url, result)
   result.catch(() => analysisCache.delete(url))
@@ -315,13 +329,82 @@ export async function detectTransientsFromUrl(
   url: string,
   preset: 'coarse' | 'medium' | 'fine'
 ): Promise<number[]> {
-  const response = await fetch(url)
-  const arrayBuffer = await response.arrayBuffer()
-  const ctx = new AudioContext()
-  try {
-    const buffer = await ctx.decodeAudioData(arrayBuffer)
-    return detectTransients(buffer, preset)
-  } finally {
-    ctx.close()
-  }
+  const buffer = await getAudioBuffer(url)
+  return detectTransients(buffer, preset)
 }
+
+// Scores a window [startSec, endSec] for loop suitability.
+// Uses RMS energy consistency: a flat-energy loop scores near 1, a build/break scores near 0.
+function scoreLoopCandidate(
+  mono: Float32Array,
+  sampleRate: number,
+  startSec: number,
+  endSec: number
+): number {
+  const HOP = 1024
+  const FRAME = 2048
+  const startSample = Math.round(startSec * sampleRate)
+  const endSample = Math.round(endSec * sampleRate)
+
+  if (startSample < 0 || endSample > mono.length) return 0
+
+  const energies: number[] = []
+  for (let i = startSample; i + FRAME <= endSample; i += HOP) {
+    let sum = 0
+    for (let j = 0; j < FRAME; j++) sum += mono[i + j] ** 2
+    energies.push(Math.sqrt(sum / FRAME))
+  }
+
+  if (energies.length < 4) return 0
+
+  const mean = energies.reduce((a, b) => a + b, 0) / energies.length
+  if (mean < 0.002) return 0  // near-silent window
+
+  const cv = Math.sqrt(energies.reduce((a, b) => a + (b - mean) ** 2, 0) / energies.length) / mean
+  return Math.max(0, 1 - cv)
+}
+
+// Returns up to maxCandidates bar-aligned windows scored by loop suitability, best first.
+export function findLoopCandidates(
+  buffer: AudioBuffer,
+  bpm: number,
+  beatPhase: number,
+  barCount: number,
+  maxCandidates = 5
+): Array<{ start: number; end: number; score: number }> {
+  if (bpm <= 0) return []
+
+  const barLength = (60 / bpm) * 4
+  const windowDuration = barCount * barLength
+
+  if (windowDuration >= buffer.duration) return []
+
+  const mono = new Float32Array(buffer.length)
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const ch = buffer.getChannelData(c)
+    for (let i = 0; i < buffer.length; i++) mono[i] += ch[i]
+  }
+  for (let i = 0; i < mono.length; i++) mono[i] /= buffer.numberOfChannels
+
+  const candidates: Array<{ start: number; end: number; score: number }> = []
+
+  for (let start = beatPhase; start + windowDuration <= buffer.duration - 0.01; start += barLength) {
+    const end = start + windowDuration
+    const score = scoreLoopCandidate(mono, buffer.sampleRate, start, end)
+    if (score > 0) candidates.push({ start, end, score })
+  }
+
+  candidates.sort((a, b) => b.score - a.score)
+  return candidates.slice(0, maxCandidates)
+}
+
+export async function findLoopCandidatesFromUrl(
+  url: string,
+  bpm: number,
+  beatPhase: number,
+  barCount: number
+): Promise<Array<{ start: number; end: number; score: number }>> {
+  const buffer = await getAudioBuffer(url)
+  return findLoopCandidates(buffer, bpm, beatPhase, barCount)
+}
+

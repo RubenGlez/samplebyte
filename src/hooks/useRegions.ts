@@ -8,6 +8,7 @@ import { useUiStore } from '@/stores/ui'
 interface UseRegionsProps {
   wavesurfer?: WaveSurfer
   initialRegions?: ProjectRegion[]
+  onCandidateRegionClick?: (start: number, end: number) => void
 }
 
 const REGION_ACTIVE_ID = 'region-active'
@@ -28,16 +29,21 @@ const toggleRegionsColor = (regions: Region[] = [], selectedRegion: Region) => {
   })
 }
 
-export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
+export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick }: UseRegionsProps) => {
   const isConfigured = useRef(false)
   const initialRegionsRef = useRef(initialRegions)
   const isBulkUpdating = useRef(false)
+  const candidateIdsRef = useRef<Set<string>>(new Set())
+  const onCandidateRegionClickRef = useRef(onCandidateRegionClick)
+  onCandidateRegionClickRef.current = onCandidateRegionClick
+
   const [selectedRegion, setSelectedRegion] = useState<Region>()
   const [regionNames, setRegionNames] = useState<Record<string, string>>({})
   const [revision, setRevision] = useState(0)
 
   const regionsPlugin = getRegionsPlugin(wavesurfer)
-  const regions = regionsPlugin?.getRegions()
+  // Exclude candidate regions from the chop region list
+  const regions = regionsPlugin?.getRegions().filter(r => !candidateIdsRef.current.has(r.id))
 
   const handleSelectRegion = useCallback(
     (region: Region) => {
@@ -114,11 +120,13 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
 
         regionsPlugin.on('region-created', (region) => {
           if (isBulkUpdating.current) return
+          if (candidateIdsRef.current.has(region.id)) return
           handleSelectRegion(region)
           setRevision((value) => value + 1)
         })
         regionsPlugin.on('region-updated', (region) => {
           if (isBulkUpdating.current) return
+          if (candidateIdsRef.current.has(region.id)) return
           handleSelectRegion(region)
           setRevision((value) => value + 1)
         })
@@ -128,6 +136,10 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
         })
         regionsPlugin.on('region-clicked', (region, e) => {
           e.stopPropagation()
+          if (candidateIdsRef.current.has(region.id)) {
+            onCandidateRegionClickRef.current?.(region.start, region.end)
+            return
+          }
           handleSelectRegion(region)
           wavesurfer?.setTime(region.start)
         })
@@ -144,11 +156,41 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
   const clearAllRegions = useCallback(() => {
     if (!regionsPlugin) return
     regionsPlugin.clearRegions()
+    candidateIdsRef.current.clear()
     setRegionNames({})
     setSelectedRegion(undefined)
     setRevision((value) => value + 1)
     wavesurfer?.pause()
   }, [regionsPlugin, wavesurfer])
+
+  const addCandidateRegions = useCallback((candidates: Array<{ start: number; end: number }>) => {
+    if (!regionsPlugin) return
+    isBulkUpdating.current = true
+    for (const c of candidates) {
+      const region = regionsPlugin.addRegion({
+        start: c.start,
+        end: c.end,
+        color: 'var(--loop-candidate-bg)',
+        drag: false,
+        resize: false,
+      })
+      candidateIdsRef.current.add(region.id)
+    }
+    isBulkUpdating.current = false
+    setRevision((v) => v + 1)
+  }, [regionsPlugin])
+
+  const clearCandidateRegions = useCallback(() => {
+    if (!regionsPlugin) return
+    isBulkUpdating.current = true
+    for (const id of candidateIdsRef.current) {
+      const region = regionsPlugin.getRegions().find(r => r.id === id)
+      region?.remove()
+    }
+    candidateIdsRef.current.clear()
+    isBulkUpdating.current = false
+    setRevision((v) => v + 1)
+  }, [regionsPlugin])
 
   // Replace all regions with a grid derived from detected transient timestamps.
   // Boundaries: 0, ...transients, duration — each adjacent pair becomes one region.
@@ -186,6 +228,8 @@ export const useRegions = ({ wavesurfer, initialRegions }: UseRegionsProps) => {
     replaceRegions,
     autoChop,
     clearAllRegions,
+    addCandidateRegions,
+    clearCandidateRegions,
     revision,
   }
 }

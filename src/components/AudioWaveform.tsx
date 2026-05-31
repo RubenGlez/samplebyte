@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Crop, Grid2x2, Pause, Play, Redo2, Scissors, Undo2 } from 'lucide-react'
+import { Check, Crop, Grid2x2, Pause, Play, Redo2, Repeat, Scissors, Undo2 } from 'lucide-react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useTrimRange } from '@/hooks/useTrimRange'
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
 import TrimOverlay from './TrimOverlay'
-import { detectTransientsFromUrl } from '@/lib/audioAnalysis'
+import { detectTransientsFromUrl, findLoopCandidatesFromUrl } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
@@ -42,6 +42,8 @@ type GridDivisions = '4' | '8' | '16' | '32'
 type ChopMode = Sensitivity | GridDivisions
 
 const GRID_DIVISIONS = ['4', '8', '16', '32'] as const
+const LOOP_BAR_OPTIONS = ['1', '2', '4', '8', '16'] as const
+type LoopBarCount = typeof LOOP_BAR_OPTIONS[number]
 
 const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
   const { activeProject, autosaveActiveRegions, applyLocalTrim } = useProjectsStore()
@@ -64,16 +66,31 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     canApplyTrim,
     viewportTick,
   } = useTrimRange(wavesurfer)
-  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, replaceRegions, autoChop, clearAllRegions, revision } = useRegions({
+  const clearCandidateRegionsRef = useRef<(() => void) | undefined>(undefined)
+
+  const handleCandidateRegionClick = useCallback((start: number, end: number) => {
+    setTrimIn(start)
+    setTrimOut(end)
+    clearCandidateRegionsRef.current?.()
+    wavesurfer?.setTime(start)
+    toast('Loop selected — trim updated', 'info')
+  }, [setTrimIn, setTrimOut, wavesurfer, toast])
+
+  const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, replaceRegions, autoChop, clearAllRegions, addCandidateRegions, clearCandidateRegions, revision } = useRegions({
     wavesurfer,
     initialRegions,
+    onCandidateRegionClick: handleCandidateRegionClick,
   })
+
+  clearCandidateRegionsRef.current = clearCandidateRegions
   const [isSaving, setIsSaving] = useState(false)
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [sensitivity, setSensitivity] = useState<ChopMode>('medium')
   const [snapEnabled, setSnapEnabled] = useState(false)
+  const [loopBarCount, setLoopBarCount] = useState<LoopBarCount>('4')
   const [isAutoChopping, setIsAutoChopping] = useState(false)
+  const [isLoopSearching, setIsLoopSearching] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
   const [showTrimDialog, setShowTrimDialog] = useState(false)
   const historyRef = useRef<ProjectRegion[][]>([])
@@ -226,8 +243,27 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     toast,
   ])
 
+  const handleAutoLoop = useCallback(async () => {
+    if (!wavesurfer || bpm === null || beatPhase === null) return
+    setIsLoopSearching(true)
+    try {
+      clearCandidateRegions()
+      const candidates = await findLoopCandidatesFromUrl(audioUrl, bpm, beatPhase, parseInt(loopBarCount))
+      if (candidates.length === 0) {
+        toast('No loop candidates found — try a different bar count', 'info')
+        return
+      }
+      addCandidateRegions(candidates)
+    } catch {
+      toast('Loop search failed', 'error')
+    } finally {
+      setIsLoopSearching(false)
+    }
+  }, [audioUrl, bpm, beatPhase, loopBarCount, wavesurfer, addCandidateRegions, clearCandidateRegions, toast])
+
   const handleAutoChop = useCallback(async () => {
     if (!wavesurfer) return
+    clearCandidateRegions()
     setIsAutoChopping(true)
     try {
       const duration = wavesurfer.getDuration()
@@ -273,7 +309,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     } finally {
       setIsAutoChopping(false)
     }
-  }, [audioUrl, sensitivity, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, trimIn, trimOut, toast])
+  }, [audioUrl, sensitivity, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, clearCandidateRegions, trimIn, trimOut, toast])
 
   const trimPreview = useMemo(() => {
     if (!regions?.length) return { kept: 0, dropped: 0 }
@@ -424,6 +460,38 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         <span className="text-[11px] text-faint/70 flex-1 select-none">
           {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom, shift+scroll or swipe sideways to pan
         </span>
+
+        {/* Auto-loop controls */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
+            {LOOP_BAR_OPTIONS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setLoopBarCount(n)}
+                className={cn(
+                  'text-[11px] px-2 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
+                  loopBarCount === n
+                    ? 'bg-[rgba(255,255,255,0.12)] text-ink'
+                    : 'text-faint/70 hover:text-muted bg-transparent'
+                )}
+              >
+                {n}b
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAutoLoop}
+            disabled={isLoopSearching || bpm === null}
+            title={bpm === null ? 'Waiting for BPM analysis…' : undefined}
+          >
+            <Repeat size={12} />
+            {isLoopSearching ? 'Searching…' : 'Auto-loop'}
+          </Button>
+        </div>
+
+        <div className="w-px h-4 bg-border" />
 
         {/* Auto-chop controls */}
         <div className="flex items-center gap-2">

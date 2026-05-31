@@ -63,8 +63,9 @@ input, textarea, [contenteditable] {
 
 /* WaveSurfer region parts */
 :root {
-  --region-bg:            rgba(255, 100, 30, 0.10);
-  --region-border-active: rgba(255, 100, 30, 0.65);
+  --region-bg:             rgba(255, 100, 30, 0.10);
+  --region-border-active:  rgba(255, 100, 30, 0.65);
+  --loop-candidate-bg:     rgba(52, 211, 153, 0.18);
 }
 
 #waveform ::part(region):hover {
