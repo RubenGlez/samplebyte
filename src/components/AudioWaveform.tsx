@@ -52,6 +52,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const { audio, setAudio } = usePlayerStore()
   const { toast } = useToastStore()
   const { bpm, musicalKey, beatPhase, loopBars, isAnalyzing } = useAudioAnalysis(audioUrl)
+  const source = audio?.source ?? 'local'
 
   const canTrimFile = !!filePath
 
@@ -174,7 +175,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
         sourcePath: filePath,
         sourceName: audioName,
-        source: audio?.source ?? 'local',
+        source,
       }).then(() => {
         lastSavedAt.current = Date.now()
         if (!isFirst) {
@@ -188,7 +189,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     return () => {
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
     }
-  }, [audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regions?.length, revision])
+  }, [audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regions?.length, revision, source])
 
   const handleSendToPack = useCallback(async () => {
     if (!regions?.length || !filePath) return
@@ -346,7 +347,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         filePath: trimmedPath,
         size: 0,
         type: 'audio/wav',
-        source: audio?.source ?? 'local',
+        source,
         initialRegions: kept,
       })
 
@@ -374,6 +375,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     trimIn,
     trimOut,
     trimPreview.dropped,
+    source,
   ])
 
   useZoom({ waveformRef, wavesurfer })

@@ -333,7 +333,7 @@ function sampleToSourceItem(sample: Sample): PackSourceItem {
 }
 
 function DraggableSource({ source }: { source: PackSourceItem }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: source.id })
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: source.id })
 
   return (
     <div

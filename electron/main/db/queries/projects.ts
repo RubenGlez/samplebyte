@@ -1,6 +1,16 @@
 import { getDb } from '../index'
 import type { Project, ProjectChop, ProjectRegion } from '../../../types'
 
+function parseRegions(regionsJson: string | null | undefined): Array<{ id: string; [k: string]: unknown }> {
+  if (!regionsJson) return []
+  try {
+    return JSON.parse(regionsJson) as Array<{ id: string; [k: string]: unknown }>
+  } catch (error) {
+    void error
+    return []
+  }
+}
+
 function deserialize(row: Record<string, unknown>): Project {
   const id = row.id as string
   return {
@@ -147,8 +157,7 @@ export function deleteProjectChop(chopId: string): void {
     db.prepare('DELETE FROM project_chops WHERE id = ?').run(chopId)
     const proj = db.prepare('SELECT regions FROM projects WHERE id = ?').get(projectId) as { regions: string } | undefined
     if (proj) {
-      let regions: Array<{ id: string }> = []
-      try { regions = JSON.parse(proj.regions) } catch {}
+      const regions = parseRegions(proj.regions)
       db.prepare('UPDATE projects SET regions = ? WHERE id = ?').run(JSON.stringify(regions.filter((r) => r.id !== chopId)), projectId)
     }
   })()
@@ -163,8 +172,7 @@ export function renameProjectChop(chopId: string, name: string): void {
     db.prepare('UPDATE project_chops SET name = ?, updated_at = ? WHERE id = ?').run(name, Date.now(), chopId)
     const proj = db.prepare('SELECT regions FROM projects WHERE id = ?').get(row.project_id) as { regions: string } | undefined
     if (proj) {
-      let regions: Array<{ id: string; [k: string]: unknown }> = []
-      try { regions = JSON.parse(proj.regions) } catch {}
+      const regions = parseRegions(proj.regions)
       db.prepare('UPDATE projects SET regions = ? WHERE id = ?').run(
         JSON.stringify(regions.map((r) => r.id === chopId ? { ...r, name } : r)),
         row.project_id
