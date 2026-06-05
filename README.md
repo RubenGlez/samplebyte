@@ -44,7 +44,7 @@ This is not a commercial product. It's open source, free to use, and built in my
 | Akai MPC (generic) | WAV | 44.1 kHz | 24-bit |
 | Generic WAV | WAV | 44.1 kHz | 24-bit |
 
-Adding a new hardware target is just one config object, no code changes needed. See [Architecture](docs/engineering/architecture.md#export-pipeline).
+Adding a new hardware target is just one config object in `electron/main/hardware/profiles.ts`, no other changes needed.
 
 ---
 
@@ -68,7 +68,6 @@ No YouTube. Not because it isn't useful (the original version of this app was bu
 - Custom **Web Audio API** algorithms for BPM and key detection (offline, no dependencies)
 - **Tailwind CSS v4** + **shadcn/ui**
 
-For the full architecture breakdown, see [architecture.md](docs/engineering/architecture.md).
 
 ---
 
