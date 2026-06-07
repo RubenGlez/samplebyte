@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
-    "release": "tsc && vite build && electron-builder --publish always",
+    "build:publish": "tsc && vite build && electron-builder --publish always",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "preview": "vite preview",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
@@ -24,7 +24,9 @@
     "tsc": "tsc --noEmit",
     "prettier:fix": "prettier --write ./src",
     "prettier:check": "prettier --check ./src",
-    "tag": "node scripts/tag.mjs"
+    "release": "node scripts/tag.mjs",
+    "release:minor": "node scripts/tag.mjs minor",
+    "release:major": "node scripts/tag.mjs major"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
