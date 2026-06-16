@@ -28,7 +28,7 @@ This is not a commercial product. It's open source, free to use, and built in my
 
 ## What It Does
 
-- **Chop:** load any local audio file or search Freesound, draw regions on the waveform to mark your chops, name them — chops save automatically
+- **Chop:** load any local audio file or search Freesound, draw regions on the waveform to mark your chops, name them — chops save automatically; auto-chop uses spectral flux analysis with beat-snap and grid modes, and can identify loop candidates in longer files
 - **Browse:** browse everything you've ever sampled, search and filter by BPM, key, or tag, preview with a click — each row shows a waveform miniature
 - **Import:** point at a folder of audio files and import them in bulk — BPM and key are detected automatically, duplicates are skipped
 - **Pack:** drag samples onto a 4x4 pad grid, pick your hardware target, export a ready-to-load folder with correctly named and formatted files
