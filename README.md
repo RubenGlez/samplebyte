@@ -121,6 +121,8 @@ pnpm dev   # development (hot reload)
 pnpm build # production build
 ```
 
+Run `pnpm seed` after the first `pnpm dev` to populate the database with demo projects and chops (no API key or network needed).
+
 Requires Node.js v18+ and pnpm. The project pins its pnpm version in `package.json`.
 
 ---
