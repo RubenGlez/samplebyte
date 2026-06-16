@@ -94,6 +94,11 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 if (release().startsWith('6.1')) app.disableHardwareAcceleration()
+
+// In dev mode the Electron binary runs without a bundle, so app.getName() returns
+// "Electron" instead of "samplebyte", which puts userData in the wrong directory.
+app.setName('samplebyte')
+
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
 if (!app.requestSingleInstanceLock()) {
