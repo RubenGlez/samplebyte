@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Crop, Grid2x2, Pause, Play, Redo2, Repeat, Scissors, Undo2 } from 'lucide-react'
+import { Check, Grid2x2, Pause, Play, Redo2, Undo2 } from 'lucide-react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useTrimRange } from '@/hooks/useTrimRange'
@@ -16,6 +16,15 @@ import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
 import TrimOverlay from './TrimOverlay'
+import { ToolSelector, ToolContextBar } from './WaveformTools'
+import {
+  LOOP_BAR_OPTIONS,
+  type ChopMethod,
+  type HitSensitivity,
+  type LoopBarCount,
+  type SliceCount,
+  type WaveformTool,
+} from './waveformTools.constants'
 import { detectTransientsFromUrl, findLoopCandidatesFromUrl } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
@@ -31,19 +40,11 @@ interface AudioWaveformProps {
   initialRegions?: ProjectRegion[]
 }
 
-const MIN_AUTO_CHOP_REGION_SECONDS = {
+const MIN_AUTO_CHOP_REGION_SECONDS: Record<HitSensitivity, number> = {
   coarse: 1.6,
   medium: 0.8,
   fine: 0.4,
 } as const
-
-type Sensitivity = 'coarse' | 'medium' | 'fine'
-type GridDivisions = '4' | '8' | '16' | '32'
-type ChopMode = Sensitivity | GridDivisions
-
-const GRID_DIVISIONS = ['4', '8', '16', '32'] as const
-const LOOP_BAR_OPTIONS = ['1', '2', '4', '8', '16'] as const
-type LoopBarCount = typeof LOOP_BAR_OPTIONS[number]
 
 const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
   const { activeProject, autosaveActiveRegions, applyLocalTrim } = useProjectsStore()
@@ -74,6 +75,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     setTrimOut(end)
     clearCandidateRegionsRef.current?.()
     wavesurfer?.setTime(start)
+    setActiveTool('trim')
     toast('Loop selected — trim updated', 'info')
   }, [setTrimIn, setTrimOut, wavesurfer, toast])
 
@@ -87,9 +89,13 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [isSaving, setIsSaving] = useState(false)
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [sensitivity, setSensitivity] = useState<ChopMode>('medium')
+  const [activeTool, setActiveTool] = useState<WaveformTool | null>(null)
+  const [chopMethod, setChopMethod] = useState<ChopMethod>('hits')
+  const [hitSensitivity, setHitSensitivity] = useState<HitSensitivity>('medium')
+  const [sliceCount, setSliceCount] = useState<SliceCount>('8')
   const [snapEnabled, setSnapEnabled] = useState(false)
   const [loopBarCount, setLoopBarCount] = useState<LoopBarCount>('4')
+  const loopBarsTouched = useRef(false)
   const [isAutoChopping, setIsAutoChopping] = useState(false)
   const [isLoopSearching, setIsLoopSearching] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
@@ -244,6 +250,22 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     toast,
   ])
 
+  // Default the loop length to the detected bar count, until the user picks one.
+  useEffect(() => {
+    if (loopBarsTouched.current || loopBars === null) return
+    const match = LOOP_BAR_OPTIONS.find((n) => Number(n) === loopBars)
+    if (match) setLoopBarCount(match)
+  }, [loopBars])
+
+  const handleSelectTool = useCallback((tool: WaveformTool) => {
+    setActiveTool((current) => (current === tool ? null : tool))
+  }, [])
+
+  const handleSetLoopBarCount = useCallback((n: LoopBarCount) => {
+    loopBarsTouched.current = true
+    setLoopBarCount(n)
+  }, [])
+
   const handleAutoLoop = useCallback(async () => {
     if (!wavesurfer || bpm === null || beatPhase === null) return
     setIsLoopSearching(true)
@@ -268,8 +290,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     setIsAutoChopping(true)
     try {
       const duration = wavesurfer.getDuration()
-      if ((GRID_DIVISIONS as readonly string[]).includes(sensitivity)) {
-        const n = parseInt(sensitivity)
+      if (chopMethod === 'slices') {
+        const n = parseInt(sliceCount)
         const step = (trimOut - trimIn) / n
         let points = Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step)
         if (snapEnabled && bpm !== null && beatPhase !== null) {
@@ -283,9 +305,9 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         autoChop(points, duration, { start: trimIn, end: trimOut }, minGap)
         toast(`${n} chops created`)
       } else {
-        let transients = await detectTransientsFromUrl(audioUrl, sensitivity as Sensitivity)
+        let transients = await detectTransientsFromUrl(audioUrl, hitSensitivity)
         if (transients.length === 0) {
-          toast('No transients found — try Fine sensitivity', 'info')
+          toast('No hits found — try the Many setting', 'info')
           return
         }
         if (snapEnabled && bpm !== null && beatPhase !== null) {
@@ -299,7 +321,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           transients,
           duration,
           { start: trimIn, end: trimOut },
-          MIN_AUTO_CHOP_REGION_SECONDS[sensitivity as Sensitivity]
+          MIN_AUTO_CHOP_REGION_SECONDS[hitSensitivity]
         )
         const inner = transients.filter((t) => t > trimIn && t < trimOut)
         const count = inner.length + 1
@@ -310,7 +332,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     } finally {
       setIsAutoChopping(false)
     }
-  }, [audioUrl, sensitivity, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, clearCandidateRegions, trimIn, trimOut, toast])
+  }, [audioUrl, chopMethod, hitSensitivity, sliceCount, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, clearCandidateRegions, trimIn, trimOut, toast])
 
   const trimPreview = useMemo(() => {
     if (!regions?.length) return { kept: 0, dropped: 0 }
@@ -415,7 +437,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
       <div className="relative shrink-0">
         <div id="waveform" ref={waveformRef} />
-        {wavesurfer && duration > 0 && (
+        {wavesurfer && duration > 0 && activeTool === 'trim' && (
           <TrimOverlay
             wavesurfer={wavesurfer}
             duration={duration}
@@ -463,101 +485,42 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom, shift+scroll or swipe sideways to pan
         </span>
 
-        {/* Auto-loop controls */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-            {LOOP_BAR_OPTIONS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setLoopBarCount(n)}
-                className={cn(
-                  'text-[11px] px-2 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
-                  loopBarCount === n
-                    ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-                    : 'text-faint/70 hover:text-muted bg-transparent'
-                )}
-              >
-                {n}b
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAutoLoop}
-            disabled={isLoopSearching || bpm === null}
-            title={bpm === null ? 'Waiting for BPM analysis…' : undefined}
-          >
-            <Repeat size={12} />
-            {isLoopSearching ? 'Searching…' : 'Auto-loop'}
-          </Button>
-        </div>
-
-        <div className="w-px h-4 bg-border" />
-
-        {/* Auto-chop controls */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-            {(['coarse', 'medium', 'fine'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setSensitivity(p)}
-                className={cn(
-                  'text-[11px] px-2.5 h-[22px] rounded-[4px] transition-all cursor-pointer border-0 capitalize',
-                  sensitivity === p
-                    ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-                    : 'text-faint/70 hover:text-muted bg-transparent'
-                )}
-              >
-                {p}
-              </button>
-            ))}
-            <div className="w-px h-3 bg-[rgba(255,255,255,0.1)] mx-1" />
-            {GRID_DIVISIONS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setSensitivity(n)}
-                className={cn(
-                  'text-[11px] px-2 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
-                  sensitivity === n
-                    ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-                    : 'text-faint/70 hover:text-muted bg-transparent'
-                )}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => setSnapEnabled((v) => !v)}
-            disabled={bpm === null}
-            title={bpm !== null ? `Snap to 1/16 beat grid (${bpm} BPM)` : 'BPM not yet detected'}
-            className={cn(
-              'h-[28px] w-[28px] flex items-center justify-center rounded-[6px] border transition-all cursor-pointer',
-              snapEnabled && bpm !== null
-                ? 'bg-[rgba(255,255,255,0.12)] text-ink border-[rgba(255,255,255,0.2)]'
-                : 'text-faint/70 hover:text-muted bg-transparent border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]',
-              bpm === null && 'opacity-40 cursor-not-allowed'
-            )}
-          >
-            <Grid2x2 size={12} />
-          </button>
-          <Button variant="outline" size="sm" onClick={handleAutoChop} disabled={isAutoChopping}>
-            <Scissors size={12} />
-            {isAutoChopping ? 'Chopping…' : 'Auto-chop'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowTrimDialog(true)}
-            disabled={!canApplyTrim || !canTrimFile || isTrimming}
-            title={!canTrimFile ? 'Save file to disk before trimming' : undefined}
-          >
-            <Crop size={12} />
-            {isTrimming ? 'Trimming…' : 'Trim source'}
-          </Button>
-        </div>
+        <ToolSelector activeTool={activeTool} onSelectTool={handleSelectTool} />
       </div>
+
+      <ToolContextBar
+        activeTool={activeTool}
+        loop={{
+          barCount: loopBarCount,
+          setBarCount: handleSetLoopBarCount,
+          suggestedBars: loopBars,
+          onFindLoops: handleAutoLoop,
+          isSearching: isLoopSearching,
+          bpmReady: bpm !== null,
+        }}
+        chop={{
+          method: chopMethod,
+          setMethod: setChopMethod,
+          sensitivity: hitSensitivity,
+          setSensitivity: setHitSensitivity,
+          sliceCount,
+          setSliceCount,
+          snapEnabled,
+          setSnapEnabled,
+          onChop: handleAutoChop,
+          isChopping: isAutoChopping,
+          bpmReady: bpm !== null,
+        }}
+        trim={{
+          trimIn,
+          trimOut,
+          trimDuration,
+          onTrim: () => setShowTrimDialog(true),
+          canApplyTrim,
+          canTrimFile,
+          isTrimming,
+        }}
+      />
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <SampleList
