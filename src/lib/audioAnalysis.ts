@@ -364,13 +364,27 @@ function scoreLoopCandidate(
   return Math.max(0, 1 - cv)
 }
 
-// Returns up to maxCandidates bar-aligned windows scored by loop suitability, best first.
+// Minimum loop-suitability score (0–1) for a window to be offered as a candidate.
+// Below this the energy is too uneven to make a clean loop, so it is dropped rather
+// than padding the list with weak matches.
+const LOOP_MIN_SCORE = 0.5
+
+// Returns bar-aligned windows scored by loop suitability, best first. The count is driven
+// by quality, not a fixed cap: every window at or above minScore is returned, except that
+// overlapping windows are de-duplicated (see below). As long as at least one non-silent window
+// exists, the single best one is always returned even if it falls below minScore, so Auto-loop
+// never comes back empty-handed on audible material.
+//
+// Windows step one bar at a time but span barCount bars, so neighbours overlap heavily and are
+// near-duplicates of the same musical loop shifted by a bar. We keep the highest-scoring window
+// in each overlapping cluster and drop the rest, which yields distinct loops and bounds the count
+// to roughly trackLength / loopLength instead of one-per-bar.
 export function findLoopCandidates(
   buffer: AudioBuffer,
   bpm: number,
   beatPhase: number,
   barCount: number,
-  maxCandidates = 5
+  minScore = LOOP_MIN_SCORE
 ): Array<{ start: number; end: number; score: number }> {
   if (bpm <= 0) return []
 
@@ -386,16 +400,29 @@ export function findLoopCandidates(
   }
   for (let i = 0; i < mono.length; i++) mono[i] /= buffer.numberOfChannels
 
-  const candidates: Array<{ start: number; end: number; score: number }> = []
+  // All non-silent windows (score 0 means silent/empty), best first.
+  const scored: Array<{ start: number; end: number; score: number }> = []
 
   for (let start = beatPhase; start + windowDuration <= buffer.duration - 0.01; start += barLength) {
     const end = start + windowDuration
     const score = scoreLoopCandidate(mono, buffer.sampleRate, start, end)
-    if (score > 0) candidates.push({ start, end, score })
+    if (score > 0) scored.push({ start, end, score })
   }
 
-  candidates.sort((a, b) => b.score - a.score)
-  return candidates.slice(0, maxCandidates)
+  scored.sort((a, b) => b.score - a.score)
+
+  // Greedy non-overlap dedup: walking best-first, keep a window only if it does not overlap one
+  // already kept. Because the list is score-sorted, each overlapping cluster is represented by its
+  // highest-scoring window.
+  const kept: Array<{ start: number; end: number; score: number }> = []
+  for (const candidate of scored) {
+    if (candidate.score < minScore) continue
+    const overlaps = kept.some((k) => candidate.start < k.end && k.start < candidate.end)
+    if (!overlaps) kept.push(candidate)
+  }
+
+  // Fall back to the single best window so audible material always yields at least one loop.
+  return kept.length ? kept : scored.slice(0, 1)
 }
 
 export async function findLoopCandidatesFromUrl(

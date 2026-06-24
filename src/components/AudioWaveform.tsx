@@ -6,6 +6,7 @@ import { useTrimRange } from '@/hooks/useTrimRange'
 import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis'
+import { useLoopPlayback } from '@/hooks/useLoopPlayback'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
 import { usePacksStore } from '@/stores/packs'
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui/Dialog'
 import CardHeader from './Card/CardHeader'
 import SampleList from './SampleList'
+import LoopCandidateList, { type LoopCandidate } from './LoopCandidateList'
 import TrimOverlay from './TrimOverlay'
 import { ToolSelector, ToolContextBar } from './WaveformTools'
 import {
@@ -30,6 +32,7 @@ import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
 import type { ProjectRegion } from '@/types'
+import type { Region } from 'wavesurfer.js/dist/plugins/regions'
 
 interface AudioWaveformProps {
   audioUrl: string
@@ -68,24 +71,76 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     canApplyTrim,
     viewportTick,
   } = useTrimRange(wavesurfer)
-  const clearCandidateRegionsRef = useRef<(() => void) | undefined>(undefined)
+  const { playLooping, playOnce } = useLoopPlayback(wavesurfer)
 
-  const handleCandidateRegionClick = useCallback((start: number, end: number) => {
-    setTrimIn(start)
-    setTrimOut(end)
-    clearCandidateRegionsRef.current?.()
-    wavesurfer?.setTime(start)
-    setActiveTool('trim')
-    toast('Loop selected — trim updated', 'info')
-  }, [setTrimIn, setTrimOut, wavesurfer, toast])
+  // Loop candidates surfaced by Auto-loop. Selecting one previews it; "Use" commits it to the trim range.
+  const candidateRegionsRef = useRef<Map<string, Region>>(new Map())
+  const [loopCandidates, setLoopCandidates] = useState<LoopCandidate[]>([])
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+  // Breaks the cycle between the candidate double-click handler (passed into useRegions) and
+  // handleUseLoop (which depends on useRegions output).
+  const useLoopRef = useRef<(id: string) => void>(() => {})
+
+  const highlightCandidate = useCallback((id: string | null) => {
+    candidateRegionsRef.current.forEach((region, regionId) => {
+      region.setOptions({ color: regionId === id ? 'var(--loop-candidate-active-bg)' : 'var(--loop-candidate-bg)' })
+    })
+  }, [])
+
+  const selectCandidate = useCallback((id: string) => {
+    setSelectedCandidateId(id)
+    highlightCandidate(id)
+    const region = candidateRegionsRef.current.get(id)
+    if (region) wavesurfer?.setTime(region.start)
+  }, [highlightCandidate, wavesurfer])
+
+  const handleCandidateRegionClick = useCallback((region: Region) => {
+    selectCandidate(region.id)
+  }, [selectCandidate])
+
+  const handleCandidateRegionDoubleClick = useCallback((region: Region) => {
+    useLoopRef.current(region.id)
+  }, [])
 
   const { selectedRegion, regions, regionNames, handleSelectRegion, updateRegionName, replaceRegions, autoChop, clearAllRegions, addCandidateRegions, clearCandidateRegions, revision } = useRegions({
     wavesurfer,
     initialRegions,
     onCandidateRegionClick: handleCandidateRegionClick,
+    onCandidateRegionDoubleClick: handleCandidateRegionDoubleClick,
   })
 
-  clearCandidateRegionsRef.current = clearCandidateRegions
+  const clearLoopCandidates = useCallback(() => {
+    clearCandidateRegions()
+    candidateRegionsRef.current.clear()
+    setLoopCandidates([])
+    setSelectedCandidateId(null)
+  }, [clearCandidateRegions])
+
+  const handleUseLoop = useCallback((id: string) => {
+    const region = candidateRegionsRef.current.get(id)
+    if (!region) return
+    setTrimIn(region.start)
+    setTrimOut(region.end)
+    wavesurfer?.setTime(region.start)
+    clearLoopCandidates()
+    setActiveTool('trim')
+    toast('Loop selected — trim updated', 'info')
+  }, [setTrimIn, setTrimOut, wavesurfer, clearLoopCandidates, toast])
+  useLoopRef.current = handleUseLoop
+
+  const handlePreviewCandidate = useCallback((id: string) => {
+    const region = candidateRegionsRef.current.get(id)
+    if (!region) return
+    selectCandidate(id)
+    playLooping(region)
+  }, [selectCandidate, playLooping])
+
+  const handleClearAllRegions = useCallback(() => {
+    clearAllRegions()
+    candidateRegionsRef.current.clear()
+    setLoopCandidates([])
+    setSelectedCandidateId(null)
+  }, [clearAllRegions])
   const [isSaving, setIsSaving] = useState(false)
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -270,23 +325,31 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     if (!wavesurfer || bpm === null || beatPhase === null) return
     setIsLoopSearching(true)
     try {
-      clearCandidateRegions()
+      clearLoopCandidates()
       const candidates = await findLoopCandidatesFromUrl(audioUrl, bpm, beatPhase, parseInt(loopBarCount))
       if (candidates.length === 0) {
         toast('No loop candidates found — try a different bar count', 'info')
         return
       }
-      addCandidateRegions(candidates)
+      const created = addCandidateRegions(candidates)
+      const map = new Map<string, Region>()
+      const list: LoopCandidate[] = created.map((region, i) => {
+        map.set(region.id, region)
+        return { id: region.id, start: region.start, end: region.end, score: candidates[i].score }
+      })
+      candidateRegionsRef.current = map
+      setLoopCandidates(list)
+      if (list[0]) selectCandidate(list[0].id)
     } catch {
       toast('Loop search failed', 'error')
     } finally {
       setIsLoopSearching(false)
     }
-  }, [audioUrl, bpm, beatPhase, loopBarCount, wavesurfer, addCandidateRegions, clearCandidateRegions, toast])
+  }, [audioUrl, bpm, beatPhase, loopBarCount, wavesurfer, addCandidateRegions, clearLoopCandidates, selectCandidate, toast])
 
   const handleAutoChop = useCallback(async () => {
     if (!wavesurfer) return
-    clearCandidateRegions()
+    clearLoopCandidates()
     setIsAutoChopping(true)
     try {
       const duration = wavesurfer.getDuration()
@@ -332,7 +395,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     } finally {
       setIsAutoChopping(false)
     }
-  }, [audioUrl, chopMethod, hitSensitivity, sliceCount, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, clearCandidateRegions, trimIn, trimOut, toast])
+  }, [audioUrl, chopMethod, hitSensitivity, sliceCount, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, clearLoopCandidates, trimIn, trimOut, toast])
 
   const trimPreview = useMemo(() => {
     if (!regions?.length) return { kept: 0, dropped: 0 }
@@ -401,14 +464,20 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   ])
 
   useZoom({ waveformRef, wavesurfer })
-  const playRegion = useCallback((region: { play: (loop?: boolean) => void }) => {
-    region.play(true)
-  }, [])
+  const playRegion = useCallback((region: Region) => {
+    playOnce(region)
+  }, [playOnce])
+
+  const selectedCandidateRegion = selectedCandidateId ? candidateRegionsRef.current.get(selectedCandidateId) : undefined
+  const playTarget = selectedCandidateRegion ?? selectedRegion
 
   useShortcuts({
     wavesurfer,
     selectedRegion,
     regions,
+    playTarget,
+    onPlayNormal: playOnce,
+    onPlayLoop: playLooping,
     onSelectRegion: handleSelectRegion,
     onUndo: undoRegions,
     onRedo: redoRegions,
@@ -523,6 +592,14 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       />
 
       <div className="flex-1 overflow-y-auto min-h-0">
+        <LoopCandidateList
+          candidates={loopCandidates}
+          selectedId={selectedCandidateId}
+          onSelect={selectCandidate}
+          onPreview={handlePreviewCandidate}
+          onUse={handleUseLoop}
+          onClear={clearLoopCandidates}
+        />
         <SampleList
           samples={regions}
           selectedSample={selectedRegion}
@@ -530,12 +607,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           onClick={handleSelectRegion}
           onPlay={playRegion}
           onNameChange={updateRegionName}
-          onClearAll={clearAllRegions}
+          onClearAll={handleClearAllRegions}
         />
       </div>
 
       <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
-        {([['Space', 'Play / Pause'], ['Return', 'Play region'], ['⌫', 'Delete region'], ['↑/↓', 'Prev / Next region'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
+        {([['Space', 'Play once'], ['↵', 'Play loop'], ['⌫', 'Delete region'], ['↑/↓', 'Prev / Next region'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}
