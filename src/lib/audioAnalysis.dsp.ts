@@ -5,6 +5,7 @@
 
 export type AnalysisResult = { bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null }
 export type LoopCandidate = { start: number; end: number; score: number }
+export type RankedPeak = { time: number; strength: number }
 
 // Krumhansl-Schmuckler major/minor key profiles
 const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
@@ -226,17 +227,9 @@ function fft(re: Float32Array, im: Float32Array): void {
   }
 }
 
-// Onset strength via spectral flux: per-bin positive magnitude differences across
-// consecutive STFT frames. Catches hi-hats and ghost notes that RMS energy smears over.
-// Presets are producer-oriented (phrase/sample scale), not editor-microscopic:
-//   coarse → large sections and dominant hits
-//   medium → practical default chops
-//   fine   → smaller hits, while still rejecting tiny fragments
-export function detectTransients(
-  channels: Float32Array[],
-  sampleRate: number,
-  preset: 'coarse' | 'medium' | 'fine' = 'medium'
-): number[] {
+// Spectral-flux onset envelope: one positive-flux value per STFT frame. Per-bin positive magnitude
+// differences across consecutive frames catch hi-hats and ghost notes that RMS energy smears over.
+function onsetEnvelope(channels: Float32Array[]): { onset: number[]; hop: number } {
   const HOP = 256
   const FFT_SIZE = 1024
 
@@ -267,6 +260,20 @@ export function detectTransients(
     onset.push(flux)
   }
 
+  return { onset, hop: HOP }
+}
+
+// Onset detection with producer-oriented presets (phrase/sample scale), not editor-microscopic:
+//   coarse → large sections and dominant hits
+//   medium → practical default chops
+//   fine   → smaller hits, while still rejecting tiny fragments
+export function detectTransients(
+  channels: Float32Array[],
+  sampleRate: number,
+  preset: 'coarse' | 'medium' | 'fine' = 'medium'
+): number[] {
+  const { onset, hop } = onsetEnvelope(channels)
+
   // Adaptive threshold: mean + K * std of non-zero onset values
   const nonzero = onset.filter((v) => v > 0)
   if (nonzero.length === 0) return []
@@ -279,7 +286,7 @@ export function detectTransients(
   const peaks: number[] = []
   for (let i = 1; i < onset.length - 1; i++) {
     if (onset[i] > threshold && onset[i] >= onset[i - 1] && onset[i] >= onset[i + 1]) {
-      peaks.push((i * HOP) / sampleRate)
+      peaks.push((i * hop) / sampleRate)
     }
   }
 
@@ -295,6 +302,38 @@ export function detectTransients(
   }
 
   return transients
+}
+
+// Ranks every onset peak by spectral-flux strength (its "quality"), strongest first, while keeping
+// no two peaks closer than minGap. This powers the chop-count slider: the top-N peaks are the N most
+// prominent hits, so asking for N chops yields the N best cut points. Analyze once, slice top-N for free.
+export function rankTransients(
+  channels: Float32Array[],
+  sampleRate: number,
+  minGap = 0.12
+): RankedPeak[] {
+  const { onset, hop } = onsetEnvelope(channels)
+
+  const nonzero = onset.filter((v) => v > 0)
+  if (nonzero.length === 0) return []
+  // Low noise floor: keep local maxima above the mean so we rank hits, not the noise floor.
+  const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length
+
+  const peaks: RankedPeak[] = []
+  for (let i = 1; i < onset.length - 1; i++) {
+    if (onset[i] > mean && onset[i] >= onset[i - 1] && onset[i] >= onset[i + 1]) {
+      peaks.push({ time: (i * hop) / sampleRate, strength: onset[i] })
+    }
+  }
+
+  // Greedy strength-first selection with a minimum gap, so each kept peak is the strongest in its
+  // neighbourhood. Order-independent of N, so top-N is a stable ranking.
+  peaks.sort((a, b) => b.strength - a.strength)
+  const kept: RankedPeak[] = []
+  for (const peak of peaks) {
+    if (kept.every((k) => Math.abs(peak.time - k.time) >= minGap)) kept.push(peak)
+  }
+  return kept
 }
 
 // Scores a window [startSec, endSec] for loop suitability.

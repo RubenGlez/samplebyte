@@ -2,11 +2,12 @@
 // (AudioContext is unavailable here) and posts the raw channel arrays; this worker mixes to
 // mono and runs the requested analysis. Channel buffers are transferred (zero-copy), so the
 // caller must hand over copies it does not need to keep.
-import { analyzeChannels, detectTransients, findLoopCandidates } from '../lib/audioAnalysis.dsp'
+import { analyzeChannels, detectTransients, rankTransients, findLoopCandidates } from '../lib/audioAnalysis.dsp'
 
 type Request =
   | { id: string; kind: 'analyze'; channels: Float32Array[]; sampleRate: number }
   | { id: string; kind: 'transients'; channels: Float32Array[]; sampleRate: number; preset: 'coarse' | 'medium' | 'fine' }
+  | { id: string; kind: 'rank'; channels: Float32Array[]; sampleRate: number; minGap: number }
   | { id: string; kind: 'loops'; channels: Float32Array[]; sampleRate: number; bpm: number; beatPhase: number; barCount: number }
 
 self.onmessage = (e: MessageEvent<Request>) => {
@@ -19,6 +20,9 @@ self.onmessage = (e: MessageEvent<Request>) => {
         break
       case 'transients':
         result = detectTransients(msg.channels, msg.sampleRate, msg.preset)
+        break
+      case 'rank':
+        result = rankTransients(msg.channels, msg.sampleRate, msg.minGap)
         break
       case 'loops':
         result = findLoopCandidates(msg.channels, msg.sampleRate, msg.bpm, msg.beatPhase, msg.barCount)

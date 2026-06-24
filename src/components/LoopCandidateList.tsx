@@ -1,4 +1,4 @@
-import { Repeat } from 'lucide-react'
+import { Pause, Play } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
@@ -13,13 +13,13 @@ export interface LoopCandidate {
 interface LoopCandidateListProps {
   candidates: LoopCandidate[]
   selectedId: string | null
-  onSelect: (id: string) => void
-  onPreview: (id: string) => void
+  playingId: string | null
+  onToggle: (id: string) => void
   onUse: (id: string) => void
   onClear: () => void
 }
 
-const LoopCandidateList = ({ candidates, selectedId, onSelect, onPreview, onUse, onClear }: LoopCandidateListProps) => {
+const LoopCandidateList = ({ candidates, selectedId, playingId, onToggle, onUse, onClear }: LoopCandidateListProps) => {
   if (!candidates.length) return null
 
   return (
@@ -40,6 +40,7 @@ const LoopCandidateList = ({ candidates, selectedId, onSelect, onPreview, onUse,
       <ul className="list-none flex flex-col m-0 p-0">
         {candidates.map((candidate, index) => {
           const isSelected = candidate.id === selectedId
+          const isPlaying = candidate.id === playingId
           const matchPct = Math.round(candidate.score * 100)
           return (
             <li
@@ -48,7 +49,7 @@ const LoopCandidateList = ({ candidates, selectedId, onSelect, onPreview, onUse,
                 'flex items-center justify-between gap-3 px-2 h-[30px] rounded-md cursor-pointer select-none transition-colors',
                 isSelected ? 'bg-accent/15 text-ink' : 'text-muted hover:bg-raised hover:text-ink'
               )}
-              onClick={() => onSelect(candidate.id)}
+              onClick={() => onToggle(candidate.id)}
             >
               <span className="text-[10px] tabular-nums shrink-0 w-5 text-right text-faint font-mono">
                 {String(index + 1).padStart(2, '0')}
@@ -56,14 +57,17 @@ const LoopCandidateList = ({ candidates, selectedId, onSelect, onPreview, onUse,
 
               <button
                 type="button"
-                title="Preview loop (repeats)"
+                title={isPlaying ? 'Stop' : 'Play loop (repeats)'}
                 onClick={(e) => {
                   e.stopPropagation()
-                  onPreview(candidate.id)
+                  onToggle(candidate.id)
                 }}
-                className="w-5 h-5 flex items-center justify-center rounded-md bg-transparent border-0 text-faint hover:text-accent hover:bg-raised cursor-pointer transition-colors"
+                className={cn(
+                  'w-5 h-5 flex items-center justify-center rounded-md bg-transparent border-0 cursor-pointer transition-colors hover:bg-raised',
+                  isPlaying ? 'text-accent' : 'text-faint hover:text-accent'
+                )}
               >
-                <Repeat size={11} />
+                {isPlaying ? <Pause size={11} fill="currentColor" /> : <Play size={11} fill="currentColor" className="translate-x-px" />}
               </button>
 
               <span className="flex-1 text-sm font-medium truncate font-mono tabular-nums">

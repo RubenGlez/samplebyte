@@ -5,9 +5,8 @@ import { formatTime } from '@/utils'
 import {
   LOOP_BAR_OPTIONS,
   SLICE_OPTIONS,
-  SENSITIVITY_LABELS,
+  MIN_HIT_CHOPS,
   type ChopMethod,
-  type HitSensitivity,
   type LoopBarCount,
   type SliceCount,
   type WaveformTool,
@@ -25,14 +24,21 @@ interface LoopToolProps {
 interface ChopToolProps {
   method: ChopMethod
   setMethod: (m: ChopMethod) => void
-  sensitivity: HitSensitivity
-  setSensitivity: (s: HitSensitivity) => void
+  // "Detect hits" — quality-ranked chop-count slider (live preview)
+  chopCount: number
+  maxChops: number
+  setChopCount: (n: number) => void
+  onChopSlideStart: () => void
+  onChopSlideEnd: () => void
+  isDetecting: boolean
+  // "Equal slices"
   sliceCount: SliceCount
   setSliceCount: (n: SliceCount) => void
-  snapEnabled: boolean
-  setSnapEnabled: (v: boolean) => void
   onChop: () => void
   isChopping: boolean
+  // shared
+  snapEnabled: boolean
+  setSnapEnabled: (v: boolean) => void
   bpmReady: boolean
 }
 
@@ -82,13 +88,18 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <span className="text-[11px] text-faint/60 select-none">{children}</span>
 }
 
-const TOOLS: { id: WaveformTool; label: string; Icon: typeof Repeat }[] = [
-  { id: 'loop', label: 'Loop', Icon: Repeat },
-  { id: 'chop', label: 'Chop', Icon: Scissors },
-  { id: 'trim', label: 'Trim', Icon: Crop },
+const TOOLS: { id: WaveformTool; label: string; title: string; Icon: typeof Repeat }[] = [
+  { id: 'loop', label: 'Loop', title: 'Find clean loop points', Icon: Repeat },
+  { id: 'chop', label: 'Chop', title: 'Slice into chops', Icon: Scissors },
+  { id: 'trim', label: 'Trim', title: 'Keep only a selection', Icon: Crop },
 ]
 
-/** Tool selector — sits on the right side of the transport row. */
+/**
+ * Tool toolbar — discrete icon+label toggle buttons on the right of the transport row. Kept
+ * visually distinct from the main Chop/Library/Packs tab nav (separate bordered buttons rather
+ * than a connected segmented control) so the two don't read as competing navigation. Activating
+ * a tool reveals its options in the ToolContextBar below.
+ */
 export function ToolSelector({
   activeTool,
   onSelectTool,
@@ -97,19 +108,21 @@ export function ToolSelector({
   onSelectTool: (tool: WaveformTool) => void
 }) {
   return (
-    <div className="flex items-center p-[3px] rounded-[8px] bg-[rgba(255,255,255,0.05)]">
-      {TOOLS.map(({ id, label, Icon }) => (
+    <div className="flex items-center gap-1.5">
+      {TOOLS.map(({ id, label, title, Icon }) => (
         <button
           key={id}
           onClick={() => onSelectTool(id)}
+          title={title}
+          aria-pressed={activeTool === id}
           className={cn(
-            'flex items-center gap-1.5 h-[24px] px-3 rounded-[5px] text-[12px] font-medium transition-all cursor-pointer border-0 select-none',
+            'flex items-center gap-1.5 h-[28px] px-2.5 rounded-[6px] text-[12px] font-medium transition-colors cursor-pointer border select-none',
             activeTool === id
-              ? 'bg-[rgba(255,255,255,0.13)] text-ink'
-              : 'text-muted hover:text-ink bg-transparent'
+              ? 'bg-accent/15 text-accent border-accent/40'
+              : 'text-muted bg-transparent border-border hover:text-ink hover:border-border-bright'
           )}
         >
-          <Icon size={12} />
+          <Icon size={13} />
           {label}
         </button>
       ))}
@@ -121,7 +134,7 @@ export function ToolSelector({
 export function ToolContextBar({ activeTool, loop, chop, trim }: ToolContextBarProps) {
   if (!activeTool) return null
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-base/40 shrink-0 min-h-[40px]">
+    <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-surface shrink-0 min-h-[40px]">
       {activeTool === 'loop' && <LoopPanel {...loop} />}
       {activeTool === 'chop' && <ChopPanel {...chop} />}
       {activeTool === 'trim' && <TrimPanel {...trim} />}
@@ -160,8 +173,12 @@ function LoopPanel({ barCount, setBarCount, suggestedBars, onFindLoops, isSearch
 function ChopPanel({
   method,
   setMethod,
-  sensitivity,
-  setSensitivity,
+  chopCount,
+  maxChops,
+  setChopCount,
+  onChopSlideStart,
+  onChopSlideEnd,
+  isDetecting,
   sliceCount,
   setSliceCount,
   snapEnabled,
@@ -182,15 +199,29 @@ function ChopPanel({
       <div className="w-px h-4 bg-border" />
 
       {method === 'hits' ? (
-        <div className="flex items-center gap-2">
-          <FieldLabel>Finds drum hits / note onsets</FieldLabel>
-          <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-            {(['coarse', 'medium', 'fine'] as const).map((s) => (
-              <Pill key={s} active={sensitivity === s} onClick={() => setSensitivity(s)}>
-                {SENSITIVITY_LABELS[s]}
-              </Pill>
-            ))}
-          </div>
+        <div className="flex items-center gap-2.5">
+          {isDetecting ? (
+            <FieldLabel>Analyzing hits…</FieldLabel>
+          ) : maxChops <= MIN_HIT_CHOPS ? (
+            <FieldLabel>No hits detected in selection</FieldLabel>
+          ) : (
+            <>
+              <FieldLabel>Chops</FieldLabel>
+              <input
+                type="range"
+                min={MIN_HIT_CHOPS}
+                max={maxChops}
+                value={chopCount}
+                onPointerDown={onChopSlideStart}
+                onPointerUp={onChopSlideEnd}
+                onChange={(e) => setChopCount(Number(e.target.value))}
+                style={{ accentColor: 'var(--color-accent)' }}
+                className="w-44 cursor-pointer"
+              />
+              <span className="text-[12px] text-ink font-mono tabular-nums w-6 text-right">{chopCount}</span>
+              <span className="text-[11px] text-faint/50 select-none">strongest hits first</span>
+            </>
+          )}
         </div>
       ) : (
         <div className="flex items-center gap-2">
@@ -226,10 +257,12 @@ function ChopPanel({
           </span>
           Snap to beat{!bpmReady && ' (needs tempo)'}
         </button>
-        <Button variant="outline" size="sm" onClick={onChop} disabled={isChopping}>
-          <Scissors size={12} />
-          {isChopping ? 'Chopping…' : 'Chop'}
-        </Button>
+        {method === 'slices' && (
+          <Button variant="outline" size="sm" onClick={onChop} disabled={isChopping}>
+            <Scissors size={12} />
+            {isChopping ? 'Chopping…' : 'Chop'}
+          </Button>
+        )}
       </div>
     </>
   )

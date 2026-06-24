@@ -21,13 +21,14 @@ import TrimOverlay from './TrimOverlay'
 import { ToolSelector, ToolContextBar } from './WaveformTools'
 import {
   LOOP_BAR_OPTIONS,
+  MIN_HIT_CHOPS,
+  DEFAULT_HIT_CHOPS,
   type ChopMethod,
-  type HitSensitivity,
   type LoopBarCount,
   type SliceCount,
   type WaveformTool,
 } from './waveformTools.constants'
-import { detectTransientsFromUrl, findLoopCandidatesFromUrl } from '@/lib/audioAnalysis'
+import { rankTransientsFromUrl, findLoopCandidatesFromUrl } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
@@ -42,12 +43,6 @@ interface AudioWaveformProps {
   type: string
   initialRegions?: ProjectRegion[]
 }
-
-const MIN_AUTO_CHOP_REGION_SECONDS: Record<HitSensitivity, number> = {
-  coarse: 1.6,
-  medium: 0.8,
-  fine: 0.4,
-} as const
 
 const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegions }: AudioWaveformProps) => {
   const { activeProject, autosaveActiveRegions, applyLocalTrim } = useProjectsStore()
@@ -94,9 +89,23 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     if (region) wavesurfer?.setTime(region.start)
   }, [highlightCandidate, wavesurfer])
 
+  // Clicking a loop auditions it: select + start looping. Clicking the one already playing stops
+  // it; clicking a different one switches playback (playLooping replaces the active loop bounds, so
+  // the previous loop can't hijack playback).
+  const handleCandidateClick = useCallback((id: string) => {
+    const region = candidateRegionsRef.current.get(id)
+    if (!region) return
+    if (id === selectedCandidateId && wavesurfer?.isPlaying()) {
+      wavesurfer.pause()
+      return
+    }
+    selectCandidate(id)
+    playLooping(region)
+  }, [selectedCandidateId, wavesurfer, selectCandidate, playLooping])
+
   const handleCandidateRegionClick = useCallback((region: Region) => {
-    selectCandidate(region.id)
-  }, [selectCandidate])
+    handleCandidateClick(region.id)
+  }, [handleCandidateClick])
 
   const handleCandidateRegionDoubleClick = useCallback((region: Region) => {
     useLoopRef.current(region.id)
@@ -128,13 +137,6 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   }, [setTrimIn, setTrimOut, wavesurfer, clearLoopCandidates, toast])
   useLoopRef.current = handleUseLoop
 
-  const handlePreviewCandidate = useCallback((id: string) => {
-    const region = candidateRegionsRef.current.get(id)
-    if (!region) return
-    selectCandidate(id)
-    playLooping(region)
-  }, [selectCandidate, playLooping])
-
   const handleClearAllRegions = useCallback(() => {
     clearAllRegions()
     candidateRegionsRef.current.clear()
@@ -146,7 +148,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [activeTool, setActiveTool] = useState<WaveformTool | null>(null)
   const [chopMethod, setChopMethod] = useState<ChopMethod>('hits')
-  const [hitSensitivity, setHitSensitivity] = useState<HitSensitivity>('medium')
+  // Quality-ranked onset peaks for the "Detect hits" slider; detected once per source, top-N taken.
+  const [rankedPeaks, setRankedPeaks] = useState<Array<{ time: number; strength: number }> | null>(null)
+  const [isDetectingHits, setIsDetectingHits] = useState(false)
+  const [chopCount, setChopCount] = useState(DEFAULT_HIT_CHOPS)
+  const isSlidingRef = useRef(false)
+  const [historyCommitTick, setHistoryCommitTick] = useState(0)
   const [sliceCount, setSliceCount] = useState<SliceCount>('8')
   const [snapEnabled, setSnapEnabled] = useState(false)
   const [loopBarCount, setLoopBarCount] = useState<LoopBarCount>('4')
@@ -180,25 +187,35 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     })
   }, [])
 
-  useEffect(() => {
-    if (!regions) return
-    const snapshot = currentRegions()
+  const pushHistory = useCallback((snapshot: ProjectRegion[]) => {
     const serialized = JSON.stringify(snapshot)
     if (serialized === lastHistorySnapshot.current) return
-
     lastHistorySnapshot.current = serialized
-    if (isRestoringHistory.current) {
-      isRestoringHistory.current = false
-      syncHistoryState()
-      return
-    }
-
     const nextHistory = historyRef.current.slice(0, historyIndexRef.current + 1)
     nextHistory.push(snapshot)
     historyRef.current = nextHistory.slice(-80)
     historyIndexRef.current = historyRef.current.length - 1
     syncHistoryState()
-  }, [currentRegions, regions, revision, syncHistoryState])
+  }, [syncHistoryState])
+
+  useEffect(() => {
+    if (!regions) return
+    const snapshot = currentRegions()
+    const serialized = JSON.stringify(snapshot)
+    if (serialized === lastHistorySnapshot.current) return
+    // While dragging the chop-count slider, skip per-tick snapshots without advancing the baseline,
+    // so the whole drag collapses into one undo entry recorded on release (via historyCommitTick).
+    if (isSlidingRef.current) return
+
+    if (isRestoringHistory.current) {
+      isRestoringHistory.current = false
+      lastHistorySnapshot.current = serialized
+      syncHistoryState()
+      return
+    }
+
+    pushHistory(snapshot)
+  }, [currentRegions, regions, revision, historyCommitTick, syncHistoryState, pushHistory])
 
   const restoreHistory = useCallback((index: number) => {
     const snapshot = historyRef.current[index]
@@ -347,55 +364,92 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     }
   }, [audioUrl, bpm, beatPhase, loopBarCount, wavesurfer, addCandidateRegions, clearLoopCandidates, selectCandidate, toast])
 
-  const handleAutoChop = useCallback(async () => {
+  const snapToGrid = useCallback((points: number[]) => {
+    if (!snapEnabled || bpm === null || beatPhase === null) return points
+    const sixteenth = (60 / bpm) / 4
+    return points.map((t) => beatPhase + Math.round((t - beatPhase) / sixteenth) * sixteenth)
+  }, [snapEnabled, bpm, beatPhase])
+
+  // "Equal slices" — divide the trim selection into N even pieces (button-triggered).
+  const handleAutoChop = useCallback(() => {
     if (!wavesurfer) return
     clearLoopCandidates()
     setIsAutoChopping(true)
     try {
-      const duration = wavesurfer.getDuration()
-      if (chopMethod === 'slices') {
-        const n = parseInt(sliceCount)
-        const step = (trimOut - trimIn) / n
-        let points = Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step)
-        if (snapEnabled && bpm !== null && beatPhase !== null) {
-          const sixteenth = (60 / bpm) / 4
-          points = points.map((t) => {
-            const k = Math.round((t - beatPhase) / sixteenth)
-            return beatPhase + k * sixteenth
-          })
-        }
-        const minGap = snapEnabled && bpm !== null ? (60 / bpm) / 8 : 0
-        autoChop(points, duration, { start: trimIn, end: trimOut }, minGap)
-        toast(`${n} chops created`)
-      } else {
-        let transients = await detectTransientsFromUrl(audioUrl, hitSensitivity)
-        if (transients.length === 0) {
-          toast('No hits found — try the Many setting', 'info')
-          return
-        }
-        if (snapEnabled && bpm !== null && beatPhase !== null) {
-          const sixteenth = (60 / bpm) / 4
-          transients = transients.map((t) => {
-            const n = Math.round((t - beatPhase) / sixteenth)
-            return beatPhase + n * sixteenth
-          })
-        }
-        autoChop(
-          transients,
-          duration,
-          { start: trimIn, end: trimOut },
-          MIN_AUTO_CHOP_REGION_SECONDS[hitSensitivity]
-        )
-        const inner = transients.filter((t) => t > trimIn && t < trimOut)
-        const count = inner.length + 1
-        toast(`${count} chop${count !== 1 ? 's' : ''} created`)
-      }
+      const n = parseInt(sliceCount)
+      const step = (trimOut - trimIn) / n
+      const points = snapToGrid(Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step))
+      const minGap = snapEnabled && bpm !== null ? (60 / bpm) / 8 : 0
+      autoChop(points, wavesurfer.getDuration(), { start: trimIn, end: trimOut }, minGap)
+      toast(`${n} chops created`)
     } catch {
       toast('Auto-chop failed', 'error')
     } finally {
       setIsAutoChopping(false)
     }
-  }, [audioUrl, chopMethod, hitSensitivity, sliceCount, snapEnabled, bpm, beatPhase, wavesurfer, autoChop, clearLoopCandidates, trimIn, trimOut, toast])
+  }, [wavesurfer, sliceCount, snapToGrid, snapEnabled, bpm, autoChop, clearLoopCandidates, trimIn, trimOut, toast])
+
+  // "Detect hits" — quality-ranked peaks within the current trim range, strongest first.
+  const peaksInBounds = useMemo(
+    () => (rankedPeaks ?? []).filter((p) => p.time > trimIn && p.time < trimOut),
+    [rankedPeaks, trimIn, trimOut]
+  )
+  const maxChops = peaksInBounds.length + 1
+
+  // Detect peaks once when the hits tool is opened (per source; state resets on remount via key={path}).
+  useEffect(() => {
+    if (activeTool !== 'chop' || chopMethod !== 'hits') return
+    if (rankedPeaks !== null || isDetectingHits) return
+    let cancelled = false
+    setIsDetectingHits(true)
+    rankTransientsFromUrl(audioUrl)
+      .then((peaks) => { if (!cancelled) setRankedPeaks(peaks) })
+      .catch(() => { if (!cancelled) setRankedPeaks([]) })
+      .finally(() => { if (!cancelled) setIsDetectingHits(false) })
+    return () => { cancelled = true }
+  }, [activeTool, chopMethod, audioUrl, rankedPeaks, isDetectingHits])
+
+  // Build N chops from the top (N-1) peaks by strength, ordered in time.
+  const applyHitChop = useCallback((count: number) => {
+    if (!wavesurfer) return
+    clearLoopCandidates()
+    const cuts = peaksInBounds.slice(0, Math.max(0, count - 1)).map((p) => p.time)
+    const points = snapToGrid(cuts).sort((a, b) => a - b)
+    autoChop(points, wavesurfer.getDuration(), { start: trimIn, end: trimOut }, 0.05)
+  }, [wavesurfer, peaksInBounds, snapToGrid, autoChop, clearLoopCandidates, trimIn, trimOut])
+
+  const handleChopCountChange = useCallback((count: number) => {
+    setChopCount(count)
+    applyHitChop(count)
+  }, [applyHitChop])
+
+  const handleChopSlideStart = useCallback(() => { isSlidingRef.current = true }, [])
+  const handleChopSlideEnd = useCallback(() => {
+    isSlidingRef.current = false
+    setHistoryCommitTick((t) => t + 1) // force one undo entry for the whole drag
+  }, [])
+
+  // Keep the slider value within the available peak count as the trim range changes (only once
+  // peaks exist, so it doesn't snap to 1 while detection is still pending).
+  useEffect(() => {
+    if (rankedPeaks === null) return
+    if (chopCount > maxChops) setChopCount(maxChops)
+    else if (chopCount < MIN_HIT_CHOPS) setChopCount(MIN_HIT_CHOPS)
+  }, [rankedPeaks, maxChops, chopCount])
+
+  // Once peaks are ready for an unchopped source, apply the default count so the slider and waveform
+  // agree immediately. Runs once; never clobbers existing chops.
+  const didInitialHitChop = useRef(false)
+  useEffect(() => {
+    if (didInitialHitChop.current) return
+    if (activeTool !== 'chop' || chopMethod !== 'hits' || rankedPeaks === null) return
+    if (maxChops <= MIN_HIT_CHOPS) return
+    didInitialHitChop.current = true
+    if (regions && regions.length > 0) return
+    const count = Math.min(DEFAULT_HIT_CHOPS, maxChops)
+    setChopCount(count)
+    applyHitChop(count)
+  }, [activeTool, chopMethod, rankedPeaks, maxChops, regions, applyHitChop])
 
   const trimPreview = useMemo(() => {
     if (!regions?.length) return { kept: 0, dropped: 0 }
@@ -521,8 +575,10 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
       {/* Transport */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-surface shrink-0">
+        {/* Transport — play is the distinct primary control (round, filled) */}
         <button
           onClick={() => wavesurfer?.playPause()}
+          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
           className="w-7 h-7 rounded-full flex items-center justify-center bg-raised border border-border hover:border-accent/40 hover:text-accent text-muted transition-colors cursor-pointer"
         >
           {isPlaying
@@ -530,29 +586,41 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             : <Play  size={11} fill="currentColor" className="translate-x-px" />
           }
         </button>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
+
+        <div className="w-px h-5 bg-border" />
+
+        {/* History — shares the toolbar button language */}
+        <div className="flex items-center gap-1.5">
+          <button
             title="Undo region edit (⌘Z)"
             onClick={undoRegions}
             disabled={!historyState.canUndo}
+            className={cn(
+              'h-[28px] w-[28px] flex items-center justify-center rounded-[6px] border bg-transparent transition-colors',
+              historyState.canUndo
+                ? 'text-muted border-border hover:text-ink hover:border-border-bright cursor-pointer'
+                : 'text-faint/30 border-border/50 cursor-not-allowed'
+            )}
           >
-            <Undo2 size={12} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
+            <Undo2 size={13} />
+          </button>
+          <button
             title="Redo region edit (⇧⌘Z)"
             onClick={redoRegions}
             disabled={!historyState.canRedo}
+            className={cn(
+              'h-[28px] w-[28px] flex items-center justify-center rounded-[6px] border bg-transparent transition-colors',
+              historyState.canRedo
+                ? 'text-muted border-border hover:text-ink hover:border-border-bright cursor-pointer'
+                : 'text-faint/30 border-border/50 cursor-not-allowed'
+            )}
           >
-            <Redo2 size={12} />
-          </Button>
+            <Redo2 size={13} />
+          </button>
         </div>
-        <span className="text-[11px] text-faint/70 flex-1 select-none">
-          {isPlaying ? 'Playing' : 'Paused'} — scroll to zoom, shift+scroll or swipe sideways to pan
-        </span>
+        <div className="flex-1" />
+
+        <div className="w-px h-5 bg-border" />
 
         <ToolSelector activeTool={activeTool} onSelectTool={handleSelectTool} />
       </div>
@@ -570,8 +638,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         chop={{
           method: chopMethod,
           setMethod: setChopMethod,
-          sensitivity: hitSensitivity,
-          setSensitivity: setHitSensitivity,
+          chopCount,
+          maxChops,
+          setChopCount: handleChopCountChange,
+          onChopSlideStart: handleChopSlideStart,
+          onChopSlideEnd: handleChopSlideEnd,
+          isDetecting: isDetectingHits,
           sliceCount,
           setSliceCount,
           snapEnabled,
@@ -595,8 +667,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         <LoopCandidateList
           candidates={loopCandidates}
           selectedId={selectedCandidateId}
-          onSelect={selectCandidate}
-          onPreview={handlePreviewCandidate}
+          playingId={isPlaying ? selectedCandidateId : null}
+          onToggle={handleCandidateClick}
           onUse={handleUseLoop}
           onClear={clearLoopCandidates}
         />
@@ -620,6 +692,9 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             <span className="text-[11px] text-faint/60 select-none">{label}</span>
           </span>
         ))}
+        <span className="ml-auto text-[11px] text-faint/50 select-none">
+          Scroll to zoom · shift-scroll or swipe to pan
+        </span>
       </div>
 
       <Dialog open={showTrimDialog} onOpenChange={setShowTrimDialog}>

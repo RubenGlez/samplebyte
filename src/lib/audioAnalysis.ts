@@ -2,9 +2,9 @@
 // because it is unavailable to workers, but the CPU-bound DSP is delegated to audioAnalysis.worker
 // so it never blocks the UI. Decoded buffers and analysis results are cached per URL so each file
 // is decoded and analysed at most once.
-import type { AnalysisResult, LoopCandidate } from './audioAnalysis.dsp'
+import type { AnalysisResult, LoopCandidate, RankedPeak } from './audioAnalysis.dsp'
 
-export type { AnalysisResult, LoopCandidate }
+export type { AnalysisResult, LoopCandidate, RankedPeak }
 
 // Shared buffer cache so analysis, transient detection, and loop finding all decode each URL
 // exactly once. Bounded LRU: a decoded full track is tens of MB, so an unbounded cache would
@@ -130,6 +130,11 @@ export async function detectTransientsFromUrl(
 ): Promise<number[]> {
   const buffer = await getAudioBuffer(url)
   return runOnWorker<number[]>({ kind: 'transients', sampleRate: buffer.sampleRate, preset }, copyChannels(buffer))
+}
+
+export async function rankTransientsFromUrl(url: string, minGap = 0.12): Promise<RankedPeak[]> {
+  const buffer = await getAudioBuffer(url)
+  return runOnWorker<RankedPeak[]>({ kind: 'rank', sampleRate: buffer.sampleRate, minGap }, copyChannels(buffer))
 }
 
 export async function findLoopCandidatesFromUrl(
