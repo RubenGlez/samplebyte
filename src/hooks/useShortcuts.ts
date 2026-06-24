@@ -2,21 +2,16 @@ import { useCallback, useEffect } from "react";
 import WaveSurfer from "wavesurfer.js";
 import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
-interface Playable {
-  start: number;
-  end: number;
-  play: (stopAtEnd?: boolean) => void;
-}
-
 interface UseShortcutsProps {
   wavesurfer?: WaveSurfer;
   selectedRegion?: Region;
   regions?: Region[];
-  // The region or loop candidate that Space (play once) and Enter (play looped) act on.
-  playTarget?: Playable;
-  onPlayNormal?: (region: Playable) => void;
-  onPlayLoop?: (region: Playable) => void;
+  // The region Space plays. How it plays (loop vs once) is decided by the caller's loop toggle.
+  playTarget?: Region;
+  onPlaySelection?: (region: Region) => void;
   onSelectRegion?: (region: Region) => void;
+  // When loop mode is on, navigating to a region loops it rather than just moving the playhead.
+  loopMode?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
 }
@@ -26,9 +21,9 @@ export const useShortcuts = ({
   selectedRegion,
   regions,
   playTarget,
-  onPlayNormal,
-  onPlayLoop,
+  onPlaySelection,
   onSelectRegion,
+  loopMode,
   onUndo,
   onRedo,
 }: UseShortcutsProps) => {
@@ -38,10 +33,6 @@ export const useShortcuts = ({
   const handlePressBackspace = useCallback(() => {
     selectedRegion?.remove();
   }, [selectedRegion]);
-  const handlePressEnter = useCallback(() => {
-    if (!playTarget) return;
-    onPlayLoop?.(playTarget);
-  }, [playTarget, onPlayLoop]);
   const handlePressEscape = useCallback(() => {}, []);
   const handlePressSpace = useCallback(() => {
     if (wavesurfer?.isPlaying()) {
@@ -49,11 +40,11 @@ export const useShortcuts = ({
       return;
     }
     if (playTarget) {
-      onPlayNormal?.(playTarget);
+      onPlaySelection?.(playTarget);
       return;
     }
     wavesurfer?.playPause();
-  }, [wavesurfer, playTarget, onPlayNormal]);
+  }, [wavesurfer, playTarget, onPlaySelection]);
   const handleSelectAdjacentRegion = useCallback(
     (direction: -1 | 1) => {
       if (!regions?.length || !onSelectRegion) return;
@@ -74,10 +65,14 @@ export const useShortcuts = ({
 
       if (targetIndex === selectedIndex) return;
       const targetRegion = orderedRegions[targetIndex];
-      onSelectRegion(targetRegion);
-      wavesurfer?.setTime(targetRegion.start);
+      if (loopMode && onPlaySelection) {
+        onPlaySelection(targetRegion); // loops the newly focused region (it selects too)
+      } else {
+        onSelectRegion(targetRegion);
+        wavesurfer?.setTime(targetRegion.start);
+      }
     },
-    [onSelectRegion, regions, selectedRegion, wavesurfer]
+    [onSelectRegion, onPlaySelection, loopMode, regions, selectedRegion, wavesurfer]
   );
 
   useEffect(() => {
@@ -99,7 +94,6 @@ export const useShortcuts = ({
       }
       if (key === " ") { event.preventDefault(); handlePressSpace(); }
       if (key === "Escape") handlePressEscape();
-      if (key === "Enter") handlePressEnter();
       if (key === "Backspace") handlePressBackspace();
       if (key === "Tab") handlePressTab();
       if (key === "ArrowUp") {
@@ -120,7 +114,6 @@ export const useShortcuts = ({
   }, [
     handlePressEscape,
     handlePressSpace,
-    handlePressEnter,
     handlePressBackspace,
     handlePressTab,
     handleSelectAdjacentRegion,

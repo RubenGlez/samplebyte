@@ -10,6 +10,9 @@ interface UseRegionsProps {
   initialRegions?: ProjectRegion[]
   onCandidateRegionClick?: (region: Region) => void
   onCandidateRegionDoubleClick?: (region: Region) => void
+  // Clicking a (non-candidate) region on the waveform delegates here when provided, so the caller's
+  // loop toggle decides select-vs-play. Falls back to plain select + seek.
+  onRegionClick?: (region: Region) => void
 }
 
 const REGION_ACTIVE_ID = 'region-active'
@@ -30,7 +33,7 @@ const toggleRegionsColor = (regions: Region[] = [], selectedRegion: Region) => {
   })
 }
 
-export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick, onCandidateRegionDoubleClick }: UseRegionsProps) => {
+export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick, onCandidateRegionDoubleClick, onRegionClick }: UseRegionsProps) => {
   const isConfigured = useRef(false)
   const initialRegionsRef = useRef(initialRegions)
   const isBulkUpdating = useRef(false)
@@ -39,6 +42,8 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick,
   onCandidateRegionClickRef.current = onCandidateRegionClick
   const onCandidateRegionDoubleClickRef = useRef(onCandidateRegionDoubleClick)
   onCandidateRegionDoubleClickRef.current = onCandidateRegionDoubleClick
+  const onRegionClickRef = useRef(onRegionClick)
+  onRegionClickRef.current = onRegionClick
 
   const [selectedRegion, setSelectedRegion] = useState<Region>()
   const [regionNames, setRegionNames] = useState<Record<string, string>>({})
@@ -153,6 +158,10 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick,
           e.stopPropagation()
           if (candidateIdsRef.current.has(region.id)) {
             onCandidateRegionClickRef.current?.(region)
+            return
+          }
+          if (onRegionClickRef.current) {
+            onRegionClickRef.current(region)
             return
           }
           handleSelectRegion(region)

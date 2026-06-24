@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Grid2x2, Pause, Play, Redo2, Undo2 } from 'lucide-react'
+import { Check, Grid2x2, Pause, Play, Redo2, Repeat, Undo2 } from 'lucide-react'
 import { useRegions } from '@/hooks/useRegions'
 import { useShortcuts } from '@/hooks/useShortcuts'
 import { useTrimRange } from '@/hooks/useTrimRange'
@@ -66,7 +66,10 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     canApplyTrim,
     viewportTick,
   } = useTrimRange(wavesurfer)
-  const { playLooping, playOnce } = useLoopPlayback(wavesurfer)
+  const { playLooping, playOnce, stopLoop } = useLoopPlayback(wavesurfer)
+  // Loop mode: when on, playing/clicking a region repeats it; when off, plays once.
+  const [loopMode, setLoopMode] = useState(false)
+  const regionClickRef = useRef<(region: Region) => void>(() => {})
 
   // Loop candidates surfaced by Auto-loop. Selecting one previews it; "Use" commits it to the trim range.
   const candidateRegionsRef = useRef<Map<string, Region>>(new Map())
@@ -116,7 +119,39 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     initialRegions,
     onCandidateRegionClick: handleCandidateRegionClick,
     onCandidateRegionDoubleClick: handleCandidateRegionDoubleClick,
+    onRegionClick: useCallback((region: Region) => regionClickRef.current(region), []),
   })
+
+  // Play a region honouring the loop toggle (selects it first so it stays the play target).
+  const playRegionWithMode = useCallback((region: Region) => {
+    handleSelectRegion(region)
+    if (loopMode) playLooping(region)
+    else playOnce(region)
+  }, [handleSelectRegion, loopMode, playLooping, playOnce])
+
+  // Clicking a region: in loop mode it auditions on repeat (clicking the playing one stops it); in
+  // normal mode it just selects and moves the playhead.
+  const handleRegionClick = useCallback((region: Region) => {
+    if (loopMode) {
+      if (selectedRegion?.id === region.id && wavesurfer?.isPlaying()) {
+        wavesurfer.pause()
+        return
+      }
+      handleSelectRegion(region)
+      playLooping(region)
+    } else {
+      handleSelectRegion(region)
+      wavesurfer?.setTime(region.start)
+    }
+  }, [loopMode, selectedRegion, wavesurfer, handleSelectRegion, playLooping])
+  regionClickRef.current = handleRegionClick
+
+  const handleToggleLoop = useCallback(() => {
+    setLoopMode((prev) => {
+      if (prev) { stopLoop(); wavesurfer?.pause() } // turning off stops the current loop
+      return !prev
+    })
+  }, [stopLoop, wavesurfer])
 
   const clearLoopCandidates = useCallback(() => {
     clearCandidateRegions()
@@ -364,10 +399,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     }
   }, [audioUrl, bpm, beatPhase, loopBarCount, wavesurfer, addCandidateRegions, clearLoopCandidates, selectCandidate, toast])
 
-  const snapToGrid = useCallback((points: number[]) => {
+  // Snap times to the beat grid. subdivisionsPerBeat=4 → 1/16 note (tight, for slices);
+  // subdivisionsPerBeat=1 → whole beat (for phrase-length chop starts).
+  const snapToGrid = useCallback((points: number[], subdivisionsPerBeat: number) => {
     if (!snapEnabled || bpm === null || beatPhase === null) return points
-    const sixteenth = (60 / bpm) / 4
-    return points.map((t) => beatPhase + Math.round((t - beatPhase) / sixteenth) * sixteenth)
+    const step = (60 / bpm) / subdivisionsPerBeat
+    return points.map((t) => beatPhase + Math.round((t - beatPhase) / step) * step)
   }, [snapEnabled, bpm, beatPhase])
 
   // "Equal slices" — divide the trim selection into N even pieces (button-triggered).
@@ -378,7 +415,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     try {
       const n = parseInt(sliceCount)
       const step = (trimOut - trimIn) / n
-      const points = snapToGrid(Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step))
+      const points = snapToGrid(Array.from({ length: n - 1 }, (_, i) => trimIn + (i + 1) * step), 4)
       const minGap = snapEnabled && bpm !== null ? (60 / bpm) / 8 : 0
       autoChop(points, wavesurfer.getDuration(), { start: trimIn, end: trimOut }, minGap)
       toast(`${n} chops created`)
@@ -425,7 +462,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       .map((f, i) => {
         let start = Math.max(f.start, trimIn)
         if (snapEnabled) {
-          const [snapped] = snapToGrid([start])
+          const [snapped] = snapToGrid([start], 1)
           if (snapped >= trimIn) start = snapped
         }
         const nextStart = i + 1 < chosen.length ? chosen[i + 1].start : Infinity
@@ -447,6 +484,17 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     isSlidingRef.current = false
     setHistoryCommitTick((t) => t + 1) // force one undo entry for the whole drag
   }, [])
+
+  // Detect hits is live, so toggling Snap must re-apply the current chop immediately rather than
+  // waiting for the next slider move. Skips the first run (mount) and only fires on a real toggle.
+  const snapInitRef = useRef(true)
+  useEffect(() => {
+    if (snapInitRef.current) { snapInitRef.current = false; return }
+    if (activeTool !== 'chop' || chopMethod !== 'hits') return
+    if (rankedPeaks === null || maxChops < MIN_HIT_CHOPS) return
+    applyHitChop(chopCount)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-apply on a Snap toggle
+  }, [snapEnabled])
 
   // Keep the slider value within the available fragment count as the trim range changes (only once
   // peaks exist and there is at least one fragment, so it doesn't oscillate or snap while pending).
@@ -537,9 +585,6 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   ])
 
   useZoom({ waveformRef, wavesurfer })
-  const playRegion = useCallback((region: Region) => {
-    playOnce(region)
-  }, [playOnce])
 
   const selectedCandidateRegion = selectedCandidateId ? candidateRegionsRef.current.get(selectedCandidateId) : undefined
   const playTarget = selectedCandidateRegion ?? selectedRegion
@@ -549,9 +594,9 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     selectedRegion,
     regions,
     playTarget,
-    onPlayNormal: playOnce,
-    onPlayLoop: playLooping,
+    onPlaySelection: playRegionWithMode,
     onSelectRegion: handleSelectRegion,
+    loopMode,
     onUndo: undoRegions,
     onRedo: redoRegions,
   })
@@ -604,6 +649,21 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             ? <Pause size={11} fill="currentColor" />
             : <Play  size={11} fill="currentColor" className="translate-x-px" />
           }
+        </button>
+
+        {/* Loop mode — when on, playing/clicking a region repeats it */}
+        <button
+          onClick={handleToggleLoop}
+          aria-pressed={loopMode}
+          title={loopMode ? 'Loop mode on — playing a region repeats it' : 'Loop mode off — plays once'}
+          className={cn(
+            'w-7 h-7 rounded-full flex items-center justify-center border transition-colors cursor-pointer',
+            loopMode
+              ? 'bg-accent/15 text-accent border-accent/40'
+              : 'bg-raised text-muted border-border hover:border-accent/40 hover:text-accent'
+          )}
+        >
+          <Repeat size={11} />
         </button>
 
         <div className="w-px h-5 bg-border" />
@@ -695,15 +755,15 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           samples={regions}
           selectedSample={selectedRegion}
           regionNames={regionNames}
-          onClick={handleSelectRegion}
-          onPlay={playRegion}
+          onClick={handleRegionClick}
+          onPlay={playRegionWithMode}
           onNameChange={updateRegionName}
           onClearAll={handleClearAllRegions}
         />
       </div>
 
       <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
-        {([['Space', 'Play once'], ['↵', 'Play loop'], ['⌫', 'Delete region'], ['↑/↓', 'Prev / Next region'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
+        {([['Space', 'Play / Pause'], ['⌫', 'Delete region'], ['↑/↓', 'Prev / Next region'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}

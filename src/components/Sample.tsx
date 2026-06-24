@@ -44,7 +44,6 @@ export default function Sample({ sample, isSelected, index, initialName, onClick
         title="Play region"
         onClick={(e) => {
           e.stopPropagation()
-          onClick(sample)
           onPlay?.(sample)
         }}
         className="w-5 h-5 flex items-center justify-center rounded-md bg-transparent border-0 text-faint hover:text-accent hover:bg-raised cursor-pointer transition-colors"
