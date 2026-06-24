@@ -7,10 +7,7 @@ export const SLICE_OPTIONS = ['4', '8', '16', '32'] as const
 export type SliceCount = (typeof SLICE_OPTIONS)[number]
 
 export type ChopMethod = 'hits' | 'slices'
-export type HitSensitivity = 'coarse' | 'medium' | 'fine'
 
-export const SENSITIVITY_LABELS: Record<HitSensitivity, string> = {
-  coarse: 'Few',
-  medium: 'Medium',
-  fine: 'Many',
-}
+// Chop-count slider for the "Detect hits" method.
+export const MIN_HIT_CHOPS = 1
+export const DEFAULT_HIT_CHOPS = 8

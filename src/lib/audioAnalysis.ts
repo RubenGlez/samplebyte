@@ -254,10 +254,8 @@ function fft(re: Float32Array, im: Float32Array): void {
 //   coarse → large sections and dominant hits
 //   medium → practical default chops
 //   fine   → smaller hits, while still rejecting tiny fragments
-export function detectTransients(
-  buffer: AudioBuffer,
-  preset: 'coarse' | 'medium' | 'fine' = 'medium'
-): number[] {
+// Spectral-flux onset envelope: one positive-flux value per STFT frame.
+function onsetEnvelope(buffer: AudioBuffer): { onset: number[]; hop: number; sampleRate: number } {
   const HOP = 256
   const FFT_SIZE = 1024
   const { sampleRate } = buffer
@@ -295,6 +293,15 @@ export function detectTransients(
     onset.push(flux)
   }
 
+  return { onset, hop: HOP, sampleRate }
+}
+
+export function detectTransients(
+  buffer: AudioBuffer,
+  preset: 'coarse' | 'medium' | 'fine' = 'medium'
+): number[] {
+  const { onset, hop, sampleRate } = onsetEnvelope(buffer)
+
   // Adaptive threshold: mean + K * std of non-zero onset values
   const nonzero = onset.filter((v) => v > 0)
   if (nonzero.length === 0) return []
@@ -307,7 +314,7 @@ export function detectTransients(
   const peaks: number[] = []
   for (let i = 1; i < onset.length - 1; i++) {
     if (onset[i] > threshold && onset[i] >= onset[i - 1] && onset[i] >= onset[i + 1]) {
-      peaks.push((i * HOP) / sampleRate)
+      peaks.push((i * hop) / sampleRate)
     }
   }
 
@@ -331,6 +338,45 @@ export async function detectTransientsFromUrl(
 ): Promise<number[]> {
   const buffer = await getAudioBuffer(url)
   return detectTransients(buffer, preset)
+}
+
+// Ranks every onset peak by spectral-flux strength (its "quality"), strongest first, while keeping
+// no two peaks closer than minGap. This powers the chop-count slider: the top-N peaks are the N most
+// prominent hits, so asking for N chops yields the N best cut points. Analyze once, slice top-N for free.
+export function rankTransients(
+  buffer: AudioBuffer,
+  minGap = 0.12
+): Array<{ time: number; strength: number }> {
+  const { onset, hop, sampleRate } = onsetEnvelope(buffer)
+
+  const nonzero = onset.filter((v) => v > 0)
+  if (nonzero.length === 0) return []
+  // Low noise floor: keep local maxima above the mean so we rank hits, not the noise floor.
+  const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length
+
+  const peaks: Array<{ time: number; strength: number }> = []
+  for (let i = 1; i < onset.length - 1; i++) {
+    if (onset[i] > mean && onset[i] >= onset[i - 1] && onset[i] >= onset[i + 1]) {
+      peaks.push({ time: (i * hop) / sampleRate, strength: onset[i] })
+    }
+  }
+
+  // Greedy strength-first selection with a minimum gap, so each kept peak is the strongest in its
+  // neighbourhood. Order-independent of N, so top-N is a stable ranking.
+  peaks.sort((a, b) => b.strength - a.strength)
+  const kept: Array<{ time: number; strength: number }> = []
+  for (const peak of peaks) {
+    if (kept.every((k) => Math.abs(peak.time - k.time) >= minGap)) kept.push(peak)
+  }
+  return kept
+}
+
+export async function rankTransientsFromUrl(
+  url: string,
+  minGap = 0.12
+): Promise<Array<{ time: number; strength: number }>> {
+  const buffer = await getAudioBuffer(url)
+  return rankTransients(buffer, minGap)
 }
 
 // Scores a window [startSec, endSec] for loop suitability.
