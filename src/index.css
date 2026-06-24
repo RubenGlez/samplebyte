@@ -66,6 +66,7 @@ input, textarea, [contenteditable] {
   --region-bg:             rgba(255, 100, 30, 0.10);
   --region-border-active:  rgba(255, 100, 30, 0.65);
   --loop-candidate-bg:     rgba(52, 211, 153, 0.18);
+  --loop-candidate-active-bg: rgba(52, 211, 153, 0.42);
 }
 
 #waveform ::part(region):hover {

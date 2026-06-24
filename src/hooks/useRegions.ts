@@ -8,7 +8,8 @@ import { useUiStore } from '@/stores/ui'
 interface UseRegionsProps {
   wavesurfer?: WaveSurfer
   initialRegions?: ProjectRegion[]
-  onCandidateRegionClick?: (start: number, end: number) => void
+  onCandidateRegionClick?: (region: Region) => void
+  onCandidateRegionDoubleClick?: (region: Region) => void
 }
 
 const REGION_ACTIVE_ID = 'region-active'
@@ -29,13 +30,15 @@ const toggleRegionsColor = (regions: Region[] = [], selectedRegion: Region) => {
   })
 }
 
-export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick }: UseRegionsProps) => {
+export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick, onCandidateRegionDoubleClick }: UseRegionsProps) => {
   const isConfigured = useRef(false)
   const initialRegionsRef = useRef(initialRegions)
   const isBulkUpdating = useRef(false)
   const candidateIdsRef = useRef<Set<string>>(new Set())
   const onCandidateRegionClickRef = useRef(onCandidateRegionClick)
   onCandidateRegionClickRef.current = onCandidateRegionClick
+  const onCandidateRegionDoubleClickRef = useRef(onCandidateRegionDoubleClick)
+  onCandidateRegionDoubleClickRef.current = onCandidateRegionDoubleClick
 
   const [selectedRegion, setSelectedRegion] = useState<Region>()
   const [regionNames, setRegionNames] = useState<Record<string, string>>({})
@@ -137,11 +140,17 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick 
         regionsPlugin.on('region-clicked', (region, e) => {
           e.stopPropagation()
           if (candidateIdsRef.current.has(region.id)) {
-            onCandidateRegionClickRef.current?.(region.start, region.end)
+            onCandidateRegionClickRef.current?.(region)
             return
           }
           handleSelectRegion(region)
           wavesurfer?.setTime(region.start)
+        })
+        regionsPlugin.on('region-double-clicked', (region, e) => {
+          e.stopPropagation()
+          if (candidateIdsRef.current.has(region.id)) {
+            onCandidateRegionDoubleClickRef.current?.(region)
+          }
         })
       })
 
@@ -163,9 +172,10 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick 
     wavesurfer?.pause()
   }, [regionsPlugin, wavesurfer])
 
-  const addCandidateRegions = useCallback((candidates: Array<{ start: number; end: number }>) => {
-    if (!regionsPlugin) return
+  const addCandidateRegions = useCallback((candidates: Array<{ start: number; end: number }>): Region[] => {
+    if (!regionsPlugin) return []
     isBulkUpdating.current = true
+    const created: Region[] = []
     for (const c of candidates) {
       const region = regionsPlugin.addRegion({
         start: c.start,
@@ -175,9 +185,11 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick 
         resize: false,
       })
       candidateIdsRef.current.add(region.id)
+      created.push(region)
     }
     isBulkUpdating.current = false
     setRevision((v) => v + 1)
+    return created
   }, [regionsPlugin])
 
   const clearCandidateRegions = useCallback(() => {

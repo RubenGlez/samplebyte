@@ -2,10 +2,20 @@ import { useCallback, useEffect } from "react";
 import WaveSurfer from "wavesurfer.js";
 import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
+interface Playable {
+  start: number;
+  end: number;
+  play: (stopAtEnd?: boolean) => void;
+}
+
 interface UseShortcutsProps {
   wavesurfer?: WaveSurfer;
   selectedRegion?: Region;
   regions?: Region[];
+  // The region or loop candidate that Space (play once) and Enter (play looped) act on.
+  playTarget?: Playable;
+  onPlayNormal?: (region: Playable) => void;
+  onPlayLoop?: (region: Playable) => void;
   onSelectRegion?: (region: Region) => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -15,6 +25,9 @@ export const useShortcuts = ({
   wavesurfer,
   selectedRegion,
   regions,
+  playTarget,
+  onPlayNormal,
+  onPlayLoop,
   onSelectRegion,
   onUndo,
   onRedo,
@@ -26,12 +39,21 @@ export const useShortcuts = ({
     selectedRegion?.remove();
   }, [selectedRegion]);
   const handlePressEnter = useCallback(() => {
-    selectedRegion?.play(true);
-  }, [selectedRegion]);
+    if (!playTarget) return;
+    onPlayLoop?.(playTarget);
+  }, [playTarget, onPlayLoop]);
   const handlePressEscape = useCallback(() => {}, []);
   const handlePressSpace = useCallback(() => {
+    if (wavesurfer?.isPlaying()) {
+      wavesurfer.pause();
+      return;
+    }
+    if (playTarget) {
+      onPlayNormal?.(playTarget);
+      return;
+    }
     wavesurfer?.playPause();
-  }, [wavesurfer]);
+  }, [wavesurfer, playTarget, onPlayNormal]);
   const handleSelectAdjacentRegion = useCallback(
     (direction: -1 | 1) => {
       if (!regions?.length || !onSelectRegion) return;
