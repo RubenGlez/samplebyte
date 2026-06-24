@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Square } from 'lucide-react'
+import { Play, Square, Check, Trash2, RefreshCw } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { usePlayerStore } from '@/stores/player'
 import { useUiStore } from '@/stores/ui'
+import { useToastStore } from '@/stores/toast'
+import { forEachConcurrent } from '@/stores/utils'
+import { analyzeAudioUrl } from '@/lib/audioAnalysis'
 import { type LibraryBrowserItem, useFilteredSamples } from '@/hooks/useFilteredSamples'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { useChopWaveform } from '@/hooks/useChopWaveform'
@@ -14,20 +17,28 @@ import { Dialog, DialogContent, DialogTitle, DialogClose } from '@/components/ui
 import { Button } from '@/components/ui/Button'
 import type { Project } from '@/types'
 
-const GRID = 'grid-cols-[1fr_120px_64px_52px_72px_140px]'
+const GRID = 'grid-cols-[28px_1fr_120px_64px_52px_72px_140px]'
+
+// Cap on concurrent decode+analyse during bulk re-analyze. Matches the import path's bound so
+// memory and the analysis worker pool stay in check.
+const ANALYSIS_CONCURRENCY = 4
 
 type MenuState = { item: LibraryBrowserItem; x: number; y: number }
 type DeleteState = { item: LibraryBrowserItem; packRefs: number }
+type BulkDeleteState = { items: LibraryBrowserItem[]; packRefs: number }
 
 export default function LibraryView() {
-  const { isLoading, fetchSamples, deleteSample, deleteProjectChop } = useLibraryStore()
+  const { isLoading, fetchSamples, deleteSample, deleteProjectChop, updateSample } = useLibraryStore()
   const { projects, fetchProjects, setActiveProject } = useProjectsStore()
   const { setAudio } = usePlayerStore()
   const { setView, setPendingFocusStart } = useUiStore()
+  const { toast } = useToastStore()
 
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<DeleteState | null>(null)
   const [pendingRename, setPendingRename] = useState<LibraryBrowserItem | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDelete, setBulkDelete] = useState<BulkDeleteState | null>(null)
 
   useEffect(() => {
     fetchSamples()
@@ -36,6 +47,75 @@ export default function LibraryView() {
 
   const projectsById = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects])
   const filtered = useFilteredSamples()
+
+  // Prune selection to what's still visible: items can leave the filtered list when the search or
+  // filters change, or after a delete. Return the same Set reference when nothing changed so this
+  // effect can't loop.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev
+      const ids = new Set(filtered.map((it) => it.id))
+      const next = new Set([...prev].filter((id) => ids.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [filtered])
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((it) => selected.has(it.id))
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(filtered.map((it) => it.id)))
+
+  const openBulkDelete = async () => {
+    const items = filtered.filter((it) => selected.has(it.id))
+    if (items.length === 0) return
+    const counts = await Promise.all(
+      items.map((it) => {
+        const id = it.kind === 'sample' ? it.sample.id : it.chop.id
+        const type = it.kind === 'sample' ? 'sample' : 'project-chop'
+        return window.api.library.getPackSlotRefCount(id, type)
+      })
+    )
+    setBulkDelete({ items, packRefs: counts.reduce((a, b) => a + b, 0) })
+  }
+
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDelete) return
+    for (const it of bulkDelete.items) {
+      if (it.kind === 'sample') await deleteSample(it.sample.id)
+      else await deleteProjectChop(it.chop.id)
+    }
+    const n = bulkDelete.items.length
+    toast(`Deleted ${n} sound${n !== 1 ? 's' : ''}`, 'success')
+    setSelected(new Set())
+    setBulkDelete(null)
+  }
+
+  const handleBulkReanalyze = async () => {
+    const targets = filtered.filter(
+      (it) => it.kind === 'sample' && selected.has(it.id) && (it.bpm == null || it.musicalKey == null)
+    )
+    if (targets.length === 0) {
+      toast('Nothing to analyze — selected samples already have BPM and key', 'info')
+      return
+    }
+    const n = targets.length
+    toast(`Analyzing ${n} sample${n !== 1 ? 's' : ''}…`, 'info')
+    await forEachConcurrent(targets, ANALYSIS_CONCURRENCY, async (it) => {
+      if (it.kind !== 'sample') return
+      try {
+        const result = await analyzeAudioUrl(toLocalFileUrl(it.filePath))
+        await updateSample(it.sample.id, result)
+      } catch { /* non-fatal */ }
+    })
+    toast(`Re-analyzed ${n} sample${n !== 1 ? 's' : ''}`, 'success')
+  }
 
   const handleEdit = (item: LibraryBrowserItem) => {
     if (item.kind === 'project-chop') {
@@ -98,6 +178,7 @@ export default function LibraryView() {
       ) : (
         <>
           <div className={cn('grid shrink-0 px-4 h-8 items-center border-b border-border bg-surface', GRID)}>
+            <SelectBox checked={allSelected} onToggle={toggleAll} alwaysVisible />
             <ColHeader label="Name" />
             <ColHeader label="" />
             <ColHeader label="Duration" right />
@@ -113,6 +194,9 @@ export default function LibraryView() {
                 item={item}
                 project={item.projectId ? projectsById[item.projectId] : undefined}
                 striped={i % 2 === 1}
+                selected={selected.has(item.id)}
+                anySelected={selected.size > 0}
+                onToggleSelect={() => toggleOne(item.id)}
                 isRenaming={pendingRename?.id === item.id}
                 onRenameCommit={() => setPendingRename(null)}
                 onContextMenu={(e) => {
@@ -123,6 +207,20 @@ export default function LibraryView() {
               />
             ))}
           </div>
+
+          {selected.size > 0 && (
+            <div className="shrink-0 flex items-center gap-2 px-4 h-11 border-t border-border bg-surface">
+              <span className="text-[12px] text-muted tabular-nums">{selected.size} selected</span>
+              <div className="flex-1" />
+              <Button variant="ghost" size="sm" onClick={handleBulkReanalyze}>
+                <RefreshCw size={12} /> Re-analyze
+              </Button>
+              <Button variant="danger" size="sm" onClick={openBulkDelete}>
+                <Trash2 size={12} /> Delete
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+            </div>
+          )}
         </>
       )}
 
@@ -159,7 +257,54 @@ export default function LibraryView() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!bulkDelete} onOpenChange={(open) => !open && setBulkDelete(null)}>
+        <DialogContent>
+          <DialogTitle>Delete {bulkDelete?.items.length} sound{bulkDelete && bulkDelete.items.length !== 1 ? 's' : ''}?</DialogTitle>
+          {bulkDelete && bulkDelete.packRefs > 0 ? (
+            <p className="text-[13px] text-muted">
+              {bulkDelete.packRefs} pack slot{bulkDelete.packRefs !== 1 ? 's' : ''} reference these sounds. Deleting will remove those slots permanently.
+            </p>
+          ) : (
+            <p className="text-[13px] text-muted">
+              These sounds will be permanently removed. Samples are deleted from your library; chops are removed from their projects.
+            </p>
+          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm">Cancel</Button>
+            </DialogClose>
+            <Button size="sm" variant="danger" onClick={handleBulkDeleteConfirm}>
+              Delete{bulkDelete && bulkDelete.packRefs > 0 ? ' anyway' : ''}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+function SelectBox({
+  checked, onToggle, alwaysVisible, anySelected,
+}: {
+  checked: boolean
+  onToggle: () => void
+  alwaysVisible?: boolean
+  anySelected?: boolean
+}) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle() }}
+      className={cn(
+        'w-4 h-4 rounded-[3px] border flex items-center justify-center transition-colors shrink-0',
+        checked ? 'bg-accent border-accent text-white' : 'border-border bg-transparent hover:border-faint',
+        !checked && !alwaysVisible && !anySelected && 'opacity-0 group-hover:opacity-100'
+      )}
+      aria-checked={checked}
+      role="checkbox"
+    >
+      {checked && <Check size={11} strokeWidth={3} />}
+    </button>
   )
 }
 
@@ -188,11 +333,15 @@ function ColHeader({ label, right }: { label: string; right?: boolean }) {
 }
 
 function LibraryRow({
-  item, project, striped, isRenaming, onRenameCommit, onContextMenu, onDoubleClickName,
+  item, project, striped, selected, anySelected, onToggleSelect,
+  isRenaming, onRenameCommit, onContextMenu, onDoubleClickName,
 }: {
   item: LibraryBrowserItem
   project: Project | undefined
   striped: boolean
+  selected: boolean
+  anySelected: boolean
+  onToggleSelect: () => void
   isRenaming: boolean
   onRenameCommit: () => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -248,16 +397,21 @@ function LibraryRow({
       ref={rowRef}
       className={cn(
         'group grid items-center px-4 h-[34px] cursor-pointer transition-colors',
-        isPlaying
-          ? 'bg-accent/10'
-          : striped
-            ? 'bg-[rgba(255,255,255,0.015)] hover:bg-[rgba(255,255,255,0.04)]'
-            : 'hover:bg-[rgba(255,255,255,0.04)]',
+        selected
+          ? 'bg-accent/[0.07]'
+          : isPlaying
+            ? 'bg-accent/10'
+            : striped
+              ? 'bg-[rgba(255,255,255,0.015)] hover:bg-[rgba(255,255,255,0.04)]'
+              : 'hover:bg-[rgba(255,255,255,0.04)]',
         GRID
       )}
       onClick={() => { if (!isRenaming) toggle() }}
       onContextMenu={onContextMenu}
     >
+      {/* Selection checkbox */}
+      <SelectBox checked={selected} onToggle={onToggleSelect} anySelected={anySelected} />
+
       {/* Name + play indicator */}
       <div className="flex items-center gap-2 min-w-0 pr-2">
         <div className={cn(
