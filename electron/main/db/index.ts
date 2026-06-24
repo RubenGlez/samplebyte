@@ -85,6 +85,16 @@ function runMigrations(): void {
 
   migrateProjectRegionsToChops()
   migratePackSlotsToSnapshots()
+
+  // Created after migratePackSlotsToSnapshots, which drops and recreates pack_slots.
+  // These back the foreign-key lookups (getProjectChops, pack-slot ref counts, cascade
+  // deletes) that otherwise full-scan their tables.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_project_chops_project_id ON project_chops(project_id);
+    CREATE INDEX IF NOT EXISTS idx_pack_slots_project_chop_id ON pack_slots(project_chop_id);
+    CREATE INDEX IF NOT EXISTS idx_pack_slots_sample_id ON pack_slots(sample_id);
+    CREATE INDEX IF NOT EXISTS idx_samples_project_id ON samples(project_id);
+  `)
 }
 
 function migrateProjectRegionsToChops(): void {

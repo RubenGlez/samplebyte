@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useLibraryStore } from '@/stores/library'
 import type { ProjectChop, Sample } from '@/types'
 
@@ -8,45 +9,47 @@ export type LibraryBrowserItem =
 export function useFilteredSamples() {
   const { samples, projectChops, searchQuery, projectFilter, filters } = useLibraryStore()
 
-  const items: LibraryBrowserItem[] = [
-    ...projectChops
-      .filter((chop) => chop.sourcePath)
-      .map((chop) => ({
-        kind: 'project-chop' as const,
-        id: `project-chop:${chop.id}`,
-        name: chop.name,
-        filePath: chop.sourcePath!,
-        duration: chop.end - chop.start,
-        bpm: null,
-        musicalKey: null,
-        projectId: chop.projectId,
-        projectName: chop.projectName,
-        source: chop.source,
-        start: chop.start,
-        end: chop.end,
-        chop,
+  return useMemo(() => {
+    const items: LibraryBrowserItem[] = [
+      ...projectChops
+        .filter((chop) => chop.sourcePath)
+        .map((chop) => ({
+          kind: 'project-chop' as const,
+          id: `project-chop:${chop.id}`,
+          name: chop.name,
+          filePath: chop.sourcePath!,
+          duration: chop.end - chop.start,
+          bpm: null,
+          musicalKey: null,
+          projectId: chop.projectId,
+          projectName: chop.projectName,
+          source: chop.source,
+          start: chop.start,
+          end: chop.end,
+          chop,
+        })),
+      ...samples.map((sample) => ({
+        kind: 'sample' as const,
+        id: `sample:${sample.id}`,
+        name: sample.name,
+        filePath: sample.filePath,
+        duration: sample.duration,
+        bpm: sample.bpm,
+        musicalKey: sample.musicalKey,
+        projectId: sample.projectId,
+        source: sample.source,
+        sample,
       })),
-    ...samples.map((sample) => ({
-      kind: 'sample' as const,
-      id: `sample:${sample.id}`,
-      name: sample.name,
-      filePath: sample.filePath,
-      duration: sample.duration,
-      bpm: sample.bpm,
-      musicalKey: sample.musicalKey,
-      projectId: sample.projectId,
-      source: sample.source,
-      sample,
-    })),
-  ]
+    ]
 
-  return items.filter((item) => {
-    if (!item.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
-    if (projectFilter === '__none__' && item.projectId !== null) return false
-    if (projectFilter !== null && projectFilter !== '__none__' && item.projectId !== projectFilter) return false
-    if (filters.source && item.source !== filters.source) return false
-    if (filters.bpm !== undefined && (item.bpm === null || Math.abs(item.bpm - filters.bpm) > 5)) return false
-    if (filters.key && item.musicalKey?.toLowerCase() !== filters.key.toLowerCase()) return false
-    return true
-  })
+    return items.filter((item) => {
+      if (!item.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+      if (projectFilter === '__none__' && item.projectId !== null) return false
+      if (projectFilter !== null && projectFilter !== '__none__' && item.projectId !== projectFilter) return false
+      if (filters.source && item.source !== filters.source) return false
+      if (filters.bpm !== undefined && (item.bpm === null || Math.abs(item.bpm - filters.bpm) > 5)) return false
+      if (filters.key && item.musicalKey?.toLowerCase() !== filters.key.toLowerCase()) return false
+      return true
+    })
+  }, [samples, projectChops, searchQuery, projectFilter, filters])
 }

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDroppable, useDraggable } from '@dnd-kit/core'
 import { AlertTriangle, Check, Download, RefreshCw } from 'lucide-react'
 import { usePacksStore } from '@/stores/packs'
@@ -56,17 +56,19 @@ export default function PacksView() {
   }
 
 
-  const sourceItems: PackSourceItem[] = [
+  const sourceItems = useMemo<PackSourceItem[]>(() => [
     ...projectChops
       .filter((chop) => chop.sourcePath)
       .map(chopToSourceItem),
     ...samples.map(sampleToSourceItem),
-  ]
+  ], [projectChops, samples])
 
-  const filteredSources = sourceItems.filter((source) => {
+  const samplesById = useMemo(() => new Map(samples.map((s) => [s.id, s])), [samples])
+
+  const filteredSources = useMemo(() => sourceItems.filter((source) => {
     if (search.trim() && !source.displayName.toLowerCase().includes(search.toLowerCase())) return false
     if (sourceFilter !== 'all' && source.sourceType === 'library-sample') {
-      const sample = samples.find((s) => s.id === source.sampleId)
+      const sample = samplesById.get(source.sampleId ?? '')
       if (sample?.source !== sourceFilter) return false
     }
     if (sourceFilter !== 'all' && source.sourceType === 'project-chop') return false
@@ -75,7 +77,7 @@ export default function PacksView() {
     if (bpmFilter !== undefined && (source.bpm === null || Math.abs(source.bpm - bpmFilter) > 5)) return false
     if (keyFilter && source.musicalKey?.toLowerCase() !== keyFilter.toLowerCase()) return false
     return true
-  })
+  }), [sourceItems, samplesById, search, sourceFilter, projectFilter, bpmFilter, keyFilter])
 
   useEffect(() => {
     fetchPacks()

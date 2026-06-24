@@ -1,5 +1,5 @@
 import { getRegionsPlugin } from '@/utils'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type WaveSurfer from 'wavesurfer.js'
 import type { Region } from 'wavesurfer.js/dist/plugins/regions'
 import type { ProjectRegion } from '@/types'
@@ -45,8 +45,16 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick,
   const [revision, setRevision] = useState(0)
 
   const regionsPlugin = getRegionsPlugin(wavesurfer)
-  // Exclude candidate regions from the chop region list
-  const regions = regionsPlugin?.getRegions().filter(r => !candidateIdsRef.current.has(r.id))
+  // Exclude candidate regions from the chop region list. Memoized on `revision` (bumped on every
+  // region create/update/remove) so the array keeps a stable identity between renders — consumers
+  // use it as an effect/memo dependency, and a fresh array each render would defeat that.
+  const regions = useMemo(
+    () => regionsPlugin?.getRegions().filter((r) => !candidateIdsRef.current.has(r.id)),
+    // `revision` is the deliberate invalidation key: getRegions() reads live plugin state that
+    // changes without a new reference, so we recompute whenever revision is bumped.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [regionsPlugin, revision]
+  )
 
   const handleSelectRegion = useCallback(
     (region: Region) => {

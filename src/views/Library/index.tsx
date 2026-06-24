@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
@@ -34,7 +34,7 @@ export default function LibraryView() {
     fetchProjects()
   }, [fetchSamples, fetchProjects])
 
-  const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))
+  const projectsById = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects])
   const filtered = useFilteredSamples()
 
   const handleEdit = (item: LibraryBrowserItem) => {

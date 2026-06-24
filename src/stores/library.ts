@@ -1,8 +1,12 @@
 import { create } from 'zustand'
 import { analyzeAudioUrl } from '@/lib/audioAnalysis'
 import { toLocalFileUrl } from '@/utils'
-import { withLoading } from './utils'
+import { forEachConcurrent, withLoading } from './utils'
 import type { ProjectChop, Sample } from '../../electron/types'
+
+// How many files to decode + analyse at once during import. Caps memory (each decoded file is
+// tens of MB) and roughly matches the analysis worker-pool size.
+const ANALYSIS_CONCURRENCY = 4
 
 type Filters = {
   bpm?: number
@@ -96,12 +100,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const newSamples = allSamples.filter((s) => !beforeIds.has(s.id))
     ;(async () => {
       const { updateSample } = get()
-      for (const sample of newSamples) {
+      await forEachConcurrent(newSamples, ANALYSIS_CONCURRENCY, async (sample) => {
         try {
           const analysis = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
           await updateSample(sample.id, analysis)
         } catch { /* non-fatal */ }
-      }
+      })
     })()
     return result
   },
@@ -112,12 +116,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ samples })
     ;(async () => {
       const { updateSample } = get()
-      for (const sample of saved) {
+      await forEachConcurrent(saved, ANALYSIS_CONCURRENCY, async (sample) => {
         try {
           const result = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
           await updateSample(sample.id, result)
         } catch { /* non-fatal */ }
-      }
+      })
     })()
   },
 

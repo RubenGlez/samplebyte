@@ -11,7 +11,7 @@ function parseRegions(regionsJson: string | null | undefined): Array<{ id: strin
   }
 }
 
-function deserialize(row: Record<string, unknown>): Project {
+function deserialize(row: Record<string, unknown>, chops?: ProjectChop[]): Project {
   const id = row.id as string
   return {
     id,
@@ -19,7 +19,7 @@ function deserialize(row: Record<string, unknown>): Project {
     sourcePath: row.source_path as string | null,
     sourceName: row.source_name as string | null,
     source: (row.source as 'local' | 'freesound') || 'local',
-    regions: getProjectChops(id),
+    regions: chops ?? getProjectChops(id),
     createdAt: row.created_at as number,
   }
 }
@@ -37,7 +37,21 @@ function deserializeChop(row: Record<string, unknown>): ProjectChop {
 }
 
 export function getAllProjects(): Project[] {
-  return (getDb().prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as Record<string, unknown>[]).map(deserialize)
+  const db = getDb()
+  const rows = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as Record<string, unknown>[]
+  if (rows.length === 0) return []
+
+  // Load every chop once and group by project, instead of one query per project (N+1).
+  // The global ORDER BY matches getProjectChops, so each project's slice stays start-ordered.
+  const chopsByProject = new Map<string, ProjectChop[]>()
+  for (const row of db.prepare('SELECT * FROM project_chops ORDER BY start, created_at').all() as Record<string, unknown>[]) {
+    const chop = deserializeChop(row)
+    const list = chopsByProject.get(chop.projectId)
+    if (list) list.push(chop)
+    else chopsByProject.set(chop.projectId, [chop])
+  }
+
+  return rows.map((row) => deserialize(row, chopsByProject.get(row.id as string) ?? []))
 }
 
 export function getProject(id: string): Project | null {

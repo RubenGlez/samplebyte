@@ -28,6 +28,11 @@ function deserialize(row: Record<string, unknown>): Sample {
   }
 }
 
+export function getSample(id: string): Sample | null {
+  const row = getDb().prepare('SELECT * FROM samples WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  return row ? deserialize(row) : null
+}
+
 export function getAllSamples(filters?: SampleFilters): Sample[] {
   const db = getDb()
 
@@ -85,7 +90,7 @@ export function addSample(data: NewSample): Sample {
     createdAt
   )
 
-  return getAllSamples().find((s) => s.id === id)!
+  return getSample(id)!
 }
 
 export function updateSample(id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>): void {
