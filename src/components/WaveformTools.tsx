@@ -202,7 +202,7 @@ function ChopPanel({
         <div className="flex items-center gap-2.5">
           {isDetecting ? (
             <FieldLabel>Analyzing hits…</FieldLabel>
-          ) : maxChops <= MIN_HIT_CHOPS ? (
+          ) : maxChops < MIN_HIT_CHOPS ? (
             <FieldLabel>No hits detected in selection</FieldLabel>
           ) : (
             <>

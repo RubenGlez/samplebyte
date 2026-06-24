@@ -28,7 +28,7 @@ import {
   type SliceCount,
   type WaveformTool,
 } from './waveformTools.constants'
-import { rankTransientsFromUrl, findLoopCandidatesFromUrl } from '@/lib/audioAnalysis'
+import { rankTransientsFromUrl, findLoopCandidatesFromUrl, type RankedPeak } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
@@ -148,8 +148,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [activeTool, setActiveTool] = useState<WaveformTool | null>(null)
   const [chopMethod, setChopMethod] = useState<ChopMethod>('hits')
-  // Quality-ranked onset peaks for the "Detect hits" slider; detected once per source, top-N taken.
-  const [rankedPeaks, setRankedPeaks] = useState<Array<{ time: number; strength: number }> | null>(null)
+  // Quality-ranked chop fragments for the "Detect hits" slider; detected once per source, top-N taken.
+  const [rankedPeaks, setRankedPeaks] = useState<RankedPeak[] | null>(null)
   const [isDetectingHits, setIsDetectingHits] = useState(false)
   const [chopCount, setChopCount] = useState(DEFAULT_HIT_CHOPS)
   const isSlidingRef = useRef(false)
@@ -389,17 +389,23 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     }
   }, [wavesurfer, sliceCount, snapToGrid, snapEnabled, bpm, autoChop, clearLoopCandidates, trimIn, trimOut, toast])
 
-  // "Detect hits" — quality-ranked peaks within the current trim range, strongest first.
+  // "Detect hits" — quality-ranked chop fragments whose onset falls within the trim range, strongest
+  // first. Each fragment is itself one chop, so the slider max is the fragment count (no +1 boundaries).
   const peaksInBounds = useMemo(
-    () => (rankedPeaks ?? []).filter((p) => p.time > trimIn && p.time < trimOut),
+    () => (rankedPeaks ?? []).filter((p) => p.start >= trimIn && p.start < trimOut),
     [rankedPeaks, trimIn, trimOut]
   )
-  const maxChops = peaksInBounds.length + 1
+  const maxChops = peaksInBounds.length
 
   // Detect peaks once when the hits tool is opened (per source; state resets on remount via key={path}).
+  // hitDetectionRef guards against re-dispatch. Crucially, isDetectingHits is NOT a dependency: setting
+  // it here would otherwise re-run this effect and fire its own cleanup (cancelled=true) before the
+  // worker resolves, discarding the result and leaving detection stuck forever.
+  const hitDetectionRef = useRef(false)
   useEffect(() => {
     if (activeTool !== 'chop' || chopMethod !== 'hits') return
-    if (rankedPeaks !== null || isDetectingHits) return
+    if (rankedPeaks !== null || hitDetectionRef.current) return
+    hitDetectionRef.current = true
     let cancelled = false
     setIsDetectingHits(true)
     rankTransientsFromUrl(audioUrl)
@@ -407,16 +413,29 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       .catch(() => { if (!cancelled) setRankedPeaks([]) })
       .finally(() => { if (!cancelled) setIsDetectingHits(false) })
     return () => { cancelled = true }
-  }, [activeTool, chopMethod, audioUrl, rankedPeaks, isDetectingHits])
+  }, [activeTool, chopMethod, audioUrl, rankedPeaks])
 
-  // Build N chops from the top (N-1) peaks by strength, ordered in time.
+  // Lay down the top-N strongest fragments as discrete chops. Each carries its organic 2–5s in/out;
+  // we clamp to the trim range, optionally beat-align the in, and cap each end at the next selected
+  // chop's start so they never overlap (gaps remain wherever a fragment ends before the next begins).
   const applyHitChop = useCallback((count: number) => {
-    if (!wavesurfer) return
     clearLoopCandidates()
-    const cuts = peaksInBounds.slice(0, Math.max(0, count - 1)).map((p) => p.time)
-    const points = snapToGrid(cuts).sort((a, b) => a - b)
-    autoChop(points, wavesurfer.getDuration(), { start: trimIn, end: trimOut }, 0.05)
-  }, [wavesurfer, peaksInBounds, snapToGrid, autoChop, clearLoopCandidates, trimIn, trimOut])
+    const chosen = [...peaksInBounds].slice(0, count).sort((a, b) => a.start - b.start)
+    const fragments: ProjectRegion[] = chosen
+      .map((f, i) => {
+        let start = Math.max(f.start, trimIn)
+        if (snapEnabled) {
+          const [snapped] = snapToGrid([start])
+          if (snapped >= trimIn) start = snapped
+        }
+        const nextStart = i + 1 < chosen.length ? chosen[i + 1].start : Infinity
+        const end = Math.min(f.end, trimOut, nextStart)
+        return { start, end }
+      })
+      .filter((f) => f.end > f.start)
+      .map((f, i) => ({ start: f.start, end: f.end, name: `Chop ${String(i + 1).padStart(2, '0')}` }))
+    replaceRegions(fragments)
+  }, [peaksInBounds, snapEnabled, snapToGrid, replaceRegions, clearLoopCandidates, trimIn, trimOut])
 
   const handleChopCountChange = useCallback((count: number) => {
     setChopCount(count)
@@ -429,10 +448,10 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     setHistoryCommitTick((t) => t + 1) // force one undo entry for the whole drag
   }, [])
 
-  // Keep the slider value within the available peak count as the trim range changes (only once
-  // peaks exist, so it doesn't snap to 1 while detection is still pending).
+  // Keep the slider value within the available fragment count as the trim range changes (only once
+  // peaks exist and there is at least one fragment, so it doesn't oscillate or snap while pending).
   useEffect(() => {
-    if (rankedPeaks === null) return
+    if (rankedPeaks === null || maxChops < MIN_HIT_CHOPS) return
     if (chopCount > maxChops) setChopCount(maxChops)
     else if (chopCount < MIN_HIT_CHOPS) setChopCount(MIN_HIT_CHOPS)
   }, [rankedPeaks, maxChops, chopCount])
@@ -443,7 +462,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   useEffect(() => {
     if (didInitialHitChop.current) return
     if (activeTool !== 'chop' || chopMethod !== 'hits' || rankedPeaks === null) return
-    if (maxChops <= MIN_HIT_CHOPS) return
+    if (maxChops < MIN_HIT_CHOPS) return
     didInitialHitChop.current = true
     if (regions && regions.length > 0) return
     const count = Math.min(DEFAULT_HIT_CHOPS, maxChops)

@@ -125,6 +125,10 @@ export const useRegions = ({ wavesurfer, initialRegions, onCandidateRegionClick,
             }
             setPendingFocusStart(null)
           }
+
+          // Restoring above doesn't fire region-created, so bump revision to invalidate the
+          // memoized `regions` list — otherwise it stays empty while the waveform shows the regions.
+          setRevision((value) => value + 1)
         }
 
         regionsPlugin.enableDragSelection({ color: 'var(--region-bg)' })

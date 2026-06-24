@@ -5,7 +5,9 @@
 
 export type AnalysisResult = { bpm: number; musicalKey: string; beatPhase: number; loopBars: number | null }
 export type LoopCandidate = { start: number; end: number; score: number }
-export type RankedPeak = { time: number; strength: number }
+// A chop is a fragment: a clean onset (in) and a natural decay (out), not a boundary. start/end
+// bound the fragment; strength ranks it. Fragments never overlap and need not cover the whole track.
+export type RankedPeak = { start: number; end: number; strength: number }
 
 // Krumhansl-Schmuckler major/minor key profiles
 const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
@@ -304,9 +306,69 @@ export function detectTransients(
   return transients
 }
 
-// Ranks every onset peak by spectral-flux strength (its "quality"), strongest first, while keeping
-// no two peaks closer than minGap. This powers the chop-count slider: the top-N peaks are the N most
-// prominent hits, so asking for N chops yields the N best cut points. Analyze once, slice top-N for free.
+// Fragment shaping (seconds / fractions). A chop starts a hair before the onset so the attack isn't
+// clipped. Length is oriented to a musical 2–5s: short sounds that fully decay before MIN_TARGET end
+// at their decay; sustained material runs to a low-energy "breath" between MIN_TARGET and MAX_FRAGMENT.
+const PRE_ROLL = 0.005
+const MIN_TARGET = 2.0
+const MAX_FRAGMENT = 5.0
+const MIN_FRAGMENT = 0.05
+const RELEASE = 0.03
+const DECAY_THRESHOLD = 0.15
+
+// Finds the organic end of a fragment starting at onsetTime, looking at most MAX_FRAGMENT ahead.
+// A one-shot that decays below DECAY_THRESHOLD of its peak before MIN_TARGET ends at that decay;
+// otherwise the cut is placed at the quietest frame in [MIN_TARGET, MAX_FRAGMENT] so sustained
+// material ends on a natural dip rather than a hard slice. (Overlap with neighbouring chops is
+// handled at selection time, not here.)
+function fragmentEnd(
+  mono: Float32Array,
+  sampleRate: number,
+  onsetTime: number,
+  startTime: number
+): number {
+  const HOP = 1024
+  const FRAME = 2048
+  const maxEnd = Math.min(mono.length / sampleRate, onsetTime + MAX_FRAGMENT)
+  const s = Math.floor(onsetTime * sampleRate)
+  const e = Math.min(mono.length, Math.floor(maxEnd * sampleRate))
+  const minEnd = Math.min(maxEnd, startTime + MIN_FRAGMENT)
+
+  let peak = 0
+  const rms: number[] = []
+  const frameEnd: number[] = []
+  for (let i = s; i + FRAME <= e; i += HOP) {
+    let sum = 0
+    for (let j = 0; j < FRAME; j++) sum += mono[i + j] * mono[i + j]
+    const r = Math.sqrt(sum / FRAME)
+    rms.push(r)
+    frameEnd.push((i + FRAME) / sampleRate)
+    if (r > peak) peak = r
+  }
+  if (rms.length === 0 || peak === 0) return minEnd
+
+  // Natural decay end (last frame still above threshold, plus a release tail).
+  const threshold = peak * DECAY_THRESHOLD
+  let lastLoud = 0
+  for (let k = 0; k < rms.length; k++) if (rms[k] >= threshold) lastLoud = k
+  const decayEnd = frameEnd[lastLoud] + RELEASE
+  if (decayEnd - onsetTime <= MIN_TARGET) return Math.max(minEnd, Math.min(maxEnd, decayEnd))
+
+  // Sustained: end on the quietest breath in the target window.
+  let breathIdx = -1
+  let breathRms = Infinity
+  for (let k = 0; k < rms.length; k++) {
+    if (frameEnd[k] - onsetTime < MIN_TARGET) continue
+    if (rms[k] < breathRms) { breathRms = rms[k]; breathIdx = k }
+  }
+  return Math.max(minEnd, Math.min(maxEnd, breathIdx >= 0 ? frameEnd[breathIdx] : maxEnd))
+}
+
+// Returns chop fragments ranked by onset strength, strongest first. Each fragment is a self-contained
+// piece with a clean in (onset) and an organic out (decay), and fragments never overlap — so taking the
+// top-N gives N good samples spread across the track without covering it edge to edge. Because each
+// fragment's bounds are capped at the next *candidate* onset (not the next *selected* one), the bounds
+// are independent of N: analyse once, take any top-N for free.
 export function rankTransients(
   channels: Float32Array[],
   sampleRate: number,
@@ -319,21 +381,34 @@ export function rankTransients(
   // Low noise floor: keep local maxima above the mean so we rank hits, not the noise floor.
   const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length
 
-  const peaks: RankedPeak[] = []
+  const peaks: Array<{ time: number; strength: number }> = []
   for (let i = 1; i < onset.length - 1; i++) {
     if (onset[i] > mean && onset[i] >= onset[i - 1] && onset[i] >= onset[i + 1]) {
       peaks.push({ time: (i * hop) / sampleRate, strength: onset[i] })
     }
   }
+  if (peaks.length === 0) return []
 
-  // Greedy strength-first selection with a minimum gap, so each kept peak is the strongest in its
-  // neighbourhood. Order-independent of N, so top-N is a stable ranking.
-  peaks.sort((a, b) => b.strength - a.strength)
-  const kept: RankedPeak[] = []
-  for (const peak of peaks) {
-    if (kept.every((k) => Math.abs(peak.time - k.time) >= minGap)) kept.push(peak)
+  // Greedy strength-first selection with a minimum gap, so each kept onset is the strongest in its
+  // neighbourhood.
+  const byStrength = [...peaks].sort((a, b) => b.strength - a.strength)
+  const selected: Array<{ time: number; strength: number }> = []
+  for (const peak of byStrength) {
+    if (selected.every((s) => Math.abs(peak.time - s.time) >= minGap)) selected.push(peak)
   }
-  return kept
+
+  // Each fragment's end follows the sound itself (decay or breath), not the next onset — neighbouring
+  // chops don't truncate each other here. Overlap among the *selected* top-N is resolved at apply time.
+  const mono = mixToMono(channels)
+  const fragments: RankedPeak[] = selected.map((p) => {
+    const start = Math.max(0, p.time - PRE_ROLL)
+    const end = fragmentEnd(mono, sampleRate, p.time, start)
+    return { start, end, strength: p.strength }
+  })
+
+  // Rank by strength so the slider's top-N are the strongest fragments.
+  fragments.sort((a, b) => b.strength - a.strength)
+  return fragments
 }
 
 // Scores a window [startSec, endSec] for loop suitability.
