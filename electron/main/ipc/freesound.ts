@@ -1,6 +1,7 @@
-import { ipcMain, app, net } from 'electron'
+import { app, net } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { handle } from './handle'
 
 const BASE = 'https://freesound.org/apiv2'
 
@@ -14,7 +15,7 @@ function getApiKey(): string {
 }
 
 export function registerFreesoundHandlers(): void {
-  ipcMain.handle('freesound:search', async (_, query: string, page = 1, sort = 'score', filter = '') => {
+  handle('freesound:search', async (_, query: string, page = 1, sort = 'score', filter = '') => {
     const token = getApiKey()
     if (!token) throw new Error('No Freesound API key configured')
     const params: Record<string, string> = {
@@ -32,7 +33,7 @@ export function registerFreesoundHandlers(): void {
     return res.json()
   })
 
-  ipcMain.handle('freesound:download', async (_, _soundId: number, name: string, previewUrl: string) => {
+  handle('freesound:download', async (_, _soundId: number, name: string, previewUrl: string) => {
     const dir = path.join(app.getPath('userData'), 'staging')
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     const outPath = path.join(dir, `${crypto.randomUUID()}.mp3`)

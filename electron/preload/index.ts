@@ -1,133 +1,69 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
-import type { Sample, Pack, PackSlot, Project, ProjectRegion, ProjectChop, PackSourceItem, ExportRegionsParams, FreesoundPage } from '../types'
+import type { Api } from '../ipc-contract'
 
-contextBridge.exposeInMainWorld('api', {
+// Typed against the shared contract: each method just forwards to its `group:method` channel, and
+// the contract guarantees the args/return match what main registers. Drift is a compile error.
+const api: Api = {
   library: {
-    getSamples: (filters?: { bpm?: number; key?: string; tags?: string[]; projectId?: string }): Promise<Sample[]> =>
-      ipcRenderer.invoke('library:getSamples', filters),
-
-    addSample: (data: { name: string; filePath: string; duration?: number }): Promise<Sample> =>
-      ipcRenderer.invoke('library:addSample', data),
-
-    updateSample: (
-      id: string,
-      data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>
-    ): Promise<void> => ipcRenderer.invoke('library:updateSample', id, data),
-
-    deleteSample: (id: string): Promise<void> =>
-      ipcRenderer.invoke('library:deleteSample', id),
-
-    saveChops: (params: {
-      sourceFilePath: string
-      regions: Array<{ start: number; end: number; name: string }>
-      projectId?: string
-    }): Promise<Sample[]> => ipcRenderer.invoke('library:saveChops', params),
-
-    importFolder: (folderPath: string): Promise<{ imported: number; skipped: number }> =>
-      ipcRenderer.invoke('library:importFolder', folderPath),
-
-    getPackSlotRefCount: (id: string): Promise<number> =>
-      ipcRenderer.invoke('library:getPackSlotRefCount', id),
-
-    getOrphans: (): Promise<Sample[]> =>
-      ipcRenderer.invoke('library:getOrphans'),
-
-    deleteOrphans: (ids: string[]): Promise<{ deleted: number }> =>
-      ipcRenderer.invoke('library:deleteOrphans', ids),
+    getSamples: (filters) => ipcRenderer.invoke('library:getSamples', filters),
+    addSample: (data) => ipcRenderer.invoke('library:addSample', data),
+    updateSample: (id, data) => ipcRenderer.invoke('library:updateSample', id, data),
+    deleteSample: (id) => ipcRenderer.invoke('library:deleteSample', id),
+    saveChops: (params) => ipcRenderer.invoke('library:saveChops', params),
+    importFolder: (folderPath) => ipcRenderer.invoke('library:importFolder', folderPath),
+    getPackSlotRefCount: (id) => ipcRenderer.invoke('library:getPackSlotRefCount', id),
+    getOrphans: () => ipcRenderer.invoke('library:getOrphans'),
+    deleteOrphans: (ids) => ipcRenderer.invoke('library:deleteOrphans', ids),
   },
 
   projects: {
-    getAll: (): Promise<Project[]> =>
-      ipcRenderer.invoke('projects:getAll'),
-
-    get: (id: string): Promise<Project | null> =>
-      ipcRenderer.invoke('projects:get', id),
-
-    save: (data: { name: string; sourcePath: string | null; sourceName?: string | null; regions: ProjectRegion[] }): Promise<Project> =>
-      ipcRenderer.invoke('projects:save', data),
-
-    update: (id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>): Promise<void> =>
-      ipcRenderer.invoke('projects:update', id, data),
-
-    getChops: (projectId: string): Promise<ProjectChop[]> =>
-      ipcRenderer.invoke('projects:getChops', projectId),
-
-    getAllChops: (): Promise<Array<ProjectChop & { projectName: string; sourcePath: string | null }>> =>
-      ipcRenderer.invoke('projects:getAllChops'),
-
-    upsertChops: (projectId: string, regions: ProjectRegion[]): Promise<ProjectChop[]> =>
-      ipcRenderer.invoke('projects:upsertChops', projectId, regions),
-
-    delete: (id: string): Promise<void> =>
-      ipcRenderer.invoke('projects:delete', id),
-
-    duplicate: (id: string): Promise<Project | null> =>
-      ipcRenderer.invoke('projects:duplicate', id),
+    getAll: () => ipcRenderer.invoke('projects:getAll'),
+    get: (id) => ipcRenderer.invoke('projects:get', id),
+    save: (data) => ipcRenderer.invoke('projects:save', data),
+    update: (id, data) => ipcRenderer.invoke('projects:update', id, data),
+    getChops: (projectId) => ipcRenderer.invoke('projects:getChops', projectId),
+    getAllChops: () => ipcRenderer.invoke('projects:getAllChops'),
+    upsertChops: (projectId, regions) => ipcRenderer.invoke('projects:upsertChops', projectId, regions),
+    delete: (id) => ipcRenderer.invoke('projects:delete', id),
+    duplicate: (id) => ipcRenderer.invoke('projects:duplicate', id),
   },
 
   audio: {
-    exportRegions: (params: ExportRegionsParams): Promise<{ filesWritten: number }> =>
-      ipcRenderer.invoke('audio:exportRegions', params),
-    trimSource: (params: { sourceFilePath: string; start: number; end: number }): Promise<{ filePath: string; duration: number }> =>
-      ipcRenderer.invoke('audio:trimSource', params),
+    exportRegions: (params) => ipcRenderer.invoke('audio:exportRegions', params),
+    trimSource: (params) => ipcRenderer.invoke('audio:trimSource', params),
   },
 
   fs: {
-    getPathForFile: (file: File): string =>
-      webUtils.getPathForFile(file),
-
-    pickFile: (): Promise<string | null> =>
-      ipcRenderer.invoke('fs:pickFile'),
-
-    pickFolder: (): Promise<string | null> =>
-      ipcRenderer.invoke('fs:pickFolder'),
+    getPathForFile: (file) => webUtils.getPathForFile(file),
+    pickFile: () => ipcRenderer.invoke('fs:pickFile'),
+    pickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
   },
 
   settings: {
-    get: (key: string): Promise<unknown> =>
-      ipcRenderer.invoke('settings:get', key),
-    set: (key: string, value: unknown): Promise<void> =>
-      ipcRenderer.invoke('settings:set', key, value),
+    get: (key) => ipcRenderer.invoke('settings:get', key),
+    set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
   },
 
   freesound: {
-    search: (query: string, page?: number, sort?: string, filter?: string): Promise<FreesoundPage> =>
-      ipcRenderer.invoke('freesound:search', query, page, sort, filter),
-    download: (soundId: number, name: string, previewUrl: string): Promise<{ name: string; filePath: string }> =>
-      ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
+    search: (query, page, sort, filter) => ipcRenderer.invoke('freesound:search', query, page, sort, filter),
+    download: (soundId, name, previewUrl) => ipcRenderer.invoke('freesound:download', soundId, name, previewUrl),
   },
 
   shell: {
-    openExternal: (url: string): Promise<void> =>
-      ipcRenderer.invoke('shell:openExternal', url),
+    openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
 
   packs: {
-    getAll: (): Promise<Pack[]> =>
-      ipcRenderer.invoke('packs:getAll'),
-
-    getSlots: (packId: string): Promise<PackSlot[]> =>
-      ipcRenderer.invoke('packs:getSlots', packId),
-
-    getProfiles: (): Promise<Array<{ id: string; name: string; padCount: number }>> =>
-      ipcRenderer.invoke('packs:getProfiles'),
-
-    create: (data: Pick<Pack, 'name' | 'hardwareProfile'>): Promise<Pack> =>
-      ipcRenderer.invoke('packs:create', data),
-
-    upsertSlot: (packId: string, slotNumber: number, source: PackSourceItem): Promise<void> =>
-      ipcRenderer.invoke('packs:upsertSlot', packId, slotNumber, source),
-
-    removeSlot: (packId: string, slotNumber: number): Promise<void> =>
-      ipcRenderer.invoke('packs:removeSlot', packId, slotNumber),
-
-    rename: (id: string, name: string): Promise<void> =>
-      ipcRenderer.invoke('packs:rename', id, name),
-
-    delete: (id: string): Promise<void> =>
-      ipcRenderer.invoke('packs:delete', id),
-
-    export: (packId: string, outputDir: string): Promise<{ filesWritten: number }> =>
-      ipcRenderer.invoke('packs:export', packId, outputDir),
+    getAll: () => ipcRenderer.invoke('packs:getAll'),
+    getSlots: (packId) => ipcRenderer.invoke('packs:getSlots', packId),
+    getProfiles: () => ipcRenderer.invoke('packs:getProfiles'),
+    create: (data) => ipcRenderer.invoke('packs:create', data),
+    upsertSlot: (packId, slotNumber, source) => ipcRenderer.invoke('packs:upsertSlot', packId, slotNumber, source),
+    removeSlot: (packId, slotNumber) => ipcRenderer.invoke('packs:removeSlot', packId, slotNumber),
+    rename: (id, name) => ipcRenderer.invoke('packs:rename', id, name),
+    delete: (id) => ipcRenderer.invoke('packs:delete', id),
+    export: (packId, outputDir) => ipcRenderer.invoke('packs:export', packId, outputDir),
   },
-})
+}
+
+contextBridge.exposeInMainWorld('api', api)

@@ -1,6 +1,7 @@
-import { ipcMain, app } from 'electron'
+import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { handle } from './handle'
 
 function settingsPath() {
   return path.join(app.getPath('userData'), 'settings.json')
@@ -19,8 +20,8 @@ function write(data: Record<string, unknown>): void {
 }
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle('settings:get', (_, key: string) => read()[key] ?? null)
-  ipcMain.handle('settings:set', (_, key: string, value: unknown) => {
+  handle('settings:get', (_, key: string) => read()[key] ?? null)
+  handle('settings:set', (_, key: string, value: unknown) => {
     const settings = read()
     settings[key] = value
     write(settings)

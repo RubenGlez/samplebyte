@@ -7,6 +7,8 @@ import { useWavesurfer } from '@/hooks/useWaveSurfer'
 import { useZoom } from '@/hooks/useZoom'
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis'
 import { useLoopPlayback } from '@/hooks/useLoopPlayback'
+import { useChopHistory } from '@/hooks/useChopHistory'
+import { useChopAutosave } from '@/hooks/useChopAutosave'
 import { usePlayerStore } from '@/stores/player'
 import { useProjectsStore } from '@/stores/projects'
 import { usePacksStore } from '@/stores/packs'
@@ -180,15 +182,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   }, [clearAllRegions])
   const [isSaving, setIsSaving] = useState(false)
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [activeTool, setActiveTool] = useState<WaveformTool | null>(null)
   const [chopMethod, setChopMethod] = useState<ChopMethod>('hits')
   // Quality-ranked chop fragments for the "Detect hits" slider; detected once per source, top-N taken.
   const [rankedPeaks, setRankedPeaks] = useState<RankedPeak[] | null>(null)
   const [isDetectingHits, setIsDetectingHits] = useState(false)
   const [chopCount, setChopCount] = useState(DEFAULT_HIT_CHOPS)
-  const isSlidingRef = useRef(false)
-  const [historyCommitTick, setHistoryCommitTick] = useState(0)
   const [sliceCount, setSliceCount] = useState<SliceCount>('8')
   const [snapEnabled, setSnapEnabled] = useState(false)
   const [loopBarCount, setLoopBarCount] = useState<LoopBarCount>('4')
@@ -197,112 +196,29 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [isLoopSearching, setIsLoopSearching] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
   const [showTrimDialog, setShowTrimDialog] = useState(false)
-  const historyRef = useRef<ProjectRegion[][]>([])
-  const historyIndexRef = useRef(-1)
-  const isRestoringHistory = useRef(false)
-  const lastHistorySnapshot = useRef('')
-  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false })
 
   const currentRegions = useCallback(() =>
     (regions ?? []).map((r, index) => ({ id: r.id, start: r.start, end: r.end, name: regionNames[r.id] ?? `Chop ${index + 1}` })),
     [regions, regionNames]
   )
 
-  const autosaveTimer = useRef<number | null>(null)
-  const saveStatusTimer = useRef<number | null>(null)
-  const lastSavedAt = useRef<number>(0)
-  const isFirstAutosave = useRef(true)
-  const DEBOUNCE_MS = 1500
-  const MAX_WAIT_MS = 5000
+  const { canUndo, canRedo, undo, redo, beginSliderEdit, endSliderEdit } = useChopHistory({
+    regions,
+    revision,
+    currentRegions,
+    replaceRegions,
+  })
 
-  const syncHistoryState = useCallback(() => {
-    setHistoryState({
-      canUndo: historyIndexRef.current > 0,
-      canRedo: historyIndexRef.current >= 0 && historyIndexRef.current < historyRef.current.length - 1,
-    })
-  }, [])
-
-  const pushHistory = useCallback((snapshot: ProjectRegion[]) => {
-    const serialized = JSON.stringify(snapshot)
-    if (serialized === lastHistorySnapshot.current) return
-    lastHistorySnapshot.current = serialized
-    const nextHistory = historyRef.current.slice(0, historyIndexRef.current + 1)
-    nextHistory.push(snapshot)
-    historyRef.current = nextHistory.slice(-80)
-    historyIndexRef.current = historyRef.current.length - 1
-    syncHistoryState()
-  }, [syncHistoryState])
-
-  useEffect(() => {
-    if (!regions) return
-    const snapshot = currentRegions()
-    const serialized = JSON.stringify(snapshot)
-    if (serialized === lastHistorySnapshot.current) return
-    // While dragging the chop-count slider, skip per-tick snapshots without advancing the baseline,
-    // so the whole drag collapses into one undo entry recorded on release (via historyCommitTick).
-    if (isSlidingRef.current) return
-
-    if (isRestoringHistory.current) {
-      isRestoringHistory.current = false
-      lastHistorySnapshot.current = serialized
-      syncHistoryState()
-      return
-    }
-
-    pushHistory(snapshot)
-  }, [currentRegions, regions, revision, historyCommitTick, syncHistoryState, pushHistory])
-
-  const restoreHistory = useCallback((index: number) => {
-    const snapshot = historyRef.current[index]
-    if (!snapshot) return
-    isRestoringHistory.current = true
-    historyIndexRef.current = index
-    replaceRegions(snapshot)
-    syncHistoryState()
-  }, [replaceRegions, syncHistoryState])
-
-  const undoRegions = useCallback(() => {
-    if (historyIndexRef.current <= 0) return
-    restoreHistory(historyIndexRef.current - 1)
-  }, [restoreHistory])
-
-  const redoRegions = useCallback(() => {
-    if (historyIndexRef.current >= historyRef.current.length - 1) return
-    restoreHistory(historyIndexRef.current + 1)
-  }, [restoreHistory])
-
-  useEffect(() => {
-    if (!filePath || !regions?.length) return
-    if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
-
-    const isFirst = isFirstAutosave.current
-    if (isFirst) isFirstAutosave.current = false
-
-    const elapsed = Date.now() - lastSavedAt.current
-    const delay = !isFirst && elapsed >= MAX_WAIT_MS ? 0 : DEBOUNCE_MS
-
-    if (!isFirst) setSaveStatus('saving')
-
-    autosaveTimer.current = window.setTimeout(() => {
-      autosaveActiveRegions(currentRegions(), {
-        name: projectName.trim() || audioName.replace(/\.[^.]+$/, ''),
-        sourcePath: filePath,
-        sourceName: audioName,
-        source,
-      }).then(() => {
-        lastSavedAt.current = Date.now()
-        if (!isFirst) {
-          setSaveStatus('saved')
-          if (saveStatusTimer.current !== null) window.clearTimeout(saveStatusTimer.current)
-          saveStatusTimer.current = window.setTimeout(() => setSaveStatus('idle'), 2000)
-        }
-      }).catch(() => setSaveStatus('idle'))
-    }, delay)
-
-    return () => {
-      if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
-    }
-  }, [audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regions?.length, revision, source])
+  const { saveStatus, markSaved } = useChopAutosave({
+    filePath,
+    regions,
+    revision,
+    currentRegions,
+    projectName,
+    audioName,
+    source,
+    autosaveActiveRegions,
+  })
 
   const handleSendToPack = useCallback(async () => {
     if (!regions?.length || !filePath) return
@@ -479,12 +395,6 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     applyHitChop(count)
   }, [applyHitChop])
 
-  const handleChopSlideStart = useCallback(() => { isSlidingRef.current = true }, [])
-  const handleChopSlideEnd = useCallback(() => {
-    isSlidingRef.current = false
-    setHistoryCommitTick((t) => t + 1) // force one undo entry for the whole drag
-  }, [])
-
   // Detect hits is live, so toggling Snap must re-apply the current chop immediately rather than
   // waiting for the next slider move. Skips the first run (mount) and only fires on a real toggle.
   const snapInitRef = useRef(true)
@@ -541,7 +451,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         sourcePath: trimmedPath,
         sourceName: audioName,
       })
-      if (saved) lastSavedAt.current = Date.now()
+      if (saved) markSaved()
 
       if (activeProject) {
         applyLocalTrim({ sourcePath: trimmedPath, regions: kept })
@@ -573,6 +483,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     autosaveActiveRegions,
     canApplyTrim,
     filePath,
+    markSaved,
     projectName,
     regionNames,
     regions,
@@ -597,8 +508,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     onPlaySelection: playRegionWithMode,
     onSelectRegion: handleSelectRegion,
     loopMode,
-    onUndo: undoRegions,
-    onRedo: redoRegions,
+    onUndo: undo,
+    onRedo: redo,
   })
 
   const hasRegions = !!regions?.length
@@ -672,11 +583,11 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         <div className="flex items-center gap-1.5">
           <button
             title="Undo region edit (⌘Z)"
-            onClick={undoRegions}
-            disabled={!historyState.canUndo}
+            onClick={undo}
+            disabled={!canUndo}
             className={cn(
               'h-[28px] w-[28px] flex items-center justify-center rounded-[6px] border bg-transparent transition-colors',
-              historyState.canUndo
+              canUndo
                 ? 'text-muted border-border hover:text-ink hover:border-border-bright cursor-pointer'
                 : 'text-faint/30 border-border/50 cursor-not-allowed'
             )}
@@ -685,11 +596,11 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           </button>
           <button
             title="Redo region edit (⇧⌘Z)"
-            onClick={redoRegions}
-            disabled={!historyState.canRedo}
+            onClick={redo}
+            disabled={!canRedo}
             className={cn(
               'h-[28px] w-[28px] flex items-center justify-center rounded-[6px] border bg-transparent transition-colors',
-              historyState.canRedo
+              canRedo
                 ? 'text-muted border-border hover:text-ink hover:border-border-bright cursor-pointer'
                 : 'text-faint/30 border-border/50 cursor-not-allowed'
             )}
@@ -720,8 +631,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           chopCount,
           maxChops,
           setChopCount: handleChopCountChange,
-          onChopSlideStart: handleChopSlideStart,
-          onChopSlideEnd: handleChopSlideEnd,
+          onChopSlideStart: beginSliderEdit,
+          onChopSlideEnd: endSliderEdit,
           isDetecting: isDetectingHits,
           sliceCount,
           setSliceCount,

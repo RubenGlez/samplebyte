@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell, session, protocol, net, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, shell, session, protocol, net } from 'electron'
 import { release } from 'node:os'
 import { dirname, join } from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { update } from './update'
 import { initDatabase } from './db/index'
 import { materializeProjectChops } from './services/materializeChops'
+import { handle } from './ipc/handle'
 import { registerLibraryHandlers } from './ipc/library'
 import { registerAudioHandlers } from './ipc/audio'
 import { registerFilesystemHandlers } from './ipc/filesystem'
@@ -229,7 +230,7 @@ app.whenReady().then(async () => {
     })
   }
 
-  ipcMain.handle('shell:openExternal', (_, url: string) => {
+  handle('shell:openExternal', (_, url: string) => {
     if (url.startsWith('https:')) shell.openExternal(url)
   })
 

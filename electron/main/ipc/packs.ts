@@ -1,10 +1,12 @@
-import { ipcMain, app } from 'electron'
-import * as packsDb from '../db/queries/packs'
-import { getProfile, applyProfileFormat, profiles } from '../hardware/profiles'
-import type { Pack, PackSourceItem } from '../../types'
+import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { handle } from './handle'
+import * as packsDb from '../db/queries/packs'
+import { getProfile, profiles } from '../hardware/profiles'
+import type { Pack, PackSourceItem } from '../../types'
 import { configureFfmpeg, ffmpeg } from '../services/ffmpeg'
+import { exportClips, type ExportClip } from '../services/export'
 
 configureFfmpeg()
 
@@ -38,24 +40,24 @@ function unlinkQuietly(filePath: string | null): void {
 }
 
 export function registerPacksHandlers(): void {
-  ipcMain.handle('packs:getAll', () => {
+  handle('packs:getAll', () => {
     return packsDb.getAllPacks()
   })
 
-  ipcMain.handle('packs:getProfiles', () => {
+  handle('packs:getProfiles', () => {
     return profiles.map(({ id, name, padCount }) => ({ id, name, padCount }))
   })
 
-  ipcMain.handle('packs:create', (_, data: Pick<Pack, 'name' | 'hardwareProfile'>) => {
+  handle('packs:create', (_, data: Pick<Pack, 'name' | 'hardwareProfile'>) => {
     return packsDb.createPack(data)
   })
 
-  ipcMain.handle('packs:getSlots', (_, packId: string) => {
+  handle('packs:getSlots', (_, packId: string) => {
     const pack = packsDb.getPackWithSlots(packId)
     return pack ? pack.slots : []
   })
 
-  ipcMain.handle('packs:upsertSlot', async (_, packId: string, slotNumber: number, source: PackSourceItem) => {
+  handle('packs:upsertSlot', async (_, packId: string, slotNumber: number, source: PackSourceItem) => {
     const previous = packsDb.getSlotAudioPath(packId, slotNumber)
     // Own the audio at assignment. If the source is unreadable, fall back to a null owned path —
     // export then trims from source_path as before, so assignment never hard-fails.
@@ -65,49 +67,38 @@ export function registerPacksHandlers(): void {
     if (previous !== audioPath) unlinkQuietly(previous)
   })
 
-  ipcMain.handle('packs:removeSlot', (_, packId: string, slotNumber: number) => {
+  handle('packs:removeSlot', (_, packId: string, slotNumber: number) => {
     const audioPath = packsDb.getSlotAudioPath(packId, slotNumber)
     packsDb.removeSlot(packId, slotNumber)
     unlinkQuietly(audioPath)
   })
 
-  ipcMain.handle('packs:rename', (_, id: string, name: string) => {
+  handle('packs:rename', (_, id: string, name: string) => {
     packsDb.renamePack(id, name)
   })
 
-  ipcMain.handle('packs:delete', (_, id: string) => {
+  handle('packs:delete', (_, id: string) => {
     const audioPaths = packsDb.getPackSlotAudioPaths(id)
     packsDb.deletePack(id)
     for (const audioPath of audioPaths) unlinkQuietly(audioPath)
   })
 
-  ipcMain.handle('packs:export', async (_, packId: string, outputDir: string) => {
+  handle('packs:export', async (_, packId: string, outputDir: string) => {
     const pack = packsDb.getPackWithSlots(packId)
     if (!pack) throw new Error(`Pack not found: ${packId}`)
 
     const profile = getProfile(pack.hardwareProfile)
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true })
 
-    await Promise.all(
-      pack.slots.map((slot) =>
-        new Promise<void>((resolve, reject) => {
-          const outputFile = path.join(outputDir, profile.fileName(slot.slotNumber, slot.displayName))
-          // Owned audio is pre-trimmed, so render it directly. Legacy slots (no owned audio) still
-          // trim from the source path at export.
-          const input = ffmpeg(slot.audioPath ?? slot.sourcePath)
-          if (!slot.audioPath && slot.start !== null && slot.end !== null) {
-            input.setStartTime(slot.start).setDuration(slot.end - slot.start)
-          }
+    const clips: ExportClip[] = pack.slots.map((slot) => ({
+      // Owned audio is pre-trimmed, so render it directly (no trim window). Legacy slots (no owned
+      // audio) still trim from the source path at export.
+      sourcePath: slot.audioPath ?? slot.sourcePath,
+      slotNumber: slot.slotNumber,
+      name: slot.displayName,
+      start: slot.audioPath ? null : slot.start,
+      end: slot.audioPath ? null : slot.end,
+    }))
 
-          applyProfileFormat(profile, input)
-            .output(outputFile)
-            .on('end', () => resolve())
-            .on('error', reject)
-            .run()
-        })
-      )
-    )
-
-    return { filesWritten: pack.slots.length }
+    return exportClips(profile, clips, outputDir)
   })
 }

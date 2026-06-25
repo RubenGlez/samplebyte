@@ -34,6 +34,19 @@ type LibraryState = {
   setSelectedSample: (sample: Sample | null) => void
 }
 
+// Decode + analyse freshly created samples off the critical path, patching BPM/key/waveform back
+// in as each finishes. Fire-and-forget: callers don't await it; the rows just gain their analysed
+// fields a moment later. Bounded by ANALYSIS_CONCURRENCY; a failed analysis is non-fatal (the
+// sample keeps its un-analysed defaults). Shared by importFolder and saveChops.
+function backfillAnalysis(samples: Sample[], updateSample: LibraryState['updateSample']): void {
+  void forEachConcurrent(samples, ANALYSIS_CONCURRENCY, async (sample) => {
+    try {
+      const analysis = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
+      await updateSample(sample.id, analysis)
+    } catch { /* non-fatal */ }
+  })
+}
+
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   samples: [],
   searchQuery: '',
@@ -76,15 +89,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const allSamples = await window.api.library.getSamples()
     set({ samples: allSamples })
     const newSamples = allSamples.filter((s) => !beforeIds.has(s.id))
-    ;(async () => {
-      const { updateSample } = get()
-      await forEachConcurrent(newSamples, ANALYSIS_CONCURRENCY, async (sample) => {
-        try {
-          const analysis = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
-          await updateSample(sample.id, analysis)
-        } catch { /* non-fatal */ }
-      })
-    })()
+    backfillAnalysis(newSamples, get().updateSample)
     return result
   },
 
@@ -92,15 +97,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const saved = await window.api.library.saveChops(params)
     const samples = await window.api.library.getSamples()
     set({ samples })
-    ;(async () => {
-      const { updateSample } = get()
-      await forEachConcurrent(saved, ANALYSIS_CONCURRENCY, async (sample) => {
-        try {
-          const result = await analyzeAudioUrl(toLocalFileUrl(sample.filePath))
-          await updateSample(sample.id, result)
-        } catch { /* non-fatal */ }
-      })
-    })()
+    backfillAnalysis(saved, get().updateSample)
   },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
