@@ -74,6 +74,14 @@ function runMigrations(): void {
   if (!sampleCols.includes('project_id')) {
     db.exec('ALTER TABLE samples ADD COLUMN project_id TEXT')
   }
+  // Provenance for chops materialized into the library (see services/materializeChops).
+  if (!sampleCols.includes('source_chop_id')) {
+    db.exec('ALTER TABLE samples ADD COLUMN source_chop_id TEXT')
+  }
+  // Null out references to projects that no longer exist. project_id is a soft link with no FK,
+  // so deleted projects (and seed artifacts) leave samples pointing at ghost ids; the library
+  // reads these as "—". Project deletion now nulls these itself, so this is a one-time cleanup.
+  db.exec('UPDATE samples SET project_id = NULL WHERE project_id IS NOT NULL AND project_id NOT IN (SELECT id FROM projects)')
 
   const projectCols = (db.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).map((c) => c.name)
   if (!projectCols.includes('source_name')) {
@@ -94,6 +102,7 @@ function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_pack_slots_project_chop_id ON pack_slots(project_chop_id);
     CREATE INDEX IF NOT EXISTS idx_pack_slots_sample_id ON pack_slots(sample_id);
     CREATE INDEX IF NOT EXISTS idx_samples_project_id ON samples(project_id);
+    CREATE INDEX IF NOT EXISTS idx_samples_source_chop_id ON samples(source_chop_id);
   `)
 }
 

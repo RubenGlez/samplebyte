@@ -5,6 +5,7 @@ import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { update } from './update'
 import { initDatabase } from './db/index'
+import { materializeProjectChops } from './services/materializeChops'
 import { registerLibraryHandlers } from './ipc/library'
 import { registerAudioHandlers } from './ipc/audio'
 import { registerFilesystemHandlers } from './ipc/filesystem'
@@ -176,7 +177,7 @@ async function createWindow() {
   update(win)
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Serve local audio files to the renderer without cross-origin restrictions
   protocol.handle('local-file', async (request) => {
     const url = new URL(request.url)
@@ -233,6 +234,9 @@ app.whenReady().then(() => {
   })
 
   initDatabase()
+  // One-time: materialize existing project chops into real library samples before the window
+  // loads, so Browse shows them as files. No-op (one COUNT query) on every later launch.
+  await materializeProjectChops().catch((error) => logMain('materializeProjectChops:failed', error))
   registerLibraryHandlers()
   registerAudioHandlers()
   registerFilesystemHandlers()

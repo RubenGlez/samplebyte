@@ -1,46 +1,37 @@
 import { useMemo } from 'react'
 import { useLibraryStore } from '@/stores/library'
-import type { ProjectChop, Sample } from '@/types'
+import type { Sample } from '@/types'
 
-export type LibraryBrowserItem =
-  | { kind: 'sample'; id: string; name: string; filePath: string; duration: number | null; bpm: number | null; musicalKey: string | null; projectId: string | null; source: 'local' | 'freesound'; sample: Sample }
-  | { kind: 'project-chop'; id: string; name: string; filePath: string; duration: number; bpm: null; musicalKey: null; projectId: string; projectName: string; source: 'local' | 'freesound'; start: number; end: number; chop: ProjectChop }
+// The library is a flat list of real files: local uploads, Freesound downloads, and chops
+// materialized from projects (source 'chop'). Project chops are no longer surfaced as virtual
+// rows — they enter the library as samples, so every row is a concrete file.
+export type LibraryBrowserItem = {
+  id: string
+  name: string
+  filePath: string
+  duration: number | null
+  bpm: number | null
+  musicalKey: string | null
+  projectId: string | null
+  source: Sample['source']
+  sample: Sample
+}
 
 export function useFilteredSamples() {
-  const { samples, projectChops, searchQuery, projectFilter, filters } = useLibraryStore()
+  const { samples, searchQuery, projectFilter, filters } = useLibraryStore()
 
   return useMemo(() => {
-    const items: LibraryBrowserItem[] = [
-      ...projectChops
-        .filter((chop) => chop.sourcePath)
-        .map((chop) => ({
-          kind: 'project-chop' as const,
-          id: `project-chop:${chop.id}`,
-          name: chop.name,
-          filePath: chop.sourcePath!,
-          duration: chop.end - chop.start,
-          bpm: null,
-          musicalKey: null,
-          projectId: chop.projectId,
-          projectName: chop.projectName,
-          source: chop.source,
-          start: chop.start,
-          end: chop.end,
-          chop,
-        })),
-      ...samples.map((sample) => ({
-        kind: 'sample' as const,
-        id: `sample:${sample.id}`,
-        name: sample.name,
-        filePath: sample.filePath,
-        duration: sample.duration,
-        bpm: sample.bpm,
-        musicalKey: sample.musicalKey,
-        projectId: sample.projectId,
-        source: sample.source,
-        sample,
-      })),
-    ]
+    const items: LibraryBrowserItem[] = samples.map((sample) => ({
+      id: `sample:${sample.id}`,
+      name: sample.name,
+      filePath: sample.filePath,
+      duration: sample.duration,
+      bpm: sample.bpm,
+      musicalKey: sample.musicalKey,
+      projectId: sample.projectId,
+      source: sample.source,
+      sample,
+    }))
 
     return items.filter((item) => {
       if (!item.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
@@ -51,5 +42,5 @@ export function useFilteredSamples() {
       if (filters.key && item.musicalKey?.toLowerCase() !== filters.key.toLowerCase()) return false
       return true
     })
-  }, [samples, projectChops, searchQuery, projectFilter, filters])
+  }, [samples, searchQuery, projectFilter, filters])
 }

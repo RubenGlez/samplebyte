@@ -125,9 +125,8 @@ export function registerLibraryHandlers(): void {
     return projects.duplicateProject(id)
   })
 
-  ipcMain.handle('library:getPackSlotRefCount', (_, id: string, type: 'sample' | 'project-chop') => {
-    if (type === 'sample') return samples.getSamplePackSlotRefCount(id)
-    return projects.getProjectChopPackSlotRefCount(id)
+  ipcMain.handle('library:getPackSlotRefCount', (_, id: string) => {
+    return samples.getSamplePackSlotRefCount(id)
   })
 
   ipcMain.handle('library:getOrphans', () => {
@@ -137,13 +136,5 @@ export function registerLibraryHandlers(): void {
   ipcMain.handle('library:deleteOrphans', (_, ids: string[]) => {
     for (const id of ids) samples.deleteSample(id)
     return { deleted: ids.length }
-  })
-
-  ipcMain.handle('library:deleteProjectChop', (_, chopId: string) => {
-    projects.deleteProjectChop(chopId)
-  })
-
-  ipcMain.handle('library:renameProjectChop', (_, chopId: string, name: string) => {
-    projects.renameProjectChop(chopId, name)
   })
 }

@@ -1,16 +1,6 @@
 import { getDb } from '../index'
 import type { Project, ProjectChop, ProjectRegion } from '../../../types'
 
-function parseRegions(regionsJson: string | null | undefined): Array<{ id: string; [k: string]: unknown }> {
-  if (!regionsJson) return []
-  try {
-    return JSON.parse(regionsJson) as Array<{ id: string; [k: string]: unknown }>
-  } catch (error) {
-    void error
-    return []
-  }
-}
-
 function deserialize(row: Record<string, unknown>, chops?: ProjectChop[]): Project {
   const id = row.id as string
   return {
@@ -125,7 +115,13 @@ export function updateProject(id: string, data: Partial<Pick<Project, 'name' | '
 }
 
 export function deleteProject(id: string): void {
-  getDb().prepare('DELETE FROM projects WHERE id = ?').run(id)
+  const db = getDb()
+  // Keep materialized chop-samples in the library; just sever their project link so deleting a
+  // project doesn't re-create orphaned project_id references. (project_chops still cascade.)
+  db.transaction(() => {
+    db.prepare('UPDATE samples SET project_id = NULL WHERE project_id = ?').run(id)
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id)
+  })()
 }
 
 export function duplicateProject(id: string): Project | null {
@@ -158,45 +154,6 @@ export function getAllProjectChops(): Array<ProjectChop & { projectName: string;
       sourcePath: row.source_path as string | null,
       source: (row.source as 'local' | 'freesound') || 'local',
     }))
-}
-
-export function deleteProjectChop(chopId: string): void {
-  const db = getDb()
-  const row = db.prepare('SELECT project_id FROM project_chops WHERE id = ?').get(chopId) as { project_id: string } | undefined
-  if (!row) return
-  const projectId = row.project_id
-
-  db.transaction(() => {
-    db.prepare('DELETE FROM pack_slots WHERE project_chop_id = ?').run(chopId)
-    db.prepare('DELETE FROM project_chops WHERE id = ?').run(chopId)
-    const proj = db.prepare('SELECT regions FROM projects WHERE id = ?').get(projectId) as { regions: string } | undefined
-    if (proj) {
-      const regions = parseRegions(proj.regions)
-      db.prepare('UPDATE projects SET regions = ? WHERE id = ?').run(JSON.stringify(regions.filter((r) => r.id !== chopId)), projectId)
-    }
-  })()
-}
-
-export function renameProjectChop(chopId: string, name: string): void {
-  const db = getDb()
-  const row = db.prepare('SELECT project_id FROM project_chops WHERE id = ?').get(chopId) as { project_id: string } | undefined
-  if (!row) return
-
-  db.transaction(() => {
-    db.prepare('UPDATE project_chops SET name = ?, updated_at = ? WHERE id = ?').run(name, Date.now(), chopId)
-    const proj = db.prepare('SELECT regions FROM projects WHERE id = ?').get(row.project_id) as { regions: string } | undefined
-    if (proj) {
-      const regions = parseRegions(proj.regions)
-      db.prepare('UPDATE projects SET regions = ? WHERE id = ?').run(
-        JSON.stringify(regions.map((r) => r.id === chopId ? { ...r, name } : r)),
-        row.project_id
-      )
-    }
-  })()
-}
-
-export function getProjectChopPackSlotRefCount(chopId: string): number {
-  return ((getDb().prepare('SELECT COUNT(*) as count FROM pack_slots WHERE project_chop_id = ?').get(chopId)) as { count: number }).count
 }
 
 export function upsertProjectChops(projectId: string, regions: ProjectRegion[]): ProjectChop[] {

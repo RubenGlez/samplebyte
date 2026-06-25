@@ -6,10 +6,13 @@ export type Sample = {
   bpm: number | null
   musicalKey: string | null
   tags: string[]
-  source: 'local' | 'freesound'
+  source: 'local' | 'freesound' | 'chop'
   freesoundId: string | null
   waveformData: number[] | null
   projectId: string | null
+  // Set when this sample was materialized from a project chop (trimmed to a real file).
+  // Doubles as the idempotency key for the one-time chop materialization migration.
+  sourceChopId: string | null
   createdAt: number
 }
 

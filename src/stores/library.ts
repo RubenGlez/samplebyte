@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { analyzeAudioUrl } from '@/lib/audioAnalysis'
 import { toLocalFileUrl } from '@/utils'
 import { forEachConcurrent, withLoading } from './utils'
-import type { ProjectChop, Sample } from '../../electron/types'
+import type { Sample } from '../../electron/types'
 
 // How many files to decode + analyse at once during import. Caps memory (each decoded file is
 // tens of MB) and roughly matches the analysis worker-pool size.
@@ -16,7 +16,6 @@ type Filters = {
 
 type LibraryState = {
   samples: Sample[]
-  projectChops: Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound' }>
   searchQuery: string
   filters: Filters
   projectFilter: string | null
@@ -27,8 +26,6 @@ type LibraryState = {
   addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
   updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
   deleteSample: (id: string) => Promise<void>
-  deleteProjectChop: (chopId: string) => Promise<void>
-  renameProjectChop: (chopId: string, name: string) => Promise<void>
   saveChops: (params: { sourceFilePath: string; regions: Array<{ start: number; end: number; name: string }>; projectId?: string }) => Promise<void>
   importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
   setSearchQuery: (query: string) => void
@@ -39,7 +36,6 @@ type LibraryState = {
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   samples: [],
-  projectChops: [],
   searchQuery: '',
   filters: {},
   projectFilter: null,
@@ -49,11 +45,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   fetchSamples: () => withLoading(
     (v) => set({ isLoading: v }),
     async () => {
-      const [samples, projectChops] = await Promise.all([
-        window.api.library.getSamples(),
-        window.api.projects.getAllChops(),
-      ])
-      set({ samples, projectChops })
+      set({ samples: await window.api.library.getSamples() })
     }
   ),
 
@@ -75,20 +67,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set((state) => ({
       samples: state.samples.filter((s) => s.id !== id),
       selectedSample: state.selectedSample?.id === id ? null : state.selectedSample,
-    }))
-  },
-
-  deleteProjectChop: async (chopId) => {
-    await window.api.library.deleteProjectChop(chopId)
-    set((state) => ({
-      projectChops: state.projectChops.filter((c) => c.id !== chopId),
-    }))
-  },
-
-  renameProjectChop: async (chopId, name) => {
-    await window.api.library.renameProjectChop(chopId, name)
-    set((state) => ({
-      projectChops: state.projectChops.map((c) => c.id === chopId ? { ...c, name } : c),
     }))
   },
 

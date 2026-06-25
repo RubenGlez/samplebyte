@@ -9,7 +9,7 @@ type SampleFilters = {
   projectId?: string
 }
 
-type NewSample = Pick<Sample, 'name' | 'filePath'> & Partial<Pick<Sample, 'duration' | 'bpm' | 'musicalKey' | 'tags' | 'source' | 'freesoundId' | 'waveformData' | 'projectId'>>
+type NewSample = Pick<Sample, 'name' | 'filePath'> & Partial<Pick<Sample, 'duration' | 'bpm' | 'musicalKey' | 'tags' | 'source' | 'freesoundId' | 'waveformData' | 'projectId' | 'sourceChopId'>>
 
 function deserialize(row: Record<string, unknown>): Sample {
   return {
@@ -24,6 +24,7 @@ function deserialize(row: Record<string, unknown>): Sample {
     freesoundId: row.freesound_id as string | null,
     waveformData: row.waveform_data ? JSON.parse(row.waveform_data as string) : null,
     projectId: row.project_id as string | null,
+    sourceChopId: row.source_chop_id as string | null,
     createdAt: row.created_at as number,
   }
 }
@@ -73,8 +74,8 @@ export function addSample(data: NewSample): Sample {
   const createdAt = Date.now()
 
   db.prepare(`
-    INSERT INTO samples (id, name, file_path, duration, bpm, musical_key, tags, source, freesound_id, waveform_data, project_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO samples (id, name, file_path, duration, bpm, musical_key, tags, source, freesound_id, waveform_data, project_id, source_chop_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     data.name,
@@ -87,10 +88,18 @@ export function addSample(data: NewSample): Sample {
     data.freesoundId ?? null,
     data.waveformData ? JSON.stringify(data.waveformData) : null,
     data.projectId ?? null,
+    data.sourceChopId ?? null,
     createdAt
   )
 
   return getSample(id)!
+}
+
+// Chop ids that have already been materialized into a sample. Backs the idempotency
+// guard for the one-time chop materialization pass.
+export function getMaterializedChopIds(): Set<string> {
+  const rows = getDb().prepare('SELECT source_chop_id FROM samples WHERE source_chop_id IS NOT NULL').all() as { source_chop_id: string }[]
+  return new Set(rows.map((r) => r.source_chop_id))
 }
 
 export function updateSample(id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>): void {
