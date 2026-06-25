@@ -8,13 +8,14 @@ interface SampleListProps {
   samples?: Region[]
   selectedSample?: Region
   regionNames?: Record<string, string>
+  projectName?: string
   onClick: (region: Region) => void
   onPlay?: (region: Region) => void
   onNameChange?: (regionId: string, name: string) => void
   onClearAll?: () => void
 }
 
-const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onPlay, onNameChange, onClearAll }: SampleListProps) => {
+const SampleList = ({ samples = [], selectedSample, regionNames, projectName = '', onClick, onPlay, onNameChange, onClearAll }: SampleListProps) => {
   const [showClearDialog, setShowClearDialog] = useState(false)
 
   const handleConfirmClearAll = () => {
@@ -27,7 +28,7 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onPlay
     <div className="px-4 pb-2">
       <div className="sticky top-0 z-10 flex justify-between items-center px-1 py-2 gap-2 bg-base/95 backdrop-blur border-b border-border/60">
         <span className="text-[11px] font-semibold text-faint tracking-wide select-none">
-          Regions
+          Chops
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-faint/60 font-mono select-none">
@@ -48,6 +49,7 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onPlay
             isSelected={sample.id === selectedSample?.id}
             index={index}
             initialName={regionNames?.[sample.id]}
+            projectName={projectName}
             onClick={onClick}
             onPlay={onPlay}
             onNameChange={onNameChange}
@@ -57,9 +59,9 @@ const SampleList = ({ samples = [], selectedSample, regionNames, onClick, onPlay
 
       <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
         <DialogContent>
-          <DialogTitle>Clear all regions?</DialogTitle>
+          <DialogTitle>Clear all chops?</DialogTitle>
           <p className="text-[13px] text-muted m-0 leading-relaxed">
-            This will remove all chops from the current waveform.
+            This will remove all chops from this audio file.
           </p>
           <div className="flex justify-end gap-2 mt-4">
             <DialogClose asChild>

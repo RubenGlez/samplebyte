@@ -33,7 +33,7 @@ import {
 import { rankTransientsFromUrl, findLoopCandidatesFromUrl, type RankedPeak } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
-import { formatTime, toLocalFileUrl } from '@/utils'
+import { formatTime, toLocalFileUrl, defaultChopName } from '@/utils'
 import type { ProjectRegion } from '@/types'
 import type { Region } from 'wavesurfer.js/dist/plugins/regions'
 
@@ -198,7 +198,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const [showTrimDialog, setShowTrimDialog] = useState(false)
 
   const currentRegions = useCallback(() =>
-    (regions ?? []).map((r, index) => ({ id: r.id, start: r.start, end: r.end, name: regionNames[r.id] ?? `Chop ${index + 1}` })),
+    (regions ?? []).map((r, index) => ({ id: r.id, start: r.start, end: r.end, name: regionNames[r.id] ?? defaultChopName(projectName, index) })),
     [regions, regionNames]
   )
 
@@ -386,7 +386,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         return { start, end }
       })
       .filter((f) => f.end > f.start)
-      .map((f, i) => ({ start: f.start, end: f.end, name: `Chop ${String(i + 1).padStart(2, '0')}` }))
+      .map((f, i) => ({ start: f.start, end: f.end, name: defaultChopName(projectName, i) }))
     replaceRegions(fragments)
   }, [peaksInBounds, snapEnabled, snapToGrid, replaceRegions, clearLoopCandidates, trimIn, trimOut])
 
@@ -566,7 +566,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         <button
           onClick={handleToggleLoop}
           aria-pressed={loopMode}
-          title={loopMode ? 'Loop mode on — playing a region repeats it' : 'Loop mode off — plays once'}
+          title={loopMode ? 'Loop mode on — playing a chop repeats it' : 'Loop mode off — plays once'}
           className={cn(
             'w-7 h-7 rounded-full flex items-center justify-center border transition-colors cursor-pointer',
             loopMode
@@ -582,7 +582,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         {/* History — shares the toolbar button language */}
         <div className="flex items-center gap-1.5">
           <button
-            title="Undo region edit (⌘Z)"
+            title="Undo edit (⌘Z)"
             onClick={undo}
             disabled={!canUndo}
             className={cn(
@@ -595,7 +595,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             <Undo2 size={13} />
           </button>
           <button
-            title="Redo region edit (⇧⌘Z)"
+            title="Redo edit (⇧⌘Z)"
             onClick={redo}
             disabled={!canRedo}
             className={cn(
@@ -666,6 +666,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           samples={regions}
           selectedSample={selectedRegion}
           regionNames={regionNames}
+          projectName={projectName}
           onClick={handleRegionClick}
           onPlay={playRegionWithMode}
           onNameChange={updateRegionName}
@@ -674,7 +675,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       </div>
 
       <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
-        {([['Space', 'Play / Pause'], ['⌫', 'Delete region'], ['↑/↓', 'Prev / Next region'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
+        {([['Space', 'Play / Pause'], ['⌫', 'Delete chop'], ['↑/↓', 'Prev / Next chop'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}
@@ -689,7 +690,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
       <Dialog open={showTrimDialog} onOpenChange={setShowTrimDialog}>
         <DialogContent>
-          <DialogTitle>Trim source</DialogTitle>
+          <DialogTitle>Trim audio file</DialogTitle>
           <p className="text-[13px] text-muted m-0 leading-relaxed">
             Replace the current source with <span className="font-mono text-ink">{formatTime(trimIn)}</span>
             {' – '}
