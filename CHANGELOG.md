@@ -3,12 +3,18 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.0.20] - 2026-06-25
 
-### Changed
+### Added
 
 - **Pack independence** — pads snapshot their own trimmed audio at assignment, so an exported pad keeps working even if its original chop, sample, or source file is later changed, moved, or deleted
 - **Automatic library sync** — project chops save automatically and appear in Browse and the Pack source list without a separate "Save to Library" step; editing or removing a chop updates the library to match
+- **Bulk library actions** — select multiple samples in the Library to delete or re-analyze them in one pass
+
+### Changed
+
+- **Unified library** — chops, imported files, and Freesound downloads now live in one consistent sample model, so every row browses, filters, and previews the same way
+- **Faster large libraries** — the Browse and Pack source lists are virtualized and show loading states, so big collections scroll smoothly
 
 ## [0.0.19] - 2026-06-16
 
