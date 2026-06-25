@@ -3,6 +3,8 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { handle } from './handle'
 import * as packsDb from '../db/queries/packs'
+import { addSample } from '../db/queries/samples'
+import { extractWaveformData } from '../audio/waveform'
 import { getProfile, profiles } from '../hardware/profiles'
 import type { Pack, PackSourceItem } from '../../types'
 import { renderClip, LIBRARY_FORMAT } from '../services/render'
@@ -85,5 +87,27 @@ export function registerPacksHandlers(): void {
     }))
 
     return exportClips(profile, clips, outputDir)
+  })
+
+  // Recover an orphaned chop pad (its origin chop was deleted, so its library sample is gone) by
+  // copying the pad's owned WAV back into the library as a new local sample and relinking the pad to
+  // it. The owned audio is already LIBRARY_FORMAT, so it's copied as-is rather than re-rendered.
+  handle('packs:regenerateSlotToLibrary', (_, packId: string, slotNumber: number) => {
+    const slot = packsDb.getSlot(packId, slotNumber)
+    if (!slot?.audioPath) throw new Error('Slot has no owned audio to regenerate from')
+
+    const samplesDir = path.join(app.getPath('userData'), 'samples')
+    if (!fs.existsSync(samplesDir)) fs.mkdirSync(samplesDir, { recursive: true })
+    const filePath = path.join(samplesDir, `${crypto.randomUUID()}.wav`)
+    fs.copyFileSync(slot.audioPath, filePath)
+
+    const sample = addSample({
+      name: slot.displayName,
+      filePath,
+      source: 'local',
+      waveformData: extractWaveformData(filePath),
+    })
+    packsDb.relinkSlotToSample(packId, slotNumber, sample)
+    return sample
   })
 }

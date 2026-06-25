@@ -1,5 +1,5 @@
 import { getDb } from '../index'
-import type { Pack, PackSlot, PackSourceItem } from '../../../types'
+import type { Pack, PackSlot, PackSourceItem, Sample } from '../../../types'
 
 type PackWithSlots = Pack & { slots: PackSlot[] }
 
@@ -44,6 +44,27 @@ export function getPackWithSlots(id: string): PackWithSlots | null {
   const slots = (db.prepare('SELECT * FROM pack_slots WHERE pack_id = ? ORDER BY slot_number').all(id) as Record<string, unknown>[]).map(deserializeSlot)
 
   return { ...deserializePack(pack), slots }
+}
+
+export function getSlot(packId: string, slotNumber: number): PackSlot | null {
+  const row = getDb()
+    .prepare('SELECT * FROM pack_slots WHERE pack_id = ? AND slot_number = ?')
+    .get(packId, slotNumber) as Record<string, unknown> | undefined
+  return row ? deserializeSlot(row) : null
+}
+
+// Re-point a pad at a freshly created library sample after its origin chop was deleted, keeping the
+// pad's owned audio (audio_path) so export is unaffected. Clears the chop back-reference and drift
+// marker — the pad now tracks a plain local sample with no upstream chop.
+export function relinkSlotToSample(packId: string, slotNumber: number, sample: Sample): void {
+  getDb()
+    .prepare(`
+      UPDATE pack_slots
+      SET sample_id = ?, source_type = 'library-sample', source_path = ?,
+          project_chop_id = NULL, source_chop_updated_at = NULL
+      WHERE pack_id = ? AND slot_number = ?
+    `)
+    .run(sample.id, sample.filePath, packId, slotNumber)
 }
 
 export function createPack(data: Pick<Pack, 'name' | 'hardwareProfile'>): Pack {

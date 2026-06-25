@@ -13,6 +13,16 @@ import { formatTime, toLocalFileUrl } from '@/utils'
 import { Button } from '@/components/ui/Button'
 import type { PackSlot, PackSourceItem, ProjectChop, Sample } from '@/types'
 
+// A pad whose source has moved out from under it. 'drift': the source chop was edited and the pad's
+// owned audio is stale (offer update-from-source). 'orphan': the origin chop was deleted so the
+// library sample is gone, but the pad still owns its audio (offer regenerate-to-library).
+type PadRecovery = {
+  slotNumber: number
+  slot: PackSlot
+  kind: 'drift' | 'orphan'
+  sample?: Sample
+}
+
 const PROFILES = [
   { id: 'sp404-mkii',  name: 'Roland SP-404 MkII' },
   { id: 'mpc-generic', name: 'Akai MPC One' },
@@ -42,6 +52,7 @@ export default function PacksView() {
   const [bpmFilter, setBpmFilter] = useState<number | undefined>()
   const [keyFilter, setKeyFilter] = useState<string | undefined>()
   const [isExporting, setIsExporting] = useState(false)
+  const [samplesLoaded, setSamplesLoaded] = useState(false)
 
   const handleExport = async () => {
     if (!currentPack) return
@@ -106,7 +117,7 @@ export default function PacksView() {
 
   useEffect(() => {
     fetchPacks()
-    fetchSamples()
+    fetchSamples().then(() => setSamplesLoaded(true))
     fetchProjects()
     window.api.projects.getAllChops().then(setProjectChops)
   }, [fetchPacks, fetchSamples, fetchProjects])
@@ -138,24 +149,55 @@ export default function PacksView() {
     flashPackSaved()
   }
 
-  const refreshSlotFromSource = async (slot: PackSlot) => {
-    if (!slot.projectChopId) return
-    const chop = projectChops.find((item) => item.id === slot.projectChopId)
-    if (!chop?.sourcePath) return
-    await setSlot(slot.slotNumber, chopToSourceItem(chop))
+  const updateSlotFromSource = async (rec: PadRecovery) => {
+    const { slot } = rec
+    let source: PackSourceItem | null = null
+    if (slot.sourceType === 'project-chop' && slot.projectChopId) {
+      const chop = projectChops.find((item) => item.id === slot.projectChopId)
+      if (chop?.sourcePath) source = chopToSourceItem(chop)
+    } else if (rec.sample) {
+      source = sampleToSourceItem(rec.sample)
+    }
+    if (!source) return
+    await setSlot(slot.slotNumber, source)
     flashPackSaved()
-    toast(`${chop.name} refreshed from source`)
+    toast(`${slot.displayName} updated from source`)
+  }
+
+  const regenerateSlot = async (rec: PadRecovery) => {
+    if (!currentPack) return
+    await window.api.packs.regenerateSlotToLibrary(currentPack.id, rec.slotNumber)
+    await fetchSamples()
+    await loadSlots()
+    flashPackSaved()
+    toast(`${rec.slot.displayName} regenerated to library`)
   }
 
   const filledSlots = Object.keys(slots).length
 
-  const stalePads = Array.from({ length: 16 }, (_, i) => {
+  const padRecoveries = Array.from({ length: 16 }, (_, i): PadRecovery | null => {
     const slot = slots[i]
-    if (!slot?.projectChopId) return null
-    const chop = projectChops.find((c) => c.id === slot.projectChopId)
-    if (!chop || !slot.sourceChopUpdatedAt || chop.updatedAt <= slot.sourceChopUpdatedAt) return null
-    return { slotNumber: i, slot, chop }
-  }).filter(Boolean) as Array<{ slotNumber: number; slot: PackSlot; chop: ProjectChop & { projectName: string; sourcePath: string | null } }>
+    if (!slot) return null
+    // Legacy project-chop pads: drift against the live project chop.
+    if (slot.sourceType === 'project-chop') {
+      if (!slot.projectChopId) return null
+      const chop = projectChops.find((c) => c.id === slot.projectChopId)
+      if (!chop || !slot.sourceChopUpdatedAt || chop.updatedAt <= slot.sourceChopUpdatedAt) return null
+      return { slotNumber: i, slot, kind: 'drift' }
+    }
+    // Library-sample pads: today's chop pads are materialized samples.
+    if (slot.sourceType === 'library-sample' && slot.sampleId) {
+      const sample = samplesById.get(slot.sampleId)
+      if (!sample) {
+        // Origin chop deleted, so the library sample is gone. Offer to rebuild from owned audio.
+        return samplesLoaded && slot.audioPath ? { slotNumber: i, slot, kind: 'orphan' } : null
+      }
+      if (sample.source === 'chop' && slot.sourceChopUpdatedAt != null && sample.createdAt > slot.sourceChopUpdatedAt) {
+        return { slotNumber: i, slot, kind: 'drift', sample }
+      }
+    }
+    return null
+  }).filter((r): r is PadRecovery => r !== null)
 
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -276,7 +318,7 @@ export default function PacksView() {
                       key={i}
                       slotNumber={i}
                       slot={slots[i] ?? null}
-                      sourceChanged={stalePads.some((s) => s.slotNumber === i)}
+                      recovery={padRecoveries.find((r) => r.slotNumber === i)?.kind ?? null}
                       onClear={() => handleClearSlot(i)}
                       isDraggingAny={!!activeSource}
                       auditionMode={padAuditionMode}
@@ -284,26 +326,38 @@ export default function PacksView() {
                   ))}
                 </div>
 
-                {stalePads.length > 0 ? (
+                {padRecoveries.length > 0 ? (
                   <div className="border border-border rounded-lg bg-surface overflow-hidden" style={{ width: 'min(100%, 400px)' }}>
                     <div className="px-3 h-8 flex items-center gap-2 border-b border-border">
                       <AlertTriangle size={13} className="text-yellow-400 shrink-0" />
                       <span className="text-[11px] text-muted">
-                        {stalePads.length === 1 ? '1 pad has' : `${stalePads.length} pads have`} an updated source
+                        {padRecoveries.length === 1 ? '1 pad needs' : `${padRecoveries.length} pads need`} attention
                       </span>
                     </div>
                     <div className="divide-y divide-border">
-                      {stalePads.map(({ slotNumber, slot }) => (
-                        <div key={slotNumber} className="flex items-center gap-2.5 px-3 h-9">
+                      {padRecoveries.map((rec) => (
+                        <div key={rec.slotNumber} className="flex items-center gap-2.5 px-3 h-9">
                           <span className="text-[10px] font-mono text-faint/50 shrink-0 w-4">
-                            {String(slotNumber + 1).padStart(2, '0')}
+                            {String(rec.slotNumber + 1).padStart(2, '0')}
                           </span>
-                          <span className="text-[12px] text-ink flex-1 truncate">{slot.displayName}</span>
-                          <span className="text-[11px] text-faint shrink-0">Source was edited</span>
-                          <Button size="sm" onClick={() => refreshSlotFromSource(slot)}>
-                            <RefreshCw size={10} />
-                            Refresh
-                          </Button>
+                          <span className="text-[12px] text-ink flex-1 truncate">{rec.slot.displayName}</span>
+                          {rec.kind === 'drift' ? (
+                            <>
+                              <span className="text-[11px] text-faint shrink-0">Source was edited</span>
+                              <Button size="sm" onClick={() => updateSlotFromSource(rec)}>
+                                <RefreshCw size={10} />
+                                Update
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-[11px] text-orange-400/80 shrink-0">Origin removed</span>
+                              <Button size="sm" onClick={() => regenerateSlot(rec)}>
+                                <RefreshCw size={10} />
+                                Regenerate
+                              </Button>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -382,7 +436,10 @@ function sampleToSourceItem(sample: Sample): PackSourceItem {
     bpm: sample.bpm,
     musicalKey: sample.musicalKey,
     tags: sample.tags,
-    sourceChopUpdatedAt: null,
+    // For chop-materialized samples, capture the sample's build time so the pad can detect when the
+    // library re-synced it (refreshChopSample bumps created_at on every re-trim). Plain samples have
+    // no upstream to drift from.
+    sourceChopUpdatedAt: sample.source === 'chop' ? sample.createdAt : null,
   }
 }
 
@@ -444,10 +501,10 @@ function MarqueeText({ text }: { text: string }) {
   )
 }
 
-function PadSlot({ slotNumber, slot, sourceChanged, onClear, isDraggingAny, auditionMode }: {
+function PadSlot({ slotNumber, slot, recovery, onClear, isDraggingAny, auditionMode }: {
   slotNumber: number
   slot: PackSlot | null
-  sourceChanged: boolean
+  recovery: PadRecovery['kind'] | null
   onClear: () => void
   isDraggingAny: boolean
   auditionMode: PadAuditionMode
@@ -507,7 +564,10 @@ function PadSlot({ slotNumber, slot, sourceChanged, onClear, isDraggingAny, audi
             <div className="flex items-center justify-between">
               <AlertTriangle
                 size={12}
-                className={cn('shrink-0', sourceChanged ? 'text-yellow-400' : 'invisible')}
+                className={cn(
+                  'shrink-0',
+                  recovery === 'drift' ? 'text-yellow-400' : recovery === 'orphan' ? 'text-orange-400' : 'invisible'
+                )}
               />
               {slot.start !== null && slot.end !== null && (
                 <span className="text-[10px] text-faint/60 tabular-nums font-mono leading-none">

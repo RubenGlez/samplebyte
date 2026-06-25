@@ -63,6 +63,7 @@ const api: Api = {
     rename: (id, name) => ipcRenderer.invoke('packs:rename', id, name),
     delete: (id) => ipcRenderer.invoke('packs:delete', id),
     export: (packId, outputDir) => ipcRenderer.invoke('packs:export', packId, outputDir),
+    regenerateSlotToLibrary: (packId, slotNumber) => ipcRenderer.invoke('packs:regenerateSlotToLibrary', packId, slotNumber),
   },
 }
 

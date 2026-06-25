@@ -72,6 +72,9 @@ export type Api = {
     rename: (id: string, name: string) => Promise<void>
     delete: (id: string) => Promise<void>
     export: (packId: string, outputDir: string) => Promise<{ filesWritten: number }>
+    // Rebuild an orphaned chop pad's audio back into the library (from the pad's owned WAV) and
+    // relink the pad to the new sample. Returns the created sample.
+    regenerateSlotToLibrary: (packId: string, slotNumber: number) => Promise<Sample>
   }
 }
 
