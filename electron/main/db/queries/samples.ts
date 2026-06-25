@@ -134,3 +134,25 @@ export function deleteSample(id: string): string | null {
 export function getSamplePackSlotRefCount(sampleId: string): number {
   return ((getDb().prepare('SELECT COUNT(*) as count FROM pack_slots WHERE sample_id = ?').get(sampleId)) as { count: number }).count
 }
+
+// Re-point a materialized chop sample at freshly trimmed audio after its source chop changed.
+// Bumps created_at so the next project sync treats it as current. Does not touch pack_slots —
+// packs are independent snapshots and keep their own display name and audio.
+export function refreshChopSample(
+  id: string,
+  data: { name: string; filePath: string; duration: number; waveformData: number[] }
+): void {
+  getDb()
+    .prepare('UPDATE samples SET name = ?, file_path = ?, duration = ?, waveform_data = ?, created_at = ? WHERE id = ?')
+    .run(data.name, data.filePath, data.duration, JSON.stringify(data.waveformData), Date.now(), id)
+}
+
+// Delete only the sample row, returning its file path. Leaves any pack_slots referencing it
+// intact: when a chop is removed from its project the library drops it, but packs are independent
+// snapshots that keep working from their stored source path + bounds.
+export function deleteChopSampleRow(id: string): string | null {
+  const db = getDb()
+  const row = db.prepare('SELECT file_path FROM samples WHERE id = ?').get(id) as { file_path: string } | undefined
+  db.prepare('DELETE FROM samples WHERE id = ?').run(id)
+  return row?.file_path ?? null
+}

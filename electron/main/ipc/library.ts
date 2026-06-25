@@ -23,6 +23,7 @@ function scanAudioFiles(dir: string): string[] {
 import * as projects from '../db/queries/projects'
 import { trimToWav } from '../services/trim'
 import { extractWaveformData } from '../audio/waveform'
+import { syncProjectChopsToLibrary } from '../services/materializeChops'
 import type { Sample, Project, ProjectRegion } from '../../types'
 
 export function registerLibraryHandlers(): void {
@@ -97,12 +98,15 @@ export function registerLibraryHandlers(): void {
     return projects.getProject(id)
   })
 
-  ipcMain.handle('projects:save', (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }) => {
-    return projects.saveProject(data)
+  ipcMain.handle('projects:save', async (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }) => {
+    const project = projects.saveProject(data)
+    await syncProjectChopsToLibrary(project.id)
+    return project
   })
 
-  ipcMain.handle('projects:update', (_, id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => {
+  ipcMain.handle('projects:update', async (_, id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => {
     projects.updateProject(id, data)
+    if (data.regions !== undefined) await syncProjectChopsToLibrary(id)
   })
 
   ipcMain.handle('projects:getChops', (_, projectId: string) => {
@@ -113,16 +117,30 @@ export function registerLibraryHandlers(): void {
     return projects.getAllProjectChops()
   })
 
-  ipcMain.handle('projects:upsertChops', (_, projectId: string, regions: ProjectRegion[]) => {
-    return projects.upsertProjectChops(projectId, regions)
+  ipcMain.handle('projects:upsertChops', async (_, projectId: string, regions: ProjectRegion[]) => {
+    const chops = projects.upsertProjectChops(projectId, regions)
+    await syncProjectChopsToLibrary(projectId)
+    return chops
   })
 
   ipcMain.handle('projects:delete', (_, id: string) => {
+    // The library is a projection of projects, so a deleted project's materialized chops leave the
+    // library too (rows + files). Pack slots that referenced them are left intact — packs are
+    // independent snapshots.
+    for (const sample of samples.getAllSamples({ projectId: id })) {
+      if (sample.source !== 'chop') continue
+      const filePath = samples.deleteChopSampleRow(sample.id)
+      if (filePath) {
+        try { fs.unlinkSync(filePath) } catch { /* already gone */ }
+      }
+    }
     projects.deleteProject(id)
   })
 
-  ipcMain.handle('projects:duplicate', (_, id: string) => {
-    return projects.duplicateProject(id)
+  ipcMain.handle('projects:duplicate', async (_, id: string) => {
+    const project = projects.duplicateProject(id)
+    if (project) await syncProjectChopsToLibrary(project.id)
+    return project
   })
 
   ipcMain.handle('library:getPackSlotRefCount', (_, id: string) => {
