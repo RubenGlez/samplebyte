@@ -37,6 +37,8 @@ export type PackSlot = {
   sourceChopUpdatedAt: number | null
   pitchShiftSemitones: number | null
   timeStretchRatio: number | null
+  // Owned trimmed WAV captured at assignment, so the pad exports independently of its source.
+  audioPath: string | null
 }
 
 export type Project = {

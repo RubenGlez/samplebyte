@@ -27,6 +27,7 @@ function deserializeSlot(row: Record<string, unknown>): PackSlot {
     sourceChopUpdatedAt: row.source_chop_updated_at as number | null,
     pitchShiftSemitones: row.pitch_shift_semitones as number | null,
     timeStretchRatio: row.time_stretch_ratio as number | null,
+    audioPath: row.audio_path as string | null,
   }
 }
 
@@ -55,7 +56,7 @@ export function createPack(data: Pick<Pack, 'name' | 'hardwareProfile'>): Pack {
   return { id, name: data.name, hardwareProfile: data.hardwareProfile, createdAt }
 }
 
-export function upsertSlot(packId: string, slotNumber: number, source: PackSourceItem): void {
+export function upsertSlot(packId: string, slotNumber: number, source: PackSourceItem, audioPath: string | null): void {
   getDb()
     .prepare(`
       INSERT OR REPLACE INTO pack_slots (
@@ -71,8 +72,9 @@ export function upsertSlot(packId: string, slotNumber: number, source: PackSourc
         display_name,
         source_chop_updated_at,
         pitch_shift_semitones,
-        time_stretch_ratio
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        time_stretch_ratio,
+        audio_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       packId,
@@ -87,8 +89,24 @@ export function upsertSlot(packId: string, slotNumber: number, source: PackSourc
       source.displayName,
       source.sourceChopUpdatedAt,
       null,
-      null
+      null,
+      audioPath
     )
+}
+
+// Owned audio path currently stored for a slot (so the caller can delete the orphaned file when a
+// slot is overwritten or removed).
+export function getSlotAudioPath(packId: string, slotNumber: number): string | null {
+  const row = getDb()
+    .prepare('SELECT audio_path FROM pack_slots WHERE pack_id = ? AND slot_number = ?')
+    .get(packId, slotNumber) as { audio_path: string | null } | undefined
+  return row?.audio_path ?? null
+}
+
+export function getPackSlotAudioPaths(packId: string): string[] {
+  return (getDb()
+    .prepare('SELECT audio_path FROM pack_slots WHERE pack_id = ? AND audio_path IS NOT NULL')
+    .all(packId) as { audio_path: string }[]).map((r) => r.audio_path)
 }
 
 export function removeSlot(packId: string, slotNumber: number): void {

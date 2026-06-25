@@ -94,6 +94,14 @@ function runMigrations(): void {
   migrateProjectRegionsToChops()
   migratePackSlotsToSnapshots()
 
+  // Owned audio: each pad snapshots its own trimmed WAV at assignment time so export never depends
+  // on the source chop/sample/file still existing. Legacy slots have NULL and fall back to
+  // trimming source_path at export.
+  const slotCols = (db.prepare('PRAGMA table_info(pack_slots)').all() as { name: string }[]).map((c) => c.name)
+  if (!slotCols.includes('audio_path')) {
+    db.exec('ALTER TABLE pack_slots ADD COLUMN audio_path TEXT')
+  }
+
   // Created after migratePackSlotsToSnapshots, which drops and recreates pack_slots.
   // These back the foreign-key lookups (getProjectChops, pack-slot ref counts, cascade
   // deletes) that otherwise full-scan their tables.

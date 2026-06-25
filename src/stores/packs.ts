@@ -75,6 +75,9 @@ export const usePacksStore = create<PacksState>((set, get) => ({
       sourceChopUpdatedAt: source.sourceChopUpdatedAt,
       pitchShiftSemitones: null,
       timeStretchRatio: null,
+      // Owned audio is materialized server-side; only export reads it (from the DB), so the
+      // optimistic local slot can leave it null until the next loadSlots.
+      audioPath: null,
     }
     set((state) => ({ slots: { ...state.slots, [slotNumber]: slot } }))
   },
