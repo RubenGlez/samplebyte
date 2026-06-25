@@ -5,6 +5,7 @@ import { usePacksStore } from '@/stores/packs'
 import { useLibraryStore } from '@/stores/library'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastStore } from '@/stores/toast'
+import { useUiStore, type PadAuditionMode } from '@/stores/ui'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
 import { FilterControls } from '@/components/FilterControls'
 import { cn } from '@/lib/utils'
@@ -19,8 +20,14 @@ const PROFILES = [
   { id: 'generic',     name: 'Generic WAV' },
 ]
 
+// Source row pitch in px: DraggableSource is h-[28px] with a 1px flex gap. The source panel is
+// virtualized against this so a 900+ sample library mounts only the visible dnd-kit draggables.
+const SOURCE_ROW_H = 29
+const SOURCE_OVERSCAN = 8
+
 export default function PacksView() {
   const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, loadSlots } = usePacksStore()
+  const { padAuditionMode, setPadAuditionMode } = useUiStore()
   const { samples, fetchSamples } = useLibraryStore()
   const { projects, fetchProjects } = useProjectsStore()
   const { toast } = useToastStore()
@@ -56,12 +63,13 @@ export default function PacksView() {
   }
 
 
-  const sourceItems = useMemo<PackSourceItem[]>(() => [
-    ...projectChops
-      .filter((chop) => chop.sourcePath)
-      .map(chopToSourceItem),
-    ...samples.map(sampleToSourceItem),
-  ], [projectChops, samples])
+  // Drag sources are library samples only. Chops now live in the library as materialized samples
+  // (source 'chop'), so listing virtual project chops here too would double them. The projectChops
+  // state is still loaded below for stale-pad detection on existing project-chop pack slots.
+  const sourceItems = useMemo<PackSourceItem[]>(
+    () => samples.map(sampleToSourceItem),
+    [samples]
+  )
 
   const samplesById = useMemo(() => new Map(samples.map((s) => [s.id, s])), [samples])
 
@@ -78,6 +86,23 @@ export default function PacksView() {
     if (keyFilter && source.musicalKey?.toLowerCase() !== keyFilter.toLowerCase()) return false
     return true
   }), [sourceItems, samplesById, search, sourceFilter, projectFilter, bpmFilter, keyFilter])
+
+  // Virtualized source list (callback ref so measurement survives the panel mounting after loads).
+  const [sourceScrollTop, setSourceScrollTop] = useState(0)
+  const [sourceViewportH, setSourceViewportH] = useState(0)
+  const sourceRoRef = useRef<ResizeObserver | null>(null)
+  const setSourceScroller = (el: HTMLDivElement | null) => {
+    sourceRoRef.current?.disconnect()
+    if (!el) return
+    setSourceViewportH(el.clientHeight)
+    const ro = new ResizeObserver(() => setSourceViewportH(el.clientHeight))
+    ro.observe(el)
+    sourceRoRef.current = ro
+  }
+  const sourceTotal = filteredSources.length
+  const sourceStart = Math.max(0, Math.floor(sourceScrollTop / SOURCE_ROW_H) - SOURCE_OVERSCAN)
+  const sourceEnd = Math.min(sourceTotal, Math.ceil((sourceScrollTop + sourceViewportH) / SOURCE_ROW_H) + SOURCE_OVERSCAN)
+  const visibleSources = filteredSources.slice(sourceStart, sourceEnd)
 
   useEffect(() => {
     fetchPacks()
@@ -154,15 +179,23 @@ export default function PacksView() {
               onKeyChange={setKeyFilter}
             />
           </div>
-          <div className="flex-1 overflow-y-auto py-1 px-1 flex flex-col gap-px">
+          <div
+            ref={setSourceScroller}
+            className="flex-1 overflow-y-auto py-1 px-1"
+            onScroll={(e) => setSourceScrollTop(e.currentTarget.scrollTop)}
+          >
             {sourceItems.length === 0 ? (
               <p className="text-faint text-[12px] p-3 leading-relaxed">No sources yet. Create chops or import samples.</p>
             ) : filteredSources.length === 0 ? (
               <p className="text-faint text-[12px] p-3">No matches.</p>
             ) : (
-              filteredSources.map((source) => (
-                <DraggableSource key={source.id} source={source} />
-              ))
+              <div style={{ height: sourceTotal * SOURCE_ROW_H, position: 'relative' }}>
+                <div className="flex flex-col gap-px" style={{ transform: `translateY(${sourceStart * SOURCE_ROW_H}px)` }}>
+                  {visibleSources.map((source) => (
+                    <DraggableSource key={source.id} source={source} />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </aside>
@@ -189,6 +222,24 @@ export default function PacksView() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {/* Pad audition mode — preview only, never exported */}
+              <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
+                {([['gate', 'Gate'], ['oneshot', 'One-Shot']] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setPadAuditionMode(mode as PadAuditionMode)}
+                    title={mode === 'gate' ? 'Gate — a pad plays while held, stops on release' : 'One-Shot — a pad plays the whole chop regardless of release'}
+                    className={cn(
+                      'text-[11px] px-2.5 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
+                      padAuditionMode === mode
+                        ? 'bg-[rgba(255,255,255,0.12)] text-ink'
+                        : 'text-faint/70 hover:text-muted bg-transparent'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div className="relative">
                 <select
                   value={hardwareProfileId}
@@ -228,6 +279,7 @@ export default function PacksView() {
                       sourceChanged={stalePads.some((s) => s.slotNumber === i)}
                       onClear={() => handleClearSlot(i)}
                       isDraggingAny={!!activeSource}
+                      auditionMode={padAuditionMode}
                     />
                   ))}
                 </div>
@@ -392,15 +444,20 @@ function MarqueeText({ text }: { text: string }) {
   )
 }
 
-function PadSlot({ slotNumber, slot, sourceChanged, onClear, isDraggingAny }: {
+function PadSlot({ slotNumber, slot, sourceChanged, onClear, isDraggingAny, auditionMode }: {
   slotNumber: number
   slot: PackSlot | null
   sourceChanged: boolean
   onClear: () => void
   isDraggingAny: boolean
+  auditionMode: PadAuditionMode
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: slotNumber })
-  const { isPlaying, play, stop } = useAudioPlayer(slot ? toLocalFileUrl(slot.sourcePath) : null)
+  // Preview the chop bounds, not the whole source. In Gate, releasing stops; in One-Shot, release is
+  // ignored and playback runs to region.end (handled inside useAudioPlayer).
+  const region = slot && slot.start !== null && slot.end !== null ? { start: slot.start, end: slot.end } : null
+  const { isPlaying, play, stop } = useAudioPlayer(slot ? toLocalFileUrl(slot.sourcePath) : null, region)
+  const releaseStop = auditionMode === 'gate' ? stop : undefined
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')
 
@@ -408,8 +465,8 @@ function PadSlot({ slotNumber, slot, sourceChanged, onClear, isDraggingAny }: {
     <div
       ref={setNodeRef}
       onPointerDown={play}
-      onPointerUp={stop}
-      onPointerLeave={stop}
+      onPointerUp={releaseStop}
+      onPointerLeave={releaseStop}
       className={cn(
         'group relative aspect-square rounded-lg border transition-all overflow-hidden',
         slot
