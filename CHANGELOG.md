@@ -3,6 +3,17 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.21] - 2026-06-25
+
+### Added
+
+- **Pack recovery** — when a pad's source chop is edited, the pad flags it and offers "Update from source"; when the source chop is deleted, the pad offers "Regenerate to library" to rebuild its audio and relink, so a pad's sound is never stranded
+- **Automatic chop names** — new chops are named after the audio file (e.g. "Think Break 1") instead of a generic "Chop 1", so they're easy to find in the library and in exports
+
+### Changed
+
+- **Clearer wording** — the slices you make are consistently called "chops" throughout the app (the old "region" wording is gone from the UI), and the imported audio is an "audio file"
+
 ## [0.0.20] - 2026-06-25
 
 ### Added
