@@ -4,8 +4,12 @@ blockExoticSubdeps: false
 overrides:
   '@tootallnate/once': ^3.0.1
   minimatch: ^9.0.7
-  tar: ^7.5.11
-  tmp: 0.2.6
+  tar: ^7.5.16
+  tmp: ^0.2.7
+  'form-data@>=4.0.0 <4.0.6': '>=4.0.6'
+  'js-yaml@<=4.1.1': '>=4.2.0'
+  'undici@<6.27.0': '>=6.27.0'
+  '@babel/core@<=7.29.0': '>=7.29.6'
 
 allowBuilds:
   '@ffmpeg-installer/darwin-arm64': true
