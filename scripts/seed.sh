@@ -99,6 +99,7 @@ sqlite3 "$DB" "
   DELETE FROM packs;
   DELETE FROM project_chops;
   DELETE FROM projects;
+  DELETE FROM samples;
   PRAGMA foreign_keys = ON;
 "
 
