@@ -130,7 +130,11 @@ export function duplicateProject(id: string): Project | null {
   return saveProject({
     name: `${original.name} (copy)`,
     sourcePath: original.sourcePath,
-    regions: original.regions,
+    sourceName: original.sourceName,
+    source: original.source,
+    // Drop the source chop ids so the copy gets fresh ones — reusing them violates the
+    // project_chops primary key (the originals still exist).
+    regions: original.regions.map((r) => ({ start: r.start, end: r.end, name: r.name })),
   })
 }
 
