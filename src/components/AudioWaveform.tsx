@@ -199,7 +199,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
 
   const currentRegions = useCallback(() =>
     (regions ?? []).map((r, index) => ({ id: r.id, start: r.start, end: r.end, name: regionNames[r.id] ?? defaultChopName(projectName, index) })),
-    [regions, regionNames]
+    [regions, regionNames, projectName]
   )
 
   const { canUndo, canRedo, undo, redo, beginSliderEdit, endSliderEdit } = useChopHistory({
@@ -388,7 +388,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       .filter((f) => f.end > f.start)
       .map((f, i) => ({ start: f.start, end: f.end, name: defaultChopName(projectName, i) }))
     replaceRegions(fragments)
-  }, [peaksInBounds, snapEnabled, snapToGrid, replaceRegions, clearLoopCandidates, trimIn, trimOut])
+  }, [peaksInBounds, snapEnabled, snapToGrid, replaceRegions, clearLoopCandidates, trimIn, trimOut, projectName])
 
   const handleChopCountChange = useCallback((count: number) => {
     setChopCount(count)
