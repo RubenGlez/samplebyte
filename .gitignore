@@ -32,3 +32,6 @@ yarn.lock
 /.playwright-mcp/
 
 .harness/
+
+# Local MCP server config (contains machine-specific secrets)
+.mcp.json
