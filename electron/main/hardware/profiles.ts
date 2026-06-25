@@ -1,5 +1,3 @@
-import type { FfmpegCommand } from 'fluent-ffmpeg'
-
 export type HardwareProfile = {
   id: string
   name: string
@@ -11,14 +9,6 @@ export type HardwareProfile = {
     sampleFmt: string
   }
   fileName: (slot: number, sampleName: string) => string
-}
-
-export function applyProfileFormat(profile: HardwareProfile, cmd: FfmpegCommand): FfmpegCommand {
-  return cmd
-    .toFormat(profile.format.container)
-    .audioFrequency(profile.format.sampleRate)
-    .audioChannels(2)
-    .outputOptions([`-sample_fmt ${profile.format.sampleFmt}`])
 }
 
 export const profiles: HardwareProfile[] = [

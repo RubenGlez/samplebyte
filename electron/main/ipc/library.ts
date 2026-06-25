@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { handle } from './handle'
@@ -22,9 +21,7 @@ function scanAudioFiles(dir: string): string[] {
   return found
 }
 import * as projects from '../db/queries/projects'
-import { trimToWav } from '../services/trim'
-import { extractWaveformData } from '../audio/waveform'
-import { syncProjectChopsToLibrary } from '../services/materializeChops'
+import { syncProjectChopsToLibrary, renderLibrarySample } from '../services/materializeChops'
 import type { Sample, Project, ProjectRegion } from '../../types'
 
 export function registerLibraryHandlers(): void {
@@ -63,23 +60,19 @@ export function registerLibraryHandlers(): void {
     regions: Array<{ start: number; end: number; name: string }>
     projectId?: string
   }) => {
-    const samplesDir = path.join(app.getPath('userData'), 'samples')
-    if (!fs.existsSync(samplesDir)) fs.mkdirSync(samplesDir, { recursive: true })
-
     const saved: Sample[] = []
 
     for (const [index, region] of params.regions.entries()) {
-      const id = crypto.randomUUID()
-      const outputPath = path.join(samplesDir, `${id}.wav`)
-
-      await trimToWav(params.sourceFilePath, outputPath, region.start, region.end - region.start)
-
-      const waveformData = extractWaveformData(outputPath)
+      const { filePath, duration, waveformData } = await renderLibrarySample(
+        params.sourceFilePath,
+        region.start,
+        region.end
+      )
 
       const sample = samples.addSample({
         name: region.name || `Sample ${index + 1}`,
-        filePath: outputPath,
-        duration: region.end - region.start,
+        filePath,
+        duration,
         source: 'local',
         projectId: params.projectId ?? null,
         waveformData,

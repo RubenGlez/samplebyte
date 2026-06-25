@@ -2,10 +2,7 @@ import { handle } from './handle'
 import { getProfile } from '../hardware/profiles'
 import { exportClips, type ExportClip } from '../services/export'
 import { trimSourceToCache } from '../services/trim'
-import { configureFfmpeg } from '../services/ffmpeg'
 import type { ExportRegionsParams, TrimSourceParams } from '../../types'
-
-configureFfmpeg()
 
 export function registerAudioHandlers(): void {
   handle('audio:exportRegions', async (_, params: ExportRegionsParams) => {

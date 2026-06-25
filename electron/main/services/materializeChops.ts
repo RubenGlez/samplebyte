@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
-import { trimToWav } from './trim'
+import { renderClip, LIBRARY_FORMAT } from './render'
+import { isChopSampleStale } from './sourceChange'
 import { extractWaveformData } from '../audio/waveform'
 import {
   addSample,
@@ -20,18 +21,30 @@ function ensureSamplesDir(): string {
   return dir
 }
 
+// Render a source span into a fresh library-format WAV under the samples dir and read its waveform.
+// The shared trim-half behind every library sample: standalone saved chops (library.saveChops),
+// project-chop projections (materializeChop), and re-trims after a source chop changes.
+export async function renderLibrarySample(
+  sourcePath: string,
+  start: number,
+  end: number
+): Promise<{ filePath: string; duration: number; waveformData: number[] }> {
+  const filePath = path.join(ensureSamplesDir(), `${crypto.randomUUID()}.wav`)
+  await renderClip(sourcePath, { start, end }, filePath, LIBRARY_FORMAT)
+  return { filePath, duration: end - start, waveformData: extractWaveformData(filePath) }
+}
+
 // Trim one chop to a real WAV and insert it as a library sample (source 'chop') with provenance.
-async function materializeChop(chop: ChopLike, sourcePath: string, samplesDir: string): Promise<void> {
-  const outputPath = path.join(samplesDir, `${crypto.randomUUID()}.wav`)
-  await trimToWav(sourcePath, outputPath, chop.start, chop.end - chop.start)
+async function materializeChop(chop: ChopLike, sourcePath: string): Promise<void> {
+  const { filePath, duration, waveformData } = await renderLibrarySample(sourcePath, chop.start, chop.end)
   addSample({
     name: chop.name,
-    filePath: outputPath,
-    duration: chop.end - chop.start,
+    filePath,
+    duration,
     source: 'chop',
     projectId: chop.projectId,
     sourceChopId: chop.id,
-    waveformData: extractWaveformData(outputPath),
+    waveformData,
   })
 }
 
@@ -43,11 +56,10 @@ export async function materializeProjectChops(): Promise<number> {
   const pending = getAllProjectChops().filter((chop) => chop.sourcePath && !materialized.has(chop.id))
   if (pending.length === 0) return 0
 
-  const samplesDir = ensureSamplesDir()
   let count = 0
   for (const chop of pending) {
     try {
-      await materializeChop(chop, chop.sourcePath!, samplesDir)
+      await materializeChop(chop, chop.sourcePath!)
       count++
     } catch {
       // Source missing/unreadable — skip, leave un-materialized so a later run retries.
@@ -69,25 +81,18 @@ export async function syncProjectChopsToLibrary(projectId: string): Promise<void
   const existing = getAllSamples({ projectId }).filter((s) => s.source === 'chop')
   const existingByChopId = new Map(existing.map((s) => [s.sourceChopId, s]))
   const currentChopIds = new Set(chops.map((c) => c.id))
-  const samplesDir = ensureSamplesDir()
 
   for (const chop of chops) {
     const sample = existingByChopId.get(chop.id)
     try {
       if (!sample) {
-        await materializeChop(chop, sourcePath, samplesDir)
-      } else if (chop.updatedAt > sample.createdAt) {
+        await materializeChop(chop, sourcePath)
+      } else if (isChopSampleStale(chop, sample)) {
         // Source chop edited since this sample was built — re-trim into a fresh file, swap it in,
         // and drop the stale audio. Same sample id, so pack-slot references stay valid.
-        const outputPath = path.join(samplesDir, `${crypto.randomUUID()}.wav`)
-        await trimToWav(sourcePath, outputPath, chop.start, chop.end - chop.start)
-        refreshChopSample(sample.id, {
-          name: chop.name,
-          filePath: outputPath,
-          duration: chop.end - chop.start,
-          waveformData: extractWaveformData(outputPath),
-        })
-        if (sample.filePath !== outputPath) {
+        const { filePath, duration, waveformData } = await renderLibrarySample(sourcePath, chop.start, chop.end)
+        refreshChopSample(sample.id, { name: chop.name, filePath, duration, waveformData })
+        if (sample.filePath !== filePath) {
           try { fs.unlinkSync(sample.filePath) } catch { /* already gone */ }
         }
       }

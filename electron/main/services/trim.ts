@@ -1,36 +1,18 @@
 import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
-import { configureFfmpeg, ffmpeg } from './ffmpeg'
+import { renderClip, LIBRARY_FORMAT } from './render'
 
-configureFfmpeg()
-
-export function trimToWav(input: string, output: string, start: number, duration: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    ffmpeg(input)
-      .setStartTime(start)
-      .setDuration(duration)
-      .toFormat('wav')
-      .audioFrequency(44100)
-      .audioChannels(2)
-      .outputOptions(['-sample_fmt s16'])
-      .output(output)
-      .on('end', () => resolve())
-      .on('error', reject)
-      .run()
-  })
-}
-
+// Trim a source span into a cached library-format WAV used by the chop editor's preview/playback.
 export async function trimSourceToCache(
   sourceFilePath: string,
   start: number,
   end: number
 ): Promise<{ filePath: string; duration: number }> {
-  const duration = end - start
   const sourcesDir = path.join(app.getPath('userData'), 'sources')
   if (!fs.existsSync(sourcesDir)) fs.mkdirSync(sourcesDir, { recursive: true })
 
   const filePath = path.join(sourcesDir, `${crypto.randomUUID()}.wav`)
-  await trimToWav(sourceFilePath, filePath, start, duration)
-  return { filePath, duration }
+  await renderClip(sourceFilePath, { start, end }, filePath, LIBRARY_FORMAT)
+  return { filePath, duration: end - start }
 }

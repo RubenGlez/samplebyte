@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-// Reads a s16 stereo WAV (as produced by trimToWav) and returns ~100 peak amplitude values.
+// Reads a s16 stereo WAV (as produced by renderClip in LIBRARY_FORMAT) and returns ~100 peak amplitude values.
 export function extractWaveformData(filePath: string, bars = 100): number[] {
   const buf = fs.readFileSync(filePath)
 

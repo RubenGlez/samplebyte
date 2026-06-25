@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
-import { applyProfileFormat, type HardwareProfile } from '../hardware/profiles'
-import { ffmpeg } from './ffmpeg'
+import { type HardwareProfile } from '../hardware/profiles'
+import { renderClip } from './render'
 
 export type ExportClip = {
   sourcePath: string
@@ -26,21 +26,10 @@ export async function exportClips(
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true })
 
   await Promise.all(
-    clips.map(
-      (clip) =>
-        new Promise<void>((resolve, reject) => {
-          const outputFile = path.join(outputDir, profile.fileName(clip.slotNumber, clip.name))
-          const cmd = ffmpeg(clip.sourcePath)
-          if (clip.start !== null && clip.end !== null) {
-            cmd.setStartTime(clip.start).setDuration(clip.end - clip.start)
-          }
-          applyProfileFormat(profile, cmd)
-            .output(outputFile)
-            .on('end', () => resolve())
-            .on('error', reject)
-            .run()
-        })
-    )
+    clips.map((clip) => {
+      const outputFile = path.join(outputDir, profile.fileName(clip.slotNumber, clip.name))
+      return renderClip(clip.sourcePath, { start: clip.start, end: clip.end }, outputFile, profile.format)
+    })
   )
 
   return { filesWritten: clips.length }

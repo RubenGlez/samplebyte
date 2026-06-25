@@ -5,32 +5,17 @@ import { handle } from './handle'
 import * as packsDb from '../db/queries/packs'
 import { getProfile, profiles } from '../hardware/profiles'
 import type { Pack, PackSourceItem } from '../../types'
-import { configureFfmpeg, ffmpeg } from '../services/ffmpeg'
+import { renderClip, LIBRARY_FORMAT } from '../services/render'
 import { exportClips, type ExportClip } from '../services/export'
-
-configureFfmpeg()
 
 // Trim (or, for a whole sample, copy) the slot's source audio into a pad-owned WAV so the pack
 // exports without depending on the original chop/sample/file. Returns the owned file path.
-function materializeSlotAudio(source: PackSourceItem): Promise<string> {
+async function materializeSlotAudio(source: PackSourceItem): Promise<string> {
   const dir = path.join(app.getPath('userData'), 'pack-slots')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   const outputPath = path.join(dir, `${crypto.randomUUID()}.wav`)
-  return new Promise((resolve, reject) => {
-    const input = ffmpeg(source.sourcePath)
-    if (source.start !== null && source.end !== null) {
-      input.setStartTime(source.start).setDuration(source.end - source.start)
-    }
-    input
-      .toFormat('wav')
-      .audioFrequency(44100)
-      .audioChannels(2)
-      .outputOptions(['-sample_fmt s16'])
-      .output(outputPath)
-      .on('end', () => resolve(outputPath))
-      .on('error', reject)
-      .run()
-  })
+  await renderClip(source.sourcePath, { start: source.start, end: source.end }, outputPath, LIBRARY_FORMAT)
+  return outputPath
 }
 
 function unlinkQuietly(filePath: string | null): void {
