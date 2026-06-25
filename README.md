@@ -119,6 +119,7 @@ cd samplebyte
 pnpm install
 pnpm dev   # development (hot reload)
 pnpm build # production build
+pnpm test  # run the test suite (vitest)
 ```
 
 Run `pnpm seed` after the first `pnpm dev` to populate the database with demo projects and chops (no API key or network needed).

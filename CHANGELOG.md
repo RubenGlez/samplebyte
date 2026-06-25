@@ -3,6 +3,13 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **Pack independence** — pads snapshot their own trimmed audio at assignment, so an exported pad keeps working even if its original chop, sample, or source file is later changed, moved, or deleted
+- **Automatic library sync** — project chops save automatically and appear in Browse and the Pack source list without a separate "Save to Library" step; editing or removing a chop updates the library to match
+
 ## [0.0.19] - 2026-06-16
 
 ### Added
