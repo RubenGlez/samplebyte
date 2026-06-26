@@ -3,6 +3,13 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.23] - 2026-06-26
+
+### Changed
+
+- **App icon** — redrawn to follow Apple's macOS icon template, so it no longer shows a white frame and sits like other native app icons
+- **App name** — the application is now named **SampleByte** (the macOS bundle is `SampleByte.app`)
+
 ## [0.0.22] - 2026-06-26
 
 ### Added
