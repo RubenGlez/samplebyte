@@ -1,6 +1,8 @@
 // Downloads the vendored, MIT-licensed prebuilt demucs WASM (4-source model) used by the
 // Stems tool into public/stem-model/. These are large binaries (~85MB) so they are gitignored
-// and fetched on demand. Source: https://github.com/uzstudio/free-music-demixer (MIT).
+// and fetched on demand. We mirror them as assets on our own GitHub release (stem-model-v1) so
+// the build does not depend on the upstream repo staying online. Original source:
+// https://github.com/uzstudio/free-music-demixer (MIT).
 //
 // Run: node scripts/fetch-stem-model.mjs   (or: pnpm fetch:stem-model)
 import { mkdir, writeFile, stat } from 'node:fs/promises'
@@ -9,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT_DIR = join(ROOT, 'public', 'stem-model')
-const BASE = 'https://raw.githubusercontent.com/uzstudio/free-music-demixer/main/docs'
+const BASE = 'https://github.com/RubenGlez/samplebyte/releases/download/stem-model-v1'
 
 // name -> approximate expected size (bytes) for a sanity check
 const FILES = {
