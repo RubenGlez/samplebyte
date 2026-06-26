@@ -3,6 +3,7 @@
  */
 {
   appId: "com.rubenglez.samplebyte",
+  productName: "SampleByte",
   asar: true,
   asarUnpack: [
     "**/node_modules/@ffmpeg-installer/**/*"
