@@ -354,7 +354,7 @@ function EmptyState() {
       </svg>
       <div className="text-center">
         <p className="text-[13px] text-muted">No samples yet</p>
-        <p className="text-[12px] text-faint/70 mt-1">Create regions in a project or import a folder using the sidebar</p>
+        <p className="text-[12px] text-faint/70 mt-1">Create chops in a project or import a folder using the sidebar</p>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/utils'
+import { formatTime, defaultChopName } from '@/utils'
 import { type Region } from 'wavesurfer.js/dist/plugins/regions'
 
 interface SampleProps {
@@ -9,13 +9,14 @@ interface SampleProps {
   isSelected: boolean
   index: number
   initialName?: string
+  projectName?: string
   onClick: (region: Region) => void
   onPlay?: (region: Region) => void
   onNameChange?: (regionId: string, name: string) => void
 }
 
-export default function Sample({ sample, isSelected, index, initialName, onClick, onPlay, onNameChange }: SampleProps) {
-  const [name, setName] = useState(initialName ?? `Chop ${String(index + 1).padStart(2, '0')}`)
+export default function Sample({ sample, isSelected, index, initialName, projectName = '', onClick, onPlay, onNameChange }: SampleProps) {
+  const [name, setName] = useState(initialName ?? defaultChopName(projectName, index))
   const [isEditing, setIsEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const duration = sample.end - sample.start
@@ -41,7 +42,7 @@ export default function Sample({ sample, isSelected, index, initialName, onClick
 
       <button
         type="button"
-        title="Play region"
+        title="Play chop"
         onClick={(e) => {
           e.stopPropagation()
           onPlay?.(sample)

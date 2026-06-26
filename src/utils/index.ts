@@ -61,6 +61,11 @@ export const formatTime = (seconds: number) =>
     .map((v) => `0${Math.floor(v)}`.slice(-2))
     .join(":");
 
+// Default label for an unnamed chop: the song/project name plus a 1-based number, e.g. "Think Break 1".
+// Falls back to "Chop" when there is no project name, preserving the original default.
+export const defaultChopName = (projectName: string, index: number): string =>
+  `${projectName.trim() || "Chop"} ${index + 1}`;
+
 export const convertBlobUrlToArrayBuffer = async (
   blobUrl: string
 ): Promise<ArrayBuffer> => {
