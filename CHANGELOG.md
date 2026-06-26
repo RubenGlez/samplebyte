@@ -3,6 +3,12 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.22] - 2026-06-26
+
+### Added
+
+- **Stem separation** — a new "Stems" tool on the Chop tab splits the active source into four offline stems (Drums, Bass, Other, Vocals) using a bundled model. Each stem becomes a swappable source, so the existing Chop, Loop, and Trim tools work on one instrument on its own; a selected stem can be saved to the Library. Results are cached per source so re-running is instant. The model is downloaded once with `pnpm fetch:stem-model` and is not bundled in the repo
+
 ## [0.0.21] - 2026-06-25
 
 ### Added

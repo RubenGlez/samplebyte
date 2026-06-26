@@ -124,6 +124,8 @@ pnpm test  # run the test suite (vitest)
 
 Run `pnpm seed` after the first `pnpm dev` to populate the database with demo projects and chops (no API key or network needed).
 
+The Chop tab's Stems tool needs a bundled separation model that is not in the repo. Run `pnpm fetch:stem-model` once to download it (~85 MB) before `pnpm build` if you want the feature in a packaged app; without it the tool reports a clear error and the rest of the app is unaffected.
+
 Requires Node.js v18+ and pnpm. The project pins its pnpm version in `package.json`.
 
 ---
