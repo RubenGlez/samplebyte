@@ -57,20 +57,6 @@ No YouTube. Not because it isn't useful (the original version of this app was bu
 
 ---
 
-## Tech Stack
-
-- **Electron 41** + **React 19** + **TypeScript**
-- **Vite** + vite-plugin-electron
-- **Zustand** for state management
-- **better-sqlite3** for the sample library database
-- **WaveSurfer.js** for waveform visualisation
-- **fluent-ffmpeg** for audio export and conversion
-- Custom **Web Audio API** algorithms for BPM and key detection (offline, no dependencies)
-- **Tailwind CSS v4** + **shadcn/ui**
-
-
----
-
 ## Download
 
 Pre-built installers are on the [Releases](https://github.com/RubenGlez/samplebyte/releases) page.
@@ -108,25 +94,6 @@ The app also writes an emergency startup log to `/tmp/samplebyte-main.log`.
 ### Windows: SmartScreen warning
 
 Click "More info" then "Run anyway" to get past the unsigned-app warning.
-
----
-
-## Getting Started (from source)
-
-```bash
-git clone https://github.com/RubenGlez/samplebyte
-cd samplebyte
-pnpm install
-pnpm dev   # development (hot reload)
-pnpm build # production build
-pnpm test  # run the test suite (vitest)
-```
-
-Run `pnpm seed` after the first `pnpm dev` to populate the database with demo projects and chops (no API key or network needed).
-
-The Chop tab's Stems tool needs a bundled separation model that is not in the repo. Run `pnpm fetch:stem-model` once to download it (~85 MB) before `pnpm build` if you want the feature in a packaged app; without it the tool reports a clear error and the rest of the app is unaffected.
-
-Requires Node.js v18+ and pnpm. The project pins its pnpm version in `package.json`.
 
 ---
 
