@@ -3,6 +3,12 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.24] - 2026-06-27
+
+### Fixed
+
+- **App icon on macOS 26 (Tahoe)** — the icon is now full-bleed (opaque to the edges) so Tahoe's system icon mask renders it without a white frame. The 0.0.23 icon used a transparent margin, which Tahoe filled with its white background plate
+
 ## [0.0.23] - 2026-06-26
 
 ### Changed
