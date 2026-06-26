@@ -33,6 +33,12 @@ const api: Api = {
     trimSource: (params) => ipcRenderer.invoke('audio:trimSource', params),
   },
 
+  stems: {
+    getModelFile: (name) => ipcRenderer.invoke('stems:getModelFile', name),
+    getCached: (sourceHash) => ipcRenderer.invoke('stems:getCached', sourceHash),
+    persist: (sourceHash, stems) => ipcRenderer.invoke('stems:persist', sourceHash, stems),
+  },
+
   fs: {
     getPathForFile: (file) => webUtils.getPathForFile(file),
     pickFile: () => ipcRenderer.invoke('fs:pickFile'),

@@ -33,5 +33,8 @@ yarn.lock
 
 .harness/
 
+# Vendored stem-separation model (large MIT binaries; fetch via scripts/fetch-stem-model.mjs)
+public/stem-model/
+
 # Local MCP server config (contains machine-specific secrets)
 .mcp.json

@@ -10,6 +10,7 @@ import { useLoopPlayback } from '@/hooks/useLoopPlayback'
 import { useChopHistory } from '@/hooks/useChopHistory'
 import { useChopAutosave } from '@/hooks/useChopAutosave'
 import { usePlayerStore } from '@/stores/player'
+import { useStemsStore } from '@/stores/stems'
 import { useProjectsStore } from '@/stores/projects'
 import { usePacksStore } from '@/stores/packs'
 import { useToastStore } from '@/stores/toast'
@@ -34,7 +35,7 @@ import { rankTransientsFromUrl, findLoopCandidatesFromUrl, type RankedPeak } fro
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
-import type { ProjectRegion } from '@/types'
+import type { ProjectRegion, StemName } from '@/types'
 import type { Region } from 'wavesurfer.js/dist/plugins/regions'
 
 interface AudioWaveformProps {
@@ -51,7 +52,9 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const { createPack, setSlot, hardwareProfileId } = usePacksStore()
   const { setView } = useUiStore()
   const { audio, setAudio } = usePlayerStore()
+  const stemsState = useStemsStore()
   const { toast } = useToastStore()
+  const [savingStemToLibrary, setSavingStemToLibrary] = useState(false)
   const { bpm, musicalKey, beatPhase, loopBars, isAnalyzing } = useAudioAnalysis(audioUrl)
   const source = audio?.source ?? 'local'
 
@@ -182,7 +185,16 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   }, [clearAllRegions])
   const [isSaving, setIsSaving] = useState(false)
   const [projectName] = useState(audioName.replace(/\.[^.]+$/, ''))
-  const [activeTool, setActiveTool] = useState<WaveformTool | null>(null)
+  // Selecting a stem swaps the source, which remounts this component (key={audio.path}). Re-open the
+  // Stems panel when the freshly-mounted source is this run's original or one of its stems, so the
+  // picker stays put for previewing instead of collapsing on every selection.
+  const [activeTool, setActiveTool] = useState<WaveformTool | null>(() => {
+    const s = useStemsStore.getState()
+    const isStemView =
+      s.status === 'done' &&
+      (s.originalSource?.filePath === filePath || !!s.stems?.some((st) => st.filePath === filePath))
+    return isStemView ? 'stems' : null
+  })
   const [chopMethod, setChopMethod] = useState<ChopMethod>('hits')
   // Quality-ranked chop fragments for the "Detect hits" slider; detected once per source, top-N taken.
   const [rankedPeaks, setRankedPeaks] = useState<RankedPeak[] | null>(null)
@@ -495,6 +507,35 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     source,
   ])
 
+  // Stems tool. Separation runs on the active source; selecting a stem swaps the active audio
+  // (forcing a remount via key={audio.path}) so every existing tool operates on the stem.
+  const handleSeparateStems = useCallback(() => {
+    if (audio) stemsState.separate(audio)
+  }, [audio, stemsState])
+
+  const handleSaveStemToLibrary = useCallback(async () => {
+    const file = stemsState.stems?.find((s) => s.name === stemsState.selected)
+    if (!file) return
+    setSavingStemToLibrary(true)
+    try {
+      await window.api.library.addSample({ name: `${projectName} — ${stemsState.selected}`, filePath: file.filePath })
+      toast('Stem added to Library')
+    } catch {
+      toast('Could not add stem to Library', 'error')
+    } finally {
+      setSavingStemToLibrary(false)
+    }
+  }, [stemsState.stems, stemsState.selected, projectName, toast])
+
+  // Clear stem results when a genuinely new source loads (not when viewing one of its own stems).
+  const stemsReset = stemsState.reset
+  const viewingOwnStem = stemsState.selected !== null && !!stemsState.stems?.some((s) => s.filePath === filePath)
+  const stemsOriginalPath = stemsState.originalSource?.filePath
+  useEffect(() => {
+    if (viewingOwnStem) return
+    if (stemsOriginalPath && stemsOriginalPath !== filePath) stemsReset()
+  }, [filePath, viewingOwnStem, stemsOriginalPath, stemsReset])
+
   useZoom({ waveformRef, wavesurfer })
 
   const selectedCandidateRegion = selectedCandidateId ? candidateRegionsRef.current.get(selectedCandidateId) : undefined
@@ -650,6 +691,20 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
           canApplyTrim,
           canTrimFile,
           isTrimming,
+        }}
+        stems={{
+          status: stemsState.status,
+          progress: stemsState.progress,
+          error: stemsState.error,
+          stems: stemsState.stems,
+          selected: stemsState.selected,
+          canRun: !!audio,
+          savingToLibrary: savingStemToLibrary,
+          onRun: handleSeparateStems,
+          onCancel: stemsState.cancel,
+          onSelect: (name: StemName) => stemsState.selectStem(name),
+          onRestore: stemsState.restoreOriginal,
+          onSaveToLibrary: handleSaveStemToLibrary,
         }}
       />
 

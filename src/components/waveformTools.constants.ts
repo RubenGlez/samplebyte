@@ -1,4 +1,4 @@
-export type WaveformTool = 'loop' | 'chop' | 'trim'
+export type WaveformTool = 'loop' | 'chop' | 'trim' | 'stems'
 
 export const LOOP_BAR_OPTIONS = ['1', '2', '4', '8', '16'] as const
 export type LoopBarCount = (typeof LOOP_BAR_OPTIONS)[number]

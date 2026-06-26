@@ -13,6 +13,7 @@ export default [
       "dist-electron/**",
       "node_modules/**",
       "release/**",
+      "public/stem-model/**",
     ],
   },
   js.configs.recommended,

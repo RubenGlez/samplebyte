@@ -20,6 +20,7 @@
     "build:publish": "tsc && vite build && electron-builder --publish always",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "preview": "vite preview",
+    "fetch:stem-model": "node scripts/fetch-stem-model.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",

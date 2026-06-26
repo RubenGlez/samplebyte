@@ -13,6 +13,8 @@ import type {
   PackSourceItem,
   ExportRegionsParams,
   FreesoundPage,
+  StemPcm,
+  StemFile,
 } from './types'
 
 export type Api = {
@@ -45,6 +47,14 @@ export type Api = {
   audio: {
     exportRegions: (params: ExportRegionsParams) => Promise<{ filesWritten: number }>
     trimSource: (params: { sourceFilePath: string; start: number; end: number }) => Promise<{ filePath: string; duration: number }>
+  }
+  stems: {
+    // Read a vendored model artifact (demucs.js/.wasm/.data) as bytes for the worker.
+    getModelFile: (name: string) => Promise<Uint8Array>
+    // Return the cached stem set for a source hash if all stems are present on disk, else null.
+    getCached: (sourceHash: string) => Promise<StemFile[] | null>
+    // Normalize and write the separated stems under userData/stems/<sourceHash>/.
+    persist: (sourceHash: string, stems: StemPcm[]) => Promise<StemFile[]>
   }
   fs: {
     getPathForFile: (file: File) => string

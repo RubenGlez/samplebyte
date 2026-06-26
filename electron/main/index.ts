@@ -13,6 +13,7 @@ import { registerFilesystemHandlers } from './ipc/filesystem'
 import { registerPacksHandlers } from './ipc/packs'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerFreesoundHandlers } from './ipc/freesound'
+import { registerStemsHandlers } from './ipc/stems'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -202,6 +203,8 @@ app.whenReady().then(async () => {
       const headers = new Headers(response.headers)
       headers.set('Access-Control-Allow-Origin', '*')
       headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+      // Allow this cross-origin resource to be embedded under COEP require-corp (cross-origin isolation).
+      headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
@@ -224,7 +227,16 @@ app.whenReady().then(async () => {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' local-file: blob: https://freesound.org https://cdn.freesound.org; media-src 'self' file: local-file: blob: https://cdn.freesound.org; img-src 'self' data:"],
+          // 'unsafe-eval' is required by the stem-separation worker: the vendored demucs Emscripten
+          // build is loaded from text (a UMD factory) and instantiates WebAssembly, both of which
+          // need eval. It only ever evaluates the bundled local model, never remote code.
+          'Content-Security-Policy': ["default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' local-file: blob: https://freesound.org https://cdn.freesound.org; media-src 'self' file: local-file: blob: https://cdn.freesound.org; img-src 'self' data:"],
+          // Cross-origin isolation so threaded WASM (stem separation) can use SharedArrayBuffer.
+          // The dev server sets the same headers via server.headers in vite.config.ts.
+          // `credentialless` (not `require-corp`) keeps no-cors cross-origin media working —
+          // e.g. Freesound CDN preview playback in the renderer.
+          'Cross-Origin-Opener-Policy': ['same-origin'],
+          'Cross-Origin-Embedder-Policy': ['credentialless'],
         },
       })
     })
@@ -244,6 +256,7 @@ app.whenReady().then(async () => {
   registerPacksHandlers()
   registerSettingsHandlers()
   registerFreesoundHandlers()
+  registerStemsHandlers()
   createWindow()
 })
 

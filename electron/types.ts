@@ -120,3 +120,22 @@ export type FreesoundPage = {
   previous: string | null
   results: FreesoundResult[]
 }
+
+// Stem separation (Chop tab "Stems" tool). The vendored demucs 4-source model.
+export type StemName = 'drums' | 'bass' | 'other' | 'vocals'
+
+export const STEM_NAMES: StemName[] = ['drums', 'bass', 'other', 'vocals']
+
+// Raw separated PCM produced by the worker, handed to main for persistence.
+export type StemPcm = {
+  name: StemName
+  sampleRate: number
+  left: Float32Array
+  right: Float32Array
+}
+
+// A persisted stem on disk (one normalized WAV under userData/stems/<hash>/).
+export type StemFile = {
+  name: StemName
+  filePath: string
+}

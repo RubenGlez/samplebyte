@@ -9,4 +9,7 @@ export type {
   ExportRegionsParams,
   FreesoundResult,
   FreesoundPage,
+  StemName,
+  StemFile,
+  StemPcm,
 } from '../../electron/types'

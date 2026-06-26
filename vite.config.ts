@@ -63,15 +63,28 @@ export default defineConfig(({ command }) => {
         renderer: {},
       }),
     ],
-    server:
-      process.env.VSCODE_DEBUG &&
-      (() => {
+    server: (() => {
+      // Cross-origin isolation so threaded WASM (stem separation) can use SharedArrayBuffer.
+      // The packaged app sets the same headers via onHeadersReceived in electron/main/index.ts.
+      const config: {
+        headers: Record<string, string>
+        host?: string
+        port?: number
+      } = {
+        headers: {
+          'Cross-Origin-Opener-Policy': 'same-origin',
+          // `credentialless` (not `require-corp`) grants cross-origin isolation while still
+          // allowing no-cors cross-origin media — e.g. Freesound CDN preview playback.
+          'Cross-Origin-Embedder-Policy': 'credentialless',
+        },
+      }
+      if (process.env.VSCODE_DEBUG) {
         const url = new URL(pkg.debug.env.VITE_DEV_SERVER_URL)
-        return {
-          host: url.hostname,
-          port: +url.port,
-        }
-      })(),
+        config.host = url.hostname
+        config.port = +url.port
+      }
+      return config
+    })(),
     clearScreen: false,
   }
 })
