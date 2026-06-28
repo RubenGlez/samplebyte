@@ -1,13 +1,13 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
+import { Segmented } from '@/components/ui/Segmented'
 
 type View = 'chop' | 'library' | 'packs'
 
-const segments: { id: View; label: string }[] = [
-  { id: 'chop',    label: 'Chop'   },
-  { id: 'library', label: 'Browse' },
-  { id: 'packs',   label: 'Pack'   },
+const segments: { value: View; label: string }[] = [
+  { value: 'chop',    label: 'Chop'    },
+  { value: 'library', label: 'Library' },
+  { value: 'packs',   label: 'Packs'   },
 ]
 
 // WebkitAppRegion is Electron-specific and not in standard React.CSSProperties
@@ -47,28 +47,26 @@ export default function Toolbar() {
       <div className="flex-1" />
 
       {/* Segmented control — macOS style */}
-      <div
-        className="flex items-center p-[3px] rounded-[8px] bg-[rgba(255,255,255,0.06)]"
-        style={{ WebkitAppRegion: 'no-drag' } as ElectronStyle}
-      >
-        {segments.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setView(id)}
-            className={cn(
-              'h-[26px] px-3.5 rounded-[5px] text-[12px] font-medium transition-all duration-150 cursor-pointer border-0 select-none',
-              currentView === id
-                ? 'bg-[rgba(255,255,255,0.13)] text-ink'
-                : 'text-muted hover:text-ink bg-transparent'
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <div style={{ WebkitAppRegion: 'no-drag' } as ElectronStyle}>
+        <Segmented options={segments} value={currentView} onChange={setView} />
       </div>
 
       {/* Flex spacer — draggable */}
       <div className="flex-1" />
+
+      {/* Command palette affordance */}
+      <div
+        className="shrink-0 flex items-center pr-2"
+        style={{ WebkitAppRegion: 'no-drag' } as ElectronStyle}
+      >
+        <button
+          onClick={() => window.dispatchEvent(new Event('samplebyte:open-command-palette'))}
+          title="Commands (⌘K)"
+          className="flex items-center gap-1 px-2 h-[26px] rounded-[5px] text-faint/70 hover:text-muted hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer select-none"
+        >
+          <span className="text-[11px] font-readout leading-none">⌘K</span>
+        </button>
+      </div>
 
       {/* Ko-fi */}
       <div

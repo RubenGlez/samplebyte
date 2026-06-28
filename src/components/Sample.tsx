@@ -64,12 +64,12 @@ export default function Sample({ sample, isSelected, index, initialName, project
             e.stopPropagation()
           }}
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 bg-transparent border-0 border-b border-accent/50 outline-none text-sm text-ink py-0 px-0"
+          className="flex-1 bg-transparent border-0 border-b border-accent/50 outline-none text-[13px] text-ink py-0 px-0"
           autoFocus
         />
       ) : (
         <span
-          className="flex-1 text-sm font-medium truncate"
+          className="flex-1 text-[13px] font-medium truncate"
           onDoubleClick={(e) => {
             e.stopPropagation()
             setIsEditing(true)

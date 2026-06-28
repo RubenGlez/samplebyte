@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import Toolbar from '@/components/Toolbar'
 import AppSidebar from '@/components/AppSidebar'
 import { Toaster } from '@/components/ui/Toaster'
+import { CommandPalette } from '@/components/CommandPalette'
 import { useUiStore } from '@/stores/ui'
 import { useProjectsStore } from '@/stores/projects'
 import { usePacksStore } from '@/stores/packs'
@@ -60,6 +61,7 @@ export default function App() {
         </main>
       </div>
       <Toaster />
+      <CommandPalette />
     </div>
   )
 }

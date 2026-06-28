@@ -21,21 +21,23 @@ export default function CardHeader({ name, size, type, bpm, musicalKey, loopBars
       <div className="flex-1 min-w-0">
         <p className="text-[13px] text-ink font-semibold truncate leading-none m-0">{name}</p>
         <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-[11px] text-faint font-mono">
+          <span className="text-[11px] text-faint font-readout">
             {humanizeAudioType(type)}
             {size > 0 && <span className="ml-2">{formatBytes(size)}</span>}
           </span>
           {isAnalyzing && (
-            <span className="text-[11px] text-faint/50 animate-pulse font-mono">analyzing…</span>
+            <span className="text-[11px] text-faint/50 animate-pulse font-readout">analyzing…</span>
           )}
-          {!isAnalyzing && bpm != null && (
-            <span className="text-[11px] text-accent/70 tabular-nums font-mono">{Math.round(bpm)} BPM</span>
-          )}
-          {!isAnalyzing && musicalKey != null && (
-            <span className="text-[11px] text-accent/60 font-mono">{musicalKey}</span>
-          )}
-          {!isAnalyzing && loopBars != null && (
-            <span className="text-[11px] text-accent/50 font-mono">{loopBars}-bar loop</span>
+          {!isAnalyzing && (bpm != null || musicalKey != null || loopBars != null) && (
+            <span className="flex items-center gap-2.5 font-readout text-[11px]">
+              {bpm != null && (
+                <span className="text-accent">
+                  {Math.round(bpm)}<span className="text-accent/55 ml-0.5">BPM</span>
+                </span>
+              )}
+              {musicalKey != null && <span className="text-accent/70">{musicalKey}</span>}
+              {loopBars != null && <span className="text-accent/50">{loopBars}-bar loop</span>}
+            </span>
           )}
         </div>
       </div>

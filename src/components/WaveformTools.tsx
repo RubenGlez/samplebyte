@@ -1,5 +1,6 @@
 import { Crop, Layers, Library, Repeat, Scissors } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Pill, SegmentedTrack } from '@/components/ui/Segmented'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/utils'
 import { STEM_ORDER, stemLabel } from '@/stores/stems'
@@ -86,31 +87,6 @@ interface ToolContextBarProps {
   stems: StemsToolProps
 }
 
-/** Small pill used inside option groups (loop length, sensitivity, slices). */
-function Pill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'text-[11px] px-2.5 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
-        active
-          ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-          : 'text-faint/70 hover:text-muted bg-transparent'
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <span className="text-[11px] text-faint/60 select-none">{children}</span>
 }
@@ -179,16 +155,16 @@ function LoopPanel({ barCount, setBarCount, suggestedBars, onFindLoops, isSearch
       </span>
       <div className="flex items-center gap-2 ml-auto">
         <FieldLabel>Loop length</FieldLabel>
-        <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
+        <SegmentedTrack size="sm">
           {LOOP_BAR_OPTIONS.map((n) => (
-            <Pill key={n} active={barCount === n} onClick={() => setBarCount(n)}>
+            <Pill key={n} size="sm" active={barCount === n} onClick={() => setBarCount(n)}>
               {n} {n === '1' ? 'bar' : 'bars'}
               {suggestedBars !== null && Number(n) === suggestedBars && (
                 <span className="ml-1 text-accent/70">★</span>
               )}
             </Pill>
           ))}
-        </div>
+        </SegmentedTrack>
         <Button variant="outline" size="sm" onClick={onFindLoops} disabled={isSearching || !bpmReady}>
           <Repeat size={12} />
           {isSearching ? 'Searching…' : 'Find loops'}
@@ -220,10 +196,10 @@ function ChopPanel({
     <>
       {/* Method toggle */}
       <FieldLabel>Method</FieldLabel>
-      <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-        <Pill active={method === 'hits'} onClick={() => setMethod('hits')}>Detect hits</Pill>
-        <Pill active={method === 'slices'} onClick={() => setMethod('slices')}>Equal slices</Pill>
-      </div>
+      <SegmentedTrack size="sm">
+        <Pill size="sm" active={method === 'hits'} onClick={() => setMethod('hits')}>Detect hits</Pill>
+        <Pill size="sm" active={method === 'slices'} onClick={() => setMethod('slices')}>Equal slices</Pill>
+      </SegmentedTrack>
 
       <div className="w-px h-4 bg-border" />
 
@@ -247,7 +223,7 @@ function ChopPanel({
                 style={{ accentColor: 'var(--color-accent)' }}
                 className="w-44 cursor-pointer"
               />
-              <span className="text-[12px] text-ink font-mono tabular-nums w-6 text-right">{chopCount}</span>
+              <span className="text-[12px] text-ink font-readout w-6 text-right">{chopCount}</span>
               <span className="text-[11px] text-faint/50 select-none">strongest hits first</span>
             </>
           )}
@@ -255,13 +231,13 @@ function ChopPanel({
       ) : (
         <div className="flex items-center gap-2">
           <FieldLabel>Cuts the selection into equal pieces</FieldLabel>
-          <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
+          <SegmentedTrack size="sm">
             {SLICE_OPTIONS.map((n) => (
-              <Pill key={n} active={sliceCount === n} onClick={() => setSliceCount(n)}>
+              <Pill key={n} size="sm" active={sliceCount === n} onClick={() => setSliceCount(n)}>
                 {n}
               </Pill>
             ))}
-          </div>
+          </SegmentedTrack>
         </div>
       )}
 
@@ -340,14 +316,14 @@ function StemsPanel({
     return (
       <>
         <FieldLabel>Stem</FieldLabel>
-        <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-          <Pill active={selected === null} onClick={onRestore}>Full mix</Pill>
+        <SegmentedTrack size="sm">
+          <Pill size="sm" active={selected === null} onClick={onRestore}>Full mix</Pill>
           {STEM_ORDER.filter((name) => stems.some((s) => s.name === name)).map((name) => (
-            <Pill key={name} active={selected === name} onClick={() => onSelect(name)}>
+            <Pill key={name} size="sm" active={selected === name} onClick={() => onSelect(name)}>
               {stemLabel(name)}
             </Pill>
           ))}
-        </div>
+        </SegmentedTrack>
         <span className="text-[11px] text-faint/50 select-none">“Other” = piano, guitar, strings, synths</span>
         <div className="flex items-center gap-2 ml-auto">
           {selected && (
@@ -387,7 +363,7 @@ function TrimPanel({ trimIn, trimOut, trimDuration, onTrim, canApplyTrim, canTri
     <>
       <span className="text-[11px] text-faint/70 select-none">Keeps only the selected part of the audio.</span>
       <div className="flex items-center gap-3 ml-auto">
-        <span className="text-[11px] text-faint/70 font-mono select-none tabular-nums">
+        <span className="text-[11px] text-faint/70 font-readout select-none">
           {formatTime(trimIn)} – {formatTime(trimOut)} ({formatTime(trimDuration)})
         </span>
         <Button

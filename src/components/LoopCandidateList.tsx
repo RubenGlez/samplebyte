@@ -70,7 +70,7 @@ const LoopCandidateList = ({ candidates, selectedId, playingId, onToggle, onUse,
                 {isPlaying ? <Pause size={11} fill="currentColor" /> : <Play size={11} fill="currentColor" className="translate-x-px" />}
               </button>
 
-              <span className="flex-1 text-sm font-medium truncate font-mono tabular-nums">
+              <span className="flex-1 text-[13px] font-medium truncate font-mono tabular-nums">
                 {formatTime(candidate.start)} – {formatTime(candidate.end)}
               </span>
 

@@ -6,6 +6,7 @@ import { useFreesoundStore, type FreesoundSort, type FreesoundDuration } from '@
 import { useToastStore } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useAudioPlayer } from '@/hooks/useAudioPlayer'
+import { Pill, Segmented, SegmentedTrack } from '@/components/ui/Segmented'
 import { cn } from '@/lib/utils'
 import { formatTime, mimeTypeFromPath, toLocalFileUrl } from '@/utils'
 import type { FreesoundResult } from '@/types'
@@ -90,22 +91,14 @@ export default function Loader() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Tab bar */}
       <div className="flex items-center gap-px px-4 py-3 border-b border-border bg-surface shrink-0">
-        <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-          {(['local', 'freesound'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                'h-[24px] px-4 rounded-[4px] text-[12px] font-medium transition-all cursor-pointer border-0',
-                tab === t
-                  ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-                  : 'text-faint/70 hover:text-muted bg-transparent'
-              )}
-            >
-              {t === 'freesound' ? 'Freesound' : 'Local'}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'local', label: 'Local' },
+            { value: 'freesound', label: 'Freesound' },
+          ]}
+        />
       </div>
 
       {tab === 'local' ? (
@@ -197,8 +190,8 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
         <Key size={16} className="text-muted" />
       </div>
       <div className="text-center">
-        <p className="text-sm text-ink font-medium mb-1">Freesound API Key</p>
-        <p className="text-xs text-faint">
+        <p className="text-[13px] text-ink font-medium mb-1">Freesound API Key</p>
+        <p className="text-[12px] text-faint">
           Get a free key at{' '}
           <span className="text-accent">freesound.org/apiv2/apply</span>
         </p>
@@ -209,7 +202,7 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
           placeholder="Paste your API key…"
-          className="flex-1 bg-surface border border-border rounded px-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
+          className="flex-1 bg-surface border border-border rounded-md px-3 h-8 text-[13px] text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
         />
         <button
           onClick={handleSave}
@@ -263,7 +256,7 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Search Freesound…"
-              className="w-full bg-raised border border-border rounded pl-9 pr-3 h-8 text-sm text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
+              className="w-full bg-raised border border-border rounded-md pl-9 pr-3 h-8 text-[13px] text-ink placeholder:text-faint focus:outline-none focus:border-accent/40 transition-colors"
             />
           </div>
           <button
@@ -322,7 +315,7 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
               <button
                 onClick={loadMore}
                 disabled={isSearching}
-                className="w-full py-3 text-xs text-faint hover:text-muted transition-colors bg-transparent border-0 cursor-pointer border-t border-border"
+                className="w-full py-3 text-[12px] text-faint hover:text-muted transition-colors bg-transparent border-0 cursor-pointer border-t border-border"
               >
                 {isSearching ? <Loader2 size={12} className="animate-spin mx-auto" /> : 'Load more'}
               </button>
@@ -348,23 +341,19 @@ function FilterPills<T extends string>({
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[10px] text-faint/60 shrink-0">{label}:</span>
-      <div className="flex items-center gap-0.5">
+      <SegmentedTrack size="sm">
         {options.map((opt) => (
-          <button
+          <Pill
             key={opt.value}
-            type="button"
+            size="sm"
+            tone="accent"
+            active={value === opt.value}
             onClick={() => onChange(opt.value)}
-            className={cn(
-              'h-[20px] px-2 rounded text-[10px] font-medium transition-colors cursor-pointer border-0',
-              value === opt.value
-                ? 'bg-accent/20 text-accent'
-                : 'text-faint/60 hover:text-muted bg-transparent hover:bg-raised'
-            )}
           >
             {opt.label}
-          </button>
+          </Pill>
         ))}
-      </div>
+      </SegmentedTrack>
     </div>
   )
 }
@@ -383,14 +372,14 @@ function FreesoundRow({ sound, isDownloading, onDownload }: { sound: FreesoundRe
         onClick={togglePlay}
         className={cn(
           'w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors border',
-          isPlaying ? 'bg-accent border-accent text-[#0A0806]' : 'bg-raised border-border text-faint group-hover:border-border-bright'
+          isPlaying ? 'bg-accent border-accent text-white' : 'bg-raised border-border text-faint group-hover:border-border-bright'
         )}
       >
         {isPlaying ? <Square size={8} fill="currentColor" /> : <Play size={8} fill="currentColor" />}
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-ink truncate leading-tight">{sound.name.replace(/\.[^.]+$/, '')}</p>
+        <p className="text-[13px] text-ink truncate leading-tight">{sound.name.replace(/\.[^.]+$/, '')}</p>
         <p className="text-[11px] text-faint mt-0.5 truncate">
           <span className="font-mono">{formatTime(sound.duration)}</span>
           <span className="mx-1.5 opacity-40">·</span>

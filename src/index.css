@@ -5,10 +5,22 @@
   font-family: var(--font-family-brand);
 }
 
+/* Readout — the LCD-style treatment for musical metadata (BPM, key, duration, bars, pad time).
+   Tabular mono with a touch of tracking so numbers read like an instrument panel, not body text. */
+@utility font-readout {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 @theme {
   /* Brand accent */
   --color-accent:         #FF5500;
   --color-accent-bright:  #FF7733;
+
+  /* Live-audio signal — amber, used only for what is currently sounding (playing pad/row glow,
+     transport-active readouts). Kept distinct from the brand orange, which means selection/action. */
+  --color-live:           #FFB300;
 
   /* Backgrounds — macOS dark semantic stack */
   --color-base:           #1c1c1e;
@@ -87,3 +99,22 @@ input, textarea, [contenteditable] {
 
 /* Selection */
 ::selection { background: rgba(255, 85, 0, 0.28); }
+
+/* Keyboard focus — only for keyboard users (not mouse clicks). Inputs keep their own border
+   treatment via focus:border-accent; this covers buttons and other controls that have none. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Respect reduced-motion: neutralize the pad-title marquee, spinners, pad press scale, and any
+   transition for users who ask for less movement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

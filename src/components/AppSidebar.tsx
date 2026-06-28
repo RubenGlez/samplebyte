@@ -101,7 +101,16 @@ function ChopContent() {
       <SectionHeader label="Projects" onAdd={handleNew} />
       <ul className="flex-1 overflow-y-auto list-none m-0 p-0 px-1 min-h-0">
         {projects.length === 0 ? (
-          <p className="text-[12px] text-faint/50 text-center mt-6 px-3">No projects yet</p>
+          <div className="flex flex-col items-center gap-2 mt-8 px-4 text-center">
+            <p className="text-[12px] text-muted">No projects yet</p>
+            <p className="text-[11px] text-faint/60 leading-relaxed">Open an audio file in Chop — your edits are saved here as a project.</p>
+            <button
+              onClick={handleNew}
+              className="mt-1 text-[12px] text-accent hover:text-accent-bright font-medium bg-transparent border-0 cursor-pointer p-0 transition-colors"
+            >
+              Open audio
+            </button>
+          </div>
         ) : (
           projects.map((project) => (
             <ProjectRow
@@ -342,7 +351,16 @@ function PacksContent() {
       <SectionHeader label="Packs" onAdd={() => setShowDialog(true)} />
       <ul className="flex-1 overflow-y-auto list-none m-0 p-0 px-1 min-h-0">
         {packs.length === 0 ? (
-          <p className="text-[12px] text-faint/50 text-center mt-6 px-3">No packs yet</p>
+          <div className="flex flex-col items-center gap-2 mt-8 px-4 text-center">
+            <p className="text-[12px] text-muted">No packs yet</p>
+            <p className="text-[11px] text-faint/60 leading-relaxed">A pack maps your sounds to 16 hardware pads, ready to export.</p>
+            <button
+              onClick={() => setShowDialog(true)}
+              className="mt-1 text-[12px] text-accent hover:text-accent-bright font-medium bg-transparent border-0 cursor-pointer p-0 transition-colors"
+            >
+              New pack
+            </button>
+          </div>
         ) : (
           packs.map((pack) => (
             <PackRow

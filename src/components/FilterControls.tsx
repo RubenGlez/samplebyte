@@ -1,5 +1,5 @@
 import { Search, FolderOpen, ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Segmented } from '@/components/ui/Segmented'
 import type { Project } from '../../electron/types'
 
 interface FilterControlsProps {
@@ -34,22 +34,17 @@ export function FilterControls({
         />
       </div>
 
-      <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-        {(['all', 'local', 'freesound'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => onSourceChange(s)}
-            className={cn(
-              'flex-1 h-[22px] rounded-[4px] text-[11px] font-medium transition-all cursor-pointer border-0 capitalize',
-              source === s
-                ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-                : 'text-faint/70 hover:text-muted bg-transparent'
-            )}
-          >
-            {s === 'freesound' ? 'Free' : s}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        size="sm"
+        fullWidth
+        value={source}
+        onChange={onSourceChange}
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'local', label: 'Local' },
+          { value: 'freesound', label: 'Free' },
+        ]}
+      />
 
       {projects.length > 0 && (
         <div className="relative">

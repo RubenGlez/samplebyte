@@ -106,8 +106,9 @@ Defined in `src/index.css` `@theme {}`. Every color used in the app must come fr
 | `ink` | `rgba(255,255,255,0.87)` | Primary text. Selected item label, headings, active state text. |
 | `muted` | `rgba(255,255,255,0.55)` | Secondary text. Default sidebar item label, placeholder-like info. |
 | `faint` | `rgba(255,255,255,0.28)` | Tertiary text. Column headers, kbd hints, timestamps at rest. |
-| `accent` | `#FF5500` | Brand orange. Selected state fill, primary button background, playing indicator. |
+| `accent` | `#FF5500` | Brand orange. Selection, primary button, drop target, action affordances. |
 | `accent-bright` | `#FF7733` | Hover state for accent elements. |
+| `live` | `#FFB300` | Amber — **only** what is currently sounding: the playing pad's backlight glow, the playing library row's marks and readouts. Semantically distinct from `accent` (which means selection/action). One sound plays at a time, so it reads as a single "now playing" signal. |
 
 **Selected/active state**: use `bg-accent/15` for list row selections. This reads as a warm orange tint without being heavy.
 
@@ -119,7 +120,9 @@ Avoid ad hoc `text-white` or `bg-black`; use tokens or documented component vari
 
 Font stack: `-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, sans-serif` (resolves to SF Pro on macOS). Set via `--font-family-ui` and `--font-family-brand` (currently identical — no custom web fonts).
 
-Monospace: `'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace` via `--font-family-mono`. Use for all numbers that need to tabular-align (duration, BPM, key, pad labels) and for file format badges.
+Monospace: `'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace` via `--font-family-mono`. Use for file format badges and any raw mono need.
+
+**Readout type (`font-readout`)** — the LCD-style treatment for *musical metadata*: BPM, key, duration, bars, pad time, pad numbers, pack count. It's mono + `tabular-nums` + `0.02em` tracking, so numbers read like an instrument panel rather than body text. Prefer `font-readout` over a bare `font-mono` for these values; it's what gives the data surfaces their identity. When the value belongs to something currently playing, tint it `text-live` (amber).
 
 ### Type scale
 
@@ -189,25 +192,19 @@ Left zone: 72px padding for native traffic lights (set via `trafficLightPosition
 
 ### Segmented control
 
-Used for Chop/Library/Packs navigation and for any 2–3 option exclusive choice (e.g. source filter: All/Local/Freesound). Pattern:
+Used for Chop/Library/Packs navigation and for any 2–3 option exclusive choice (e.g. source filter: All/Local/Free, pad audition mode, chop method). One primitive — `src/components/ui/Segmented.tsx` — backs every instance; do not hand-roll a new pill group.
 
 ```tsx
-<div className="flex items-center p-[3px] rounded-[8px] bg-[rgba(255,255,255,0.06)]">
-  {options.map(({ id, label }) => (
-    <button
-      key={id}
-      className={cn(
-        'h-[26px] px-3.5 rounded-[5px] text-[12px] font-medium transition-all duration-150 cursor-pointer border-0',
-        active === id
-          ? 'bg-[rgba(255,255,255,0.13)] text-ink'
-          : 'text-muted hover:text-ink bg-transparent'
-      )}
-    >
-      {label}
-    </button>
-  ))}
-</div>
+<Segmented value={view} onChange={setView} options={[
+  { value: 'chop', label: 'Chop' },
+  { value: 'library', label: 'Library' },
+]} />
 ```
+
+- **Sizes:** `md` (26px, top-level tabs — the default) and `sm` (22px, dense toolbars and sidebar filters).
+- **Tones:** `neutral` (white-alpha active fill — view/mode toggles, the default) and `accent` (orange-tint active — filter-style choices like Freesound Sort/Duration).
+- **`fullWidth`** stretches segments to equal parts across a column (the sidebar source filter).
+- For an option needing custom children (e.g. a ★ marker on the suggested loop length, the dynamic stems list), compose `SegmentedTrack` + `Pill` directly instead of `Segmented`.
 
 Never use underline tabs or radio-button groups where a segmented control fits.
 
@@ -243,7 +240,15 @@ Centered sheet (`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`), `ro
 
 ### Library table
 
-Column grid constant: `grid-cols-[1fr_64px_52px_44px_140px_52px]` — Name (flex), Duration, BPM, Key, Project, Actions. If columns change, update this constant. Column headers in `bg-surface`, rows alternate with a `rgba(255,255,255,0.015)` stripe on odd rows. Playing row gets `bg-accent/10`.
+Column grid constant: `grid-cols-[1fr_64px_52px_44px_140px_52px]` — Name (flex), Duration, BPM, Key, Project, Actions. If columns change, update this constant. Column headers in `bg-surface`, rows alternate with a `rgba(255,255,255,0.015)` stripe on odd rows. Selected row gets `bg-accent/[0.07]`; the **playing** row gets `bg-live/[0.07]` with amber (`text-live` / `fill-live`) play marks and mini-waveform.
+
+### Command palette
+
+`src/components/CommandPalette.tsx`, mounted once in `App.tsx`. Opens on ⌘K (or the toolbar ⌘K affordance, via the `samplebyte:open-command-palette` window event). Keyboard-first: type to filter, ↑/↓ to move, Enter to run, Esc to close. Scope is deliberately small — view navigation plus the file entry points (open audio, import folder). Add a command by appending to the `commands` array; keep each `run` a single store/IPC call.
+
+### Pads & waveform (signature surfaces)
+
+These two carry the hardware-instrument identity; keep them the most crafted objects on screen. The waveform (`useWaveSurfer.ts`) uses vertical gradients — quiet warm-grey for the unplayed wave, brighter for the played (progress) side. A filled pad rests with a subtle top-light gradient (backlit rubber feel); when it sounds it lights up amber (`bg-live/20` + an amber glow `shadow`). The amber glow is the one bold moment on the pad — keep everything else around it quiet.
 
 ---
 
@@ -254,6 +259,8 @@ Column grid constant: `grid-cols-[1fr_64px_52px_44px_140px_52px]` — Name (flex
 - **`trafficLightPosition: { x: 16, y: 14 }`** — centers lights in the 44px toolbar.
 - **`user-select: none`** on `body` — prevents accidental text selection when clicking around the UI. Re-enabled on `input`, `textarea`, `[contenteditable]`.
 - **Scrollbars** — 6px, `rgba(255,255,255,0.12)` thumb, no track. Matches macOS overlay scrollbar aesthetic.
+- **Keyboard focus** — a global `:focus-visible` outline (accent, 2px) in `index.css` covers controls that have no other focus affordance. Inputs keep their `focus:border-accent` treatment. Don't add `outline-none` to a button without giving it another visible focus state.
+- **Reduced motion** — `index.css` neutralizes animations and transitions under `prefers-reduced-motion: reduce` (catches the pad-title marquee, spinners, pad press scale). New motion is covered automatically; no per-component work needed.
 
 ---
 

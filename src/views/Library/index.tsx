@@ -418,7 +418,7 @@ const LibraryRow = memo(function LibraryRow({
         selected
           ? 'bg-accent/[0.07]'
           : isPlaying
-            ? 'bg-accent/10'
+            ? 'bg-live/[0.07]'
             : striped
               ? 'bg-[rgba(255,255,255,0.015)] hover:bg-[rgba(255,255,255,0.04)]'
               : 'hover:bg-[rgba(255,255,255,0.04)]',
@@ -434,7 +434,7 @@ const LibraryRow = memo(function LibraryRow({
       <div className="flex items-center gap-2 min-w-0 pr-2">
         <div className={cn(
           'w-5 h-5 flex items-center justify-center rounded-full shrink-0 transition-colors',
-          isPlaying ? 'text-accent' : 'text-faint/0 group-hover:text-faint'
+          isPlaying ? 'text-live' : 'text-faint/0 group-hover:text-faint'
         )}>
           {isPlaying
             ? <Square size={9} fill="currentColor" />
@@ -481,7 +481,7 @@ const LibraryRow = memo(function LibraryRow({
                   width={barW - 0.2}
                   y={50 - h / 2}
                   height={h}
-                  className={isPlaying ? 'fill-accent/60' : 'fill-[rgba(255,255,255,0.15)]'}
+                  className={isPlaying ? 'fill-live/70' : 'fill-[rgba(255,255,255,0.16)]'}
                 />
               )
             })}
@@ -490,17 +490,17 @@ const LibraryRow = memo(function LibraryRow({
       </div>
 
       {/* Duration */}
-      <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
+      <span className="text-[12px] text-faint tabular-nums text-right font-readout pr-1">
         {item.duration != null ? formatTime(item.duration) : '—'}
       </span>
 
       {/* BPM */}
-      <span className="text-[12px] text-faint tabular-nums text-right font-mono pr-1">
+      <span className="text-[12px] text-faint tabular-nums text-right font-readout pr-1">
         {item.bpm != null ? Math.round(item.bpm) : '—'}
       </span>
 
       {/* Key */}
-      <span className="text-[12px] text-faint font-mono whitespace-nowrap">
+      <span className="text-[12px] text-faint font-readout whitespace-nowrap">
         {item.musicalKey ?? '—'}
       </span>
 

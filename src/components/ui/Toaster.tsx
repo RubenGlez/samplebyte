@@ -33,7 +33,7 @@ export function Toaster() {
             )}
           >
             <Icon size={14} className="shrink-0" />
-            <span className="text-sm text-ink flex-1 leading-snug">{t.message}</span>
+            <span className="text-[13px] text-ink flex-1 leading-snug">{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}
               className="shrink-0 text-faint hover:text-muted bg-transparent border-0 p-0 cursor-pointer"

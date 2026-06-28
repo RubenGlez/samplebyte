@@ -11,6 +11,7 @@ import { FilterControls } from '@/components/FilterControls'
 import { cn } from '@/lib/utils'
 import { formatTime, toLocalFileUrl } from '@/utils'
 import { Button } from '@/components/ui/Button'
+import { Segmented } from '@/components/ui/Segmented'
 import type { PackSlot, PackSourceItem, ProjectChop, Sample } from '@/types'
 
 // A pad whose source has moved out from under it. 'drift': the source chop was edited and the pad's
@@ -251,7 +252,7 @@ export default function PacksView() {
               {currentPack ? (
                 <>
                   <span className="text-[13px] text-ink font-semibold">{currentPack.name}</span>
-                  <span className="text-[11px] text-faint font-mono">{filledSlots}/16</span>
+                  <span className="text-[11px] text-faint font-readout">{filledSlots}/16</span>
                 </>
               ) : (
                 <span className="text-[13px] text-faint">No pack selected</span>
@@ -265,23 +266,15 @@ export default function PacksView() {
             </div>
             <div className="flex items-center gap-2">
               {/* Pad audition mode — preview only, never exported */}
-              <div className="flex items-center p-[2px] rounded-[6px] bg-[rgba(255,255,255,0.05)]">
-                {([['gate', 'Gate'], ['oneshot', 'One-Shot']] as const).map(([mode, label]) => (
-                  <button
-                    key={mode}
-                    onClick={() => setPadAuditionMode(mode as PadAuditionMode)}
-                    title={mode === 'gate' ? 'Gate — a pad plays while held, stops on release' : 'One-Shot — a pad plays the whole chop regardless of release'}
-                    className={cn(
-                      'text-[11px] px-2.5 h-[22px] rounded-[4px] transition-all cursor-pointer border-0',
-                      padAuditionMode === mode
-                        ? 'bg-[rgba(255,255,255,0.12)] text-ink'
-                        : 'text-faint/70 hover:text-muted bg-transparent'
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                size="sm"
+                value={padAuditionMode}
+                onChange={setPadAuditionMode}
+                options={[
+                  { value: 'gate', label: 'Gate', title: 'Gate — a pad plays while held, stops on release' },
+                  { value: 'oneshot', label: 'One-Shot', title: 'One-Shot — a pad plays the whole chop regardless of release' },
+                ]}
+              />
               <div className="relative">
                 <select
                   value={hardwareProfileId}
@@ -337,7 +330,7 @@ export default function PacksView() {
                     <div className="divide-y divide-border">
                       {padRecoveries.map((rec) => (
                         <div key={rec.slotNumber} className="flex items-center gap-2.5 px-3 h-9">
-                          <span className="text-[10px] font-mono text-faint/50 shrink-0 w-4">
+                          <span className="text-[10px] font-readout text-faint/50 shrink-0 w-4">
                             {String(rec.slotNumber + 1).padStart(2, '0')}
                           </span>
                           <span className="text-[12px] text-ink flex-1 truncate">{rec.slot.displayName}</span>
@@ -388,7 +381,7 @@ export default function PacksView() {
           <div className="flex items-center gap-2 px-2 h-[28px] w-[184px] rounded-md text-[12px] text-ink bg-raised shadow-lg shadow-black/40 cursor-grabbing select-none">
             <span className="flex-1 truncate">{activeSource.displayName}</span>
             {activeSource.duration != null && (
-              <span className="text-faint tabular-nums shrink-0 font-mono text-[10px]">
+              <span className="text-faint tabular-nums shrink-0 font-readout text-[10px]">
                 {formatTime(activeSource.duration)}
               </span>
             )}
@@ -528,17 +521,18 @@ function PadSlot({ slotNumber, slot, recovery, onClear, isDraggingAny, auditionM
         'group relative aspect-square rounded-lg border transition-all overflow-hidden',
         slot
           ? isPlaying
-            ? 'bg-accent/20 border-accent/50 scale-[0.97]'
-            : 'bg-[rgba(255,255,255,0.04)] border-border hover:border-border-bright hover:bg-[rgba(255,255,255,0.06)] cursor-pointer active:scale-[0.97]'
+            // Backlit: the pad lights up amber when it sounds. The glow is the signature moment.
+            ? 'bg-live/20 border-live/60 shadow-[0_0_18px_rgba(255,179,0,0.38)] scale-[0.97]'
+            : 'bg-gradient-to-b from-[rgba(255,255,255,0.07)] to-[rgba(255,255,255,0.025)] border-border hover:border-border-bright hover:from-[rgba(255,255,255,0.09)] hover:to-[rgba(255,255,255,0.04)] cursor-pointer active:scale-[0.97]'
           : 'bg-[rgba(255,255,255,0.02)] border-border/50 hover:border-border',
-        isOver && 'border-accent/50 bg-accent/10 scale-[1.02]',
+        isOver && 'border-accent/60 bg-accent/10 scale-[1.02]',
         isDraggingAny && 'cursor-copy',
       )}
     >
       <div className="absolute inset-0 p-2.5 flex flex-col">
         {/* Top row: pad number + clear */}
         <div className="flex items-center justify-between">
-          <span className={cn('text-[10px] tabular-nums leading-none font-mono', slot ? 'text-faint/60' : 'text-faint/30')}>
+          <span className={cn('text-[10px] leading-none font-readout', isPlaying ? 'text-live' : slot ? 'text-faint/60' : 'text-faint/30')}>
             {padLabel}
           </span>
           {slot && (
@@ -570,7 +564,7 @@ function PadSlot({ slotNumber, slot, recovery, onClear, isDraggingAny, auditionM
                 )}
               />
               {slot.start !== null && slot.end !== null && (
-                <span className="text-[10px] text-faint/60 tabular-nums font-mono leading-none">
+                <span className={cn('text-[10px] font-readout leading-none', isPlaying ? 'text-live/80' : 'text-faint/60')}>
                   {formatTime(slot.end - slot.start)}
                 </span>
               )}
