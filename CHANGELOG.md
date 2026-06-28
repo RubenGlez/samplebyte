@@ -3,6 +3,23 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.25] - 2026-06-28
+
+### Added
+
+- **Command palette** — press ⌘K (or the ⌘K button in the toolbar) to jump between Chop, Library, and Packs, or to open an audio file or import a folder from anywhere
+
+### Changed
+
+- **Visual refresh** — musical values (BPM, key, duration, pad length) now share a consistent instrument-style readout; the waveform has more depth, with the played portion brighter; pads light up amber while they play
+- **Consistent controls** — the segmented toggles across the app (tabs, source filters, tool options) now share one look and size; the main tabs read **Chop / Library / Packs**
+- **Empty states** — the Projects and Packs lists now point you to the next step instead of just saying "none yet"
+
+### Fixed
+
+- **Keyboard focus** is now visible when tabbing through controls
+- **Reduce motion** — animations, including the pad title scroll, are disabled when the system "Reduce motion" setting is on
+
 ## [0.0.24] - 2026-06-27
 
 ### Fixed
