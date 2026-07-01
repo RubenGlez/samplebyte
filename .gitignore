@@ -31,10 +31,14 @@ yarn.lock
 /playwright/.cache/
 /.playwright-mcp/
 
-.harness/
 
 # Vendored stem-separation model (large MIT binaries; fetch via scripts/fetch-stem-model.mjs)
 public/stem-model/
 
 # Local MCP server config (contains machine-specific secrets)
 .mcp.json
+
+# doctier:begin — managed by 'doctier init', do not edit
+**/_prototype-*
+**/_spike/**
+# doctier:end
