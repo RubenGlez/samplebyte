@@ -9,3 +9,32 @@
 **Tests:** `pnpm test` (vitest). Tests run under plain Node, not Electron, so `electron` is aliased to a stub (`test/electron-stub.ts`) that points `app.getPath('userData')` at a temp dir. The audio-rendering modules are covered against real ffmpeg using the bundled seed fixtures. Tests cannot touch the database: `better-sqlite3` is rebuilt for Electron's ABI in `postinstall`, so constructing a `Database` under plain Node fails with a `NODE_MODULE_VERSION` mismatch — keep DB-dependent code out of the unit test path.
 
 **Release:** Finalize the `CHANGELOG.md` entry (turn `[Unreleased]` into `[X.Y.Z] - <date>`) and commit it, then run `pnpm release` (or `release:minor` / `release:major`). `scripts/tag.mjs` requires a clean tree on `main` matching `origin/main`, bumps `package.json`, commits the bump, and pushes branch + tag. The `v*` tag triggers `.github/workflows/release.yml`, which builds macOS and Windows installers and un-drafts the GitHub release. Versioning convention is 0.0.x: every release is a patch bump (`pnpm release`), features included. The release workflow must run `pnpm fetch:stem-model` before `pnpm build:publish` — the demucs model is gitignored, and without it the packaged Stems tool ships in its error state.
+
+<!-- doctier:begin -->
+## Project context
+
+Managed by doctier — do not edit between the markers.
+
+Read these for project context:
+
+- `.harness/adr/0001-local-first-electron-refactor.md`
+- `.harness/adr/0002-stable-project-chops.md`
+- `.harness/adr/0003-metadata-first-pack-slot-snapshots.md`
+- `.harness/adr/0004-autosave-replaces-explicit-save.md`
+- `.harness/adr/0005-pad-audition-mode-is-preview-only.md`
+- `.harness/adr/0006-library-is-a-materialized-live-projection.md`
+- `.harness/adr/0007-stem-separation-engine.md`
+- `.harness/engineering/architecture.md`
+- `.harness/engineering/features/auto-sample-suggestions.md`
+- `.harness/engineering/features/pad-audition-mode.md`
+- `.harness/engineering/features/stem-picker-chop-integration.md`
+- `.harness/engineering/features/stem-separation-engine.md`
+- `.harness/engineering/implementation-plan.md`
+- `.harness/product/CONTEXT.md`
+- `.harness/product/competitors.md`
+- `.harness/product/idea.md`
+- `.harness/product/product.md`
+- `.harness/product/roadmap.md`
+- `.harness/product/ux.md`
+- `.harness/qa/report.md`
+<!-- doctier:end -->
