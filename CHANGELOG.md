@@ -3,6 +3,12 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.27] - 2026-07-04
+
+### Changed
+
+- macOS builds are now signed with a Developer ID certificate and notarized by Apple — the app opens by double-clicking, with no Gatekeeper warning and no need for the `xattr -cr` workaround
+
 ## [0.0.26] - 2026-07-03
 
 A hardening pass from a full adversarial code audit — correctness, safety, and a couple of features that were half-wired.
