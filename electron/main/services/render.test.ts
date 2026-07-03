@@ -51,6 +51,32 @@ describe('renderClip', () => {
     expect(readWavInfo(out).sampleRate).toBe(48000)
   })
 
+  it('renders 24-bit PCM (s24) via the pcm_s24le codec', async () => {
+    // Regression for F2: `-sample_fmt s24` is not a valid ffmpeg option, so 24-bit profiles used to
+    // fail every render. renderClip must map s24 -> pcm_s24le and produce a real 24-bit WAV.
+    const out = path.join(tmpDir, '24bit.wav')
+    await renderClip(FIXTURE, { start: 0, end: 0.5 }, out, {
+      container: 'wav',
+      sampleRate: 44100,
+      sampleFmt: 's24',
+    })
+
+    const info = readWavInfo(out)
+    // 24-bit PCM is written as WAVE_FORMAT_EXTENSIBLE (0xFFFE), not plain PCM (1); both are PCM.
+    expect([1, 0xfffe]).toContain(info.audioFormat)
+    expect(info.bitsPerSample).toBe(24)
+  })
+
+  it('rejects an invalid trim window before spawning ffmpeg', async () => {
+    const out = path.join(tmpDir, 'bad.wav')
+    await expect(
+      renderClip(FIXTURE, { start: 1, end: 0.5 }, out, LIBRARY_FORMAT)
+    ).rejects.toThrow(/Invalid trim window/)
+    await expect(
+      renderClip(FIXTURE, { start: 0, end: Number.NaN }, out, LIBRARY_FORMAT)
+    ).rejects.toThrow(/Invalid trim window/)
+  })
+
   it('rejects when the source does not exist', async () => {
     const out = path.join(tmpDir, 'never.wav')
     await expect(

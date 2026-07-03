@@ -41,8 +41,10 @@ This is not a commercial product. It's open source, free to use, and built in my
 |---|---|---|---|
 | Maschine MK3 | WAV | 44.1 kHz | 16-bit |
 | Roland SP-404 MkII | WAV | 48 kHz | 16-bit |
-| Akai MPC (generic) | WAV | 44.1 kHz | 24-bit |
+| Akai MPC One | WAV | 44.1 kHz | 24-bit |
 | Generic WAV | WAV | 44.1 kHz | 24-bit |
+
+Every profile exports up to 16 pads today.
 
 Adding a new hardware target is just one config object in `electron/main/hardware/profiles.ts`, no other changes needed.
 
@@ -51,7 +53,7 @@ Adding a new hardware target is just one config object in `electron/main/hardwar
 ## Audio Sources
 
 - **Local files:** drag and drop any audio file (WAV, MP3, FLAC, AIFF, OGG)
-- **Freesound:** search 650,000+ Creative Commons sounds directly in the app — category shortcut chips (Kick, Snare, Hi-Hat, 808, etc.) on the empty state let you jump in fast, and sort/duration pill filters re-run the query instantly
+- **Freesound:** search 650,000+ Creative Commons sounds directly in the app — category shortcut chips (Kick, Snare, Hi-Hat, 808, etc.) on the empty state let you jump in fast, and sort/duration pill filters re-run the query instantly. Loading a result opens the high-quality **preview** (~128 kbps MP3) in Chop; original-quality downloads (which need OAuth) are a planned follow-up. License and author are stored with any chops you keep and written to a `credits.txt` when you export a pack, so you can honour CC attribution.
 
 No YouTube. Not because it isn't useful (the original version of this app was built around it), but building on top of bypassing another platform's ToS is a dead end. Freesound covers discovery legally and with solid content. Local files cover everything else.
 
@@ -107,6 +109,23 @@ Click "More info" then "Run anyway" to get past the unsigned-app warning.
 | `↑ / ↓` | Select previous / next chop |
 | `⌘Z` / `⇧⌘Z` | Undo / Redo chop edits |
 | `Mouse wheel` | Zoom waveform |
+
+On Windows and Linux, use `Ctrl` in place of `⌘` (the app shows the right label per platform).
+
+---
+
+## Building from source
+
+Requires the current Node.js LTS and [pnpm](https://pnpm.io/). A native toolchain is needed for the `postinstall` step, which rebuilds `better-sqlite3` against Electron's ABI ([node-gyp prerequisites](https://github.com/nodejs/node-gyp#installation)).
+
+```bash
+pnpm install          # installs deps and runs electron-rebuild
+pnpm dev              # launch the app (creates the SQLite DB on first run)
+pnpm test             # vitest (audio-rendering suites run against real ffmpeg)
+pnpm tsc && pnpm lint # typecheck + lint
+```
+
+The Chop tab's Stems tool needs a vendored model that is not in git; run `pnpm fetch:stem-model` once before `pnpm build` if you want that feature in a packaged build. `pnpm seed` loads demo projects/packs (run `pnpm dev` at least once first). See [AGENTS.md](AGENTS.md) for deeper contributor notes.
 
 ---
 

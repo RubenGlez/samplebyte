@@ -8,6 +8,8 @@ export type AudioSource = {
   size: number
   type: string
   source: 'local' | 'freesound'
+  /** Freesound attribution, set when the source is a Freesound download so it can be persisted (F24). */
+  freesound?: { id: string; license: string; author: string }
   /** Regions to restore on the next waveform mount (e.g. after trim). */
   initialRegions?: ProjectRegion[]
 }

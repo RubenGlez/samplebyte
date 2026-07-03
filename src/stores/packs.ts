@@ -1,14 +1,19 @@
 import { create } from 'zustand'
 import type { Pack, PackSlot, PackSourceItem } from '../../electron/types'
 
+export type HardwareProfileOption = { id: string; name: string; padCount: number }
+
 type PacksState = {
   packs: Pack[]
   currentPack: Pack | null
   slots: Record<number, PackSlot>
   hardwareProfileId: string
-  exportProgress: number | null
+  // Single source of truth for hardware profiles, fetched from main (packs:getProfiles) rather than
+  // a second hardcoded copy in the view that drifts from main/README (F19a).
+  profiles: HardwareProfileOption[]
 
   fetchPacks: () => Promise<void>
+  fetchProfiles: () => Promise<void>
   createPack: (name: string, hardwareProfile: string) => Promise<Pack>
   renamePack: (id: string, name: string) => Promise<void>
   setCurrentPack: (pack: Pack | null) => void
@@ -17,7 +22,7 @@ type PacksState = {
   setSlot: (slotNumber: number, source: PackSourceItem) => Promise<void>
   clearSlot: (slotNumber: number) => void
   setHardwareProfile: (profileId: string) => void
-  exportPack: (outputDir: string) => Promise<{ filesWritten: number }>
+  exportPack: (outputDir: string) => Promise<{ filesWritten: number; failed: number }>
   deletePack: (id: string) => Promise<void>
 }
 
@@ -26,11 +31,16 @@ export const usePacksStore = create<PacksState>((set, get) => ({
   currentPack: null,
   slots: {},
   hardwareProfileId: 'maschine-mk3',
-  exportProgress: null,
+  profiles: [],
 
   fetchPacks: async () => {
     const packs = await window.api.packs.getAll()
     set({ packs })
+  },
+
+  fetchProfiles: async () => {
+    const profiles = await window.api.packs.getProfiles()
+    set({ profiles })
   },
 
   createPack: async (name, hardwareProfile) => {
@@ -73,8 +83,6 @@ export const usePacksStore = create<PacksState>((set, get) => ({
       end: source.end,
       displayName: source.displayName,
       sourceChopUpdatedAt: source.sourceChopUpdatedAt,
-      pitchShiftSemitones: null,
-      timeStretchRatio: null,
       // Owned audio is materialized server-side; only export reads it (from the DB), so the
       // optimistic local slot can leave it null until the next loadSlots.
       audioPath: null,

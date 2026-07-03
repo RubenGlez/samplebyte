@@ -274,7 +274,7 @@ export default function LibraryView() {
           <DialogTitle>Delete "{pendingDelete?.item.name}"?</DialogTitle>
           {pendingDelete && pendingDelete.packRefs > 0 ? (
             <p className="text-[13px] text-muted">
-              This sound is used in {pendingDelete.packRefs} pack slot{pendingDelete.packRefs !== 1 ? 's' : ''}. Deleting it will remove those slots permanently.
+              This sound is used in {pendingDelete.packRefs} pack slot{pendingDelete.packRefs !== 1 ? 's' : ''}. Those pads keep their own audio and still export; you can rebuild the library sample from a pad later.
             </p>
           ) : (
             <p className="text-[13px] text-muted">
@@ -297,7 +297,7 @@ export default function LibraryView() {
           <DialogTitle>Delete {bulkDelete?.items.length} sound{bulkDelete && bulkDelete.items.length !== 1 ? 's' : ''}?</DialogTitle>
           {bulkDelete && bulkDelete.packRefs > 0 ? (
             <p className="text-[13px] text-muted">
-              {bulkDelete.packRefs} pack slot{bulkDelete.packRefs !== 1 ? 's' : ''} reference these sounds. Deleting will remove those slots permanently.
+              {bulkDelete.packRefs} pack slot{bulkDelete.packRefs !== 1 ? 's' : ''} reference these sounds. Those pads keep their own audio and still export; you can rebuild library samples from them later.
             </p>
           ) : (
             <p className="text-[13px] text-muted">
@@ -463,6 +463,16 @@ const LibraryRow = memo(function LibraryRow({
             onDoubleClick={(e) => { e.stopPropagation(); onDoubleClickName(item) }}
           >
             {item.name}
+            {item.sample.license && (
+              // Attribution indicator for Creative Commons sources; full credit on hover, and it's
+              // written to credits.txt on export (F24).
+              <span
+                className="ml-1.5 text-[10px] text-faint/70 align-middle"
+                title={`${item.sample.license}${item.sample.author ? ` — ${item.sample.author}` : ''}${item.sample.freesoundId ? ` (Freesound #${item.sample.freesoundId})` : ''}`}
+              >
+                CC
+              </span>
+            )}
           </span>
         )}
       </div>

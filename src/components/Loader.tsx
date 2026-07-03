@@ -53,13 +53,16 @@ export default function Loader() {
   const [isDragging, setIsDragging] = useState(false)
   const [tab, setTab] = useState<Tab>('local')
 
-  const loadFile = (file: File) => {
+  const loadFile = async (file: File) => {
     const filePath = window.api.fs.getPathForFile(file)
     if (!filePath) {
       toast('Could not read that file path', 'error')
       return
     }
 
+    // getPathForFile resolves in the renderer, so main hasn't seen this path — broker it before
+    // playback or local-file:// will 403 it (F32).
+    await window.api.fs.allowPath(filePath)
     setActiveProject(null)
     setAudio({ name: file.name, path: toLocalFileUrl(filePath), filePath, size: file.size, type: file.type || mimeTypeFromPath(filePath), source: 'local' })
   }
@@ -80,9 +83,9 @@ export default function Loader() {
     setAudio({ name: filePath.split('/').pop() ?? 'audio', path: toLocalFileUrl(filePath), filePath, size: 0, type: mimeTypeFromPath(filePath), source: 'local' })
   }
 
-  const handleFreesoundLoad = ({ name, filePath }: { name: string; filePath: string }) => {
+  const handleFreesoundLoad = ({ name, filePath, freesound }: { name: string; filePath: string; freesound?: { id: string; license: string; author: string } }) => {
     setActiveProject(null)
-    setAudio({ name, path: toLocalFileUrl(filePath), filePath, size: 0, type: 'audio/mpeg', source: 'freesound' })
+    setAudio({ name, path: toLocalFileUrl(filePath), filePath, size: 0, type: 'audio/mpeg', source: 'freesound', freesound })
     setView('chop')
     toast(`"${name}" ready to chop`)
   }
@@ -216,7 +219,7 @@ function ApiKeySetup({ onSave }: { onSave: (key: string) => void }) {
   )
 }
 
-function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string; filePath: string }) => void; onClearKey: () => void }) {
+function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string; filePath: string; freesound?: { id: string; license: string; author: string } }) => void; onClearKey: () => void }) {
   const { query, results, hasMore, isSearching, isDownloading, search, loadMore, sort, durationFilter, setSort, setDurationFilter, startDownload, endDownload } = useFreesoundStore()
   const [inputValue, setInputValue] = useState(query)
   const { toast } = useToastStore()
@@ -235,7 +238,7 @@ function FreesoundSearch({ onLoad, onClearKey }: { onLoad: (file: { name: string
     startDownload(sound.id)
     try {
       const file = await window.api.freesound.download(sound.id, sound.name, sound.previews['preview-hq-mp3'])
-      onLoad(file)
+      onLoad({ ...file, freesound: { id: String(sound.id), license: sound.license, author: sound.username } })
     } catch {
       toast('Download failed', 'error')
     } finally {
@@ -397,7 +400,7 @@ function FreesoundRow({ sound, isDownloading, onDownload }: { sound: FreesoundRe
         onClick={(e) => { e.stopPropagation(); onDownload() }}
         disabled={isDownloading}
         className="shrink-0 w-7 h-7 flex items-center justify-center rounded border border-border text-faint hover:border-accent hover:text-accent transition-colors disabled:opacity-40 bg-transparent cursor-pointer"
-        title="Import to Library"
+        title="Open in Chop"
       >
         {isDownloading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
       </button>

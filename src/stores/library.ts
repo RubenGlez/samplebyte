@@ -26,7 +26,6 @@ type LibraryState = {
   addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
   updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
   deleteSample: (id: string) => Promise<void>
-  saveChops: (params: { sourceFilePath: string; regions: Array<{ start: number; end: number; name: string }>; projectId?: string }) => Promise<void>
   importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
   setSearchQuery: (query: string) => void
   setFilters: (filters: Filters) => void
@@ -37,7 +36,7 @@ type LibraryState = {
 // Decode + analyse freshly created samples off the critical path, patching BPM/key/waveform back
 // in as each finishes. Fire-and-forget: callers don't await it; the rows just gain their analysed
 // fields a moment later. Bounded by ANALYSIS_CONCURRENCY; a failed analysis is non-fatal (the
-// sample keeps its un-analysed defaults). Shared by importFolder and saveChops.
+// sample keeps its un-analysed defaults).
 function backfillAnalysis(samples: Sample[], updateSample: LibraryState['updateSample']): void {
   void forEachConcurrent(samples, ANALYSIS_CONCURRENCY, async (sample) => {
     try {
@@ -91,13 +90,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const newSamples = allSamples.filter((s) => !beforeIds.has(s.id))
     backfillAnalysis(newSamples, get().updateSample)
     return result
-  },
-
-  saveChops: async (params) => {
-    const saved = await window.api.library.saveChops(params)
-    const samples = await window.api.library.getSamples()
-    set({ samples })
-    backfillAnalysis(saved, get().updateSample)
   },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),

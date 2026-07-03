@@ -6,7 +6,6 @@ export type {
   ProjectRegion,
   ProjectChop,
   PackSourceItem,
-  ExportRegionsParams,
   FreesoundResult,
   FreesoundPage,
   StemName,

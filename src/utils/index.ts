@@ -1,6 +1,13 @@
 import type WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions";
 
+// The shortcut handlers accept both Cmd and Ctrl, but the labels used to show ⌘ only — wrong on the
+// shipped Windows build (F26). Format modifier hints per platform.
+export const IS_MAC =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+export const modLabel = (key: string): string => (IS_MAC ? `⌘${key}` : `Ctrl+${key}`);
+export const modShiftLabel = (key: string): string => (IS_MAC ? `⇧⌘${key}` : `Ctrl+Shift+${key}`);
+
 export const getRegionsPlugin = (wavesurfer?: WaveSurfer) => {
   const regionsPluginInstance = wavesurfer
     ?.getActivePlugins()
@@ -35,10 +42,18 @@ export const mimeTypeFromPath = (filePath: string): string => {
 }
 
 export const fileNameFromPath = (filePath: string): string =>
-  filePath.split('/').pop() ?? 'audio'
+  // Split on both separators so a Windows path (C:\...\track.mp3) yields the basename, not the whole
+  // string (F34).
+  filePath.split(/[\\/]/).pop() ?? 'audio'
 
 export const toLocalFileUrl = (filePath: string): string => {
-  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/')
+  // Normalize Windows separators to '/' so a path like C:\Users\me\track.mp3 produces a valid URL
+  // instead of one whose backslashes get mangled into the authority (F34). Build with an empty
+  // authority (leading '/') so the drive letter lives in the path, and the main-process protocol
+  // handler reconstructs it (stripping the leading slash before a drive letter).
+  const normalized = filePath.replace(/\\/g, '/')
+  const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`
+  const encodedPath = withLeadingSlash.split('/').map(encodeURIComponent).join('/')
   return `local-file://${encodedPath}`
 }
 
@@ -66,26 +81,3 @@ export const formatTime = (seconds: number) =>
 export const defaultChopName = (projectName: string, index: number): string =>
   `${projectName.trim() || "Chop"} ${index + 1}`;
 
-export const convertBlobUrlToArrayBuffer = async (
-  blobUrl: string
-): Promise<ArrayBuffer> => {
-  try {
-    const response = await fetch(blobUrl);
-    const blob = await response.blob();
-    return await new Promise<ArrayBuffer>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (reader.result instanceof ArrayBuffer) {
-          resolve(reader.result);
-        } else {
-          reject(new Error("Expected an ArrayBuffer"));
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(blob); // Lee el blob como ArrayBuffer
-    });
-  } catch (error) {
-    console.error("Error converting blob URL to ArrayBuffer:", error);
-    throw error;
-  }
-};

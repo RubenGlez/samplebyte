@@ -34,7 +34,7 @@ import {
 import { rankTransientsFromUrl, findLoopCandidatesFromUrl, type RankedPeak } from '@/lib/audioAnalysis'
 import { remapRegionsForTrim } from '@/lib/remapRegions'
 import { cn } from '@/lib/utils'
-import { formatTime, toLocalFileUrl, defaultChopName } from '@/utils'
+import { formatTime, toLocalFileUrl, defaultChopName, modLabel, modShiftLabel } from '@/utils'
 import type { ProjectRegion, StemName } from '@/types'
 import type { Region } from 'wavesurfer.js/dist/plugins/regions'
 
@@ -229,6 +229,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
     projectName,
     audioName,
     source,
+    attribution: audio?.freesound ?? null,
     autosaveActiveRegions,
   })
 
@@ -244,7 +245,8 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       if (!project) return
 
       const pack = await createPack(`${project.name} Pack`, hardwareProfileId)
-      const chops = (await window.api.projects.getChops(project.id)).slice(0, 16)
+      const allChops = await window.api.projects.getChops(project.id)
+      const chops = allChops.slice(0, 16)
       for (const [index, chop] of chops.entries()) {
         await setSlot(index, {
           id: `project-chop:${chop.id}`,
@@ -265,7 +267,13 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         })
       }
       setView('packs')
-      toast(`${chops.length} chop${chops.length !== 1 ? 's' : ''} sent to ${pack.name}`)
+      const truncated = allChops.length > chops.length
+      toast(
+        `${chops.length} chop${chops.length !== 1 ? 's' : ''} sent to ${pack.name}` +
+          (truncated ? ` (${allChops.length - chops.length} skipped — 16-pad limit)` : '')
+      )
+    } catch (err) {
+      toast(`Send to Pack failed: ${err instanceof Error ? err.message : 'unknown error'}`)
     } finally {
       setIsSaving(false)
     }
@@ -558,9 +566,12 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
   const actions = (
     <>
       {saveStatus !== 'idle' && (
-        <span className={cn('flex items-center gap-1 text-[11px] select-none transition-opacity', saveStatus === 'saved' ? 'text-faint/50' : 'text-faint/30')}>
+        <span className={cn(
+          'flex items-center gap-1 text-[11px] select-none transition-opacity',
+          saveStatus === 'error' ? 'text-red-400' : saveStatus === 'saved' ? 'text-faint/50' : 'text-faint/30'
+        )}>
           {saveStatus === 'saved' && <Check size={10} />}
-          {saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+          {saveStatus === 'error' ? 'Save failed — edits not saved' : saveStatus === 'saving' ? 'Saving…' : 'Saved'}
         </span>
       )}
       <Button variant="outline" size="sm" onClick={handleSendToPack} disabled={isSaving || !hasRegions}>
@@ -623,7 +634,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
         {/* History — shares the toolbar button language */}
         <div className="flex items-center gap-1.5">
           <button
-            title="Undo edit (⌘Z)"
+            title={`Undo edit (${modLabel('Z')})`}
             onClick={undo}
             disabled={!canUndo}
             className={cn(
@@ -636,7 +647,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
             <Undo2 size={13} />
           </button>
           <button
-            title="Redo edit (⇧⌘Z)"
+            title={`Redo edit (${modShiftLabel('Z')})`}
             onClick={redo}
             disabled={!canRedo}
             className={cn(
@@ -730,7 +741,7 @@ const AudioWaveform = ({ audioUrl, audioName, filePath, size, type, initialRegio
       </div>
 
       <div className="flex items-center gap-5 px-5 py-2 border-t border-border bg-surface shrink-0">
-        {([['Space', 'Play / Pause'], ['⌫', 'Delete chop'], ['↑/↓', 'Prev / Next chop'], ['⌘Z', 'Undo'], ['⇧⌘Z', 'Redo']] as const).map(([key, label]) => (
+        {(([['Space', 'Play / Pause'], ['⌫', 'Delete chop'], ['↑/↓', 'Prev / Next chop'], [modLabel('Z'), 'Undo'], [modShiftLabel('Z'), 'Redo']]) as [string, string][]).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
             <kbd className="px-1.5 py-0.5 rounded-[4px] bg-raised border border-border text-[10px] text-faint/70 leading-none font-mono">
               {key}

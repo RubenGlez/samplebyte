@@ -1,8 +1,8 @@
-import type { Api } from '../../electron/ipc-contract'
+import type { Api, ApiEvents } from '../../electron/ipc-contract'
 
 declare global {
   interface Window {
-    api: Api
+    api: Api & { events: ApiEvents }
   }
 }
 

@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import ffmpeg from 'fluent-ffmpeg'
 
@@ -42,6 +43,18 @@ function getFfmpegBinaryPath(): string {
 export function configureFfmpeg(): void {
   const ffmpegPath = getFfmpegBinaryPath()
   ffmpeg.setFfmpegPath(ffmpegPath)
+}
+
+// Whether the bundled ffmpeg binary actually exists for this platform/arch. @ffmpeg-installer only
+// pins darwin/win32 in optionalDependencies, so an unsupported arch (e.g. Linux) resolves nothing
+// and every render would fail deep in a per-clip rejection. Probing once at startup lets us tell the
+// user plainly instead of surfacing it as mysterious per-operation failures (F17).
+export function isFfmpegAvailable(): boolean {
+  try {
+    return fs.existsSync(getFfmpegBinaryPath())
+  } catch {
+    return false
+  }
 }
 
 export { ffmpeg }

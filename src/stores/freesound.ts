@@ -1,6 +1,18 @@
 import { create } from 'zustand'
 import { withLoading } from './utils'
+import { useToastStore } from './toast'
 import type { FreesoundResult } from '@/types'
+
+// Turn a thrown Freesound/network error into a user-facing toast. Rejections used to escape
+// withLoading uncaught, leaving the spinner to stop on an empty list with zero feedback (F11).
+function reportFreesoundError(err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err)
+  if (/\b401\b/.test(message)) {
+    useToastStore.getState().toast('Freesound rejected the request — check your API key in Settings', 'error')
+  } else {
+    useToastStore.getState().toast(`Freesound search failed: ${message}`, 'error')
+  }
+}
 
 export type FreesoundSort = 'score' | 'downloads_desc' | 'rating_desc' | 'created_desc'
 export type FreesoundDuration = 'any' | 'short' | 'medium' | 'long'
@@ -46,8 +58,12 @@ export const useFreesoundStore = create<FreesoundState>((set, get) => ({
     await withLoading(
       (v) => set({ isSearching: v }),
       async () => {
-        const data = await window.api.freesound.search(query, 1, sort, DURATION_FILTER[durationFilter])
-        set({ results: data.results, hasMore: data.next !== null, page: 1 })
+        try {
+          const data = await window.api.freesound.search(query, 1, sort, DURATION_FILTER[durationFilter])
+          set({ results: data.results, hasMore: data.next !== null, page: 1 })
+        } catch (err) {
+          reportFreesoundError(err)
+        }
       }
     )
   },
@@ -71,12 +87,16 @@ export const useFreesoundStore = create<FreesoundState>((set, get) => ({
     await withLoading(
       (v) => set({ isSearching: v }),
       async () => {
-        const data = await window.api.freesound.search(query, nextPage, sort, DURATION_FILTER[durationFilter])
-        set((s) => ({
-          results: [...s.results, ...data.results],
-          hasMore: data.next !== null,
-          page: nextPage,
-        }))
+        try {
+          const data = await window.api.freesound.search(query, nextPage, sort, DURATION_FILTER[durationFilter])
+          set((s) => ({
+            results: [...s.results, ...data.results],
+            hasMore: data.next !== null,
+            page: nextPage,
+          }))
+        } catch (err) {
+          reportFreesoundError(err)
+        }
       }
     )
   },

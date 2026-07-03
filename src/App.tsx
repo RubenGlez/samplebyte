@@ -3,6 +3,7 @@ import Toolbar from '@/components/Toolbar'
 import AppSidebar from '@/components/AppSidebar'
 import { Toaster } from '@/components/ui/Toaster'
 import { CommandPalette } from '@/components/CommandPalette'
+import { UpdateBanner } from '@/components/UpdateBanner'
 import { useUiStore } from '@/stores/ui'
 import { useProjectsStore } from '@/stores/projects'
 import { usePacksStore } from '@/stores/packs'
@@ -16,13 +17,13 @@ import { toLocalFileUrl, fileNameFromPath, mimeTypeFromPath } from '@/utils'
 export default function App() {
   const { currentView } = useUiStore()
   const { fetchProjects, setActiveProject } = useProjectsStore()
-  const { fetchPacks, setCurrentPack } = usePacksStore()
+  const { fetchPacks, fetchProfiles, setCurrentPack } = usePacksStore()
   const { fetchSamples } = useLibraryStore()
   const { setAudio } = usePlayerStore()
 
   useEffect(() => {
     async function init() {
-      await Promise.all([fetchProjects(), fetchPacks(), fetchSamples()])
+      await Promise.all([fetchProjects(), fetchPacks(), fetchProfiles(), fetchSamples()])
 
       const { projects, activeProject } = useProjectsStore.getState()
       if (!activeProject && projects.length > 0) {
@@ -49,8 +50,13 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // The one-time chop backfill runs in the background after launch (F14); refetch the library when
+  // it reports new samples so an upgrade populates Browse without a manual reload.
+  useEffect(() => window.api.events.onLibraryChanged(() => { fetchSamples() }), [fetchSamples])
+
   return (
     <div className="bg-base h-dvh flex flex-col overflow-hidden">
+      <UpdateBanner />
       <Toolbar />
       <div className="flex-1 flex overflow-hidden">
         <AppSidebar />

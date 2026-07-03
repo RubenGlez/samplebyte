@@ -24,20 +24,13 @@ type PadRecovery = {
   sample?: Sample
 }
 
-const PROFILES = [
-  { id: 'sp404-mkii',  name: 'Roland SP-404 MkII' },
-  { id: 'mpc-generic', name: 'Akai MPC One' },
-  { id: 'maschine-mk3', name: 'Maschine MK3' },
-  { id: 'generic',     name: 'Generic WAV' },
-]
-
 // Source row pitch in px: DraggableSource is h-[28px] with a 1px flex gap. The source panel is
 // virtualized against this so a 900+ sample library mounts only the visible dnd-kit draggables.
 const SOURCE_ROW_H = 29
 const SOURCE_OVERSCAN = 8
 
 export default function PacksView() {
-  const { currentPack, slots, hardwareProfileId, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, loadSlots } = usePacksStore()
+  const { currentPack, slots, hardwareProfileId, profiles, fetchPacks, setSlot, clearSlot, exportPack, setHardwareProfile, loadSlots } = usePacksStore()
   const { padAuditionMode, setPadAuditionMode } = useUiStore()
   const { samples, fetchSamples } = useLibraryStore()
   const { projects, fetchProjects } = useProjectsStore()
@@ -62,7 +55,10 @@ export default function PacksView() {
     setIsExporting(true)
     try {
       const result = await exportPack(outputDir)
-      toast(`${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} exported`)
+      const base = `${result.filesWritten} file${result.filesWritten !== 1 ? 's' : ''} exported`
+      toast(result.failed > 0 ? `${base}, ${result.failed} failed` : base)
+    } catch (err) {
+      toast(`Export failed: ${err instanceof Error ? err.message : 'unknown error'}`)
     } finally {
       setIsExporting(false)
     }
@@ -142,7 +138,11 @@ export default function PacksView() {
     if (!over || !currentPack) return
     const slotNumber = Number(over.id)
     const source = sourceItems.find((s) => s.id === active.id)
-    if (source !== undefined) setSlot(slotNumber, source).then(flashPackSaved)
+    if (source !== undefined) {
+      setSlot(slotNumber, source)
+        .then(flashPackSaved)
+        .catch((err) => toast(`Couldn't assign pad: ${err instanceof Error ? err.message : 'unknown error'}`))
+    }
   }
 
   const handleClearSlot = async (slotNumber: number) => {
@@ -160,18 +160,26 @@ export default function PacksView() {
       source = sampleToSourceItem(rec.sample)
     }
     if (!source) return
-    await setSlot(slot.slotNumber, source)
-    flashPackSaved()
-    toast(`${slot.displayName} updated from source`)
+    try {
+      await setSlot(slot.slotNumber, source)
+      flashPackSaved()
+      toast(`${slot.displayName} updated from source`)
+    } catch (err) {
+      toast(`Couldn't update pad: ${err instanceof Error ? err.message : 'unknown error'}`)
+    }
   }
 
   const regenerateSlot = async (rec: PadRecovery) => {
     if (!currentPack) return
-    await window.api.packs.regenerateSlotToLibrary(currentPack.id, rec.slotNumber)
-    await fetchSamples()
-    await loadSlots()
-    flashPackSaved()
-    toast(`${rec.slot.displayName} regenerated to library`)
+    try {
+      await window.api.packs.regenerateSlotToLibrary(currentPack.id, rec.slotNumber)
+      await fetchSamples()
+      await loadSlots()
+      flashPackSaved()
+      toast(`${rec.slot.displayName} regenerated to library`)
+    } catch (err) {
+      toast(`Couldn't regenerate pad: ${err instanceof Error ? err.message : 'unknown error'}`)
+    }
   }
 
   const filledSlots = Object.keys(slots).length
@@ -281,7 +289,7 @@ export default function PacksView() {
                   onChange={(e) => setHardwareProfile(e.target.value)}
                   className="appearance-none bg-raised border border-border rounded-md pl-2.5 pr-5 h-[26px] text-[12px] text-ink focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
                 >
-                  {PROFILES.map((p) => (
+                  {profiles.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -503,10 +511,13 @@ function PadSlot({ slotNumber, slot, recovery, onClear, isDraggingAny, auditionM
   auditionMode: PadAuditionMode
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: slotNumber })
-  // Preview the chop bounds, not the whole source. In Gate, releasing stops; in One-Shot, release is
-  // ignored and playback runs to region.end (handled inside useAudioPlayer).
-  const region = slot && slot.start !== null && slot.end !== null ? { start: slot.start, end: slot.end } : null
-  const { isPlaying, play, stop } = useAudioPlayer(slot ? toLocalFileUrl(slot.sourcePath) : null, region)
+  // Audition the pad's own snapshot (the pre-trimmed owned WAV), so it stays audible even if the
+  // source file was moved/deleted and matches exactly what export writes (F13). Legacy pads with no
+  // owned audio fall back to trimming the source by region. In Gate, releasing stops; in One-Shot,
+  // release is ignored and playback runs to region.end (handled inside useAudioPlayer).
+  const auditionPath = slot?.audioPath ?? slot?.sourcePath ?? null
+  const region = !slot?.audioPath && slot && slot.start !== null && slot.end !== null ? { start: slot.start, end: slot.end } : null
+  const { isPlaying, play, stop } = useAudioPlayer(auditionPath ? toLocalFileUrl(auditionPath) : null, region)
   const releaseStop = auditionMode === 'gate' ? stop : undefined
 
   const padLabel = String(slotNumber + 1).padStart(2, '0')

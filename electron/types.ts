@@ -8,11 +8,19 @@ export type Sample = {
   tags: string[]
   source: 'local' | 'freesound' | 'chop'
   freesoundId: string | null
+  // Attribution for Creative Commons audio from Freesound, carried so exported packs can credit
+  // sources (most CC licenses require it). Null for local/own audio. See F24.
+  license: string | null
+  author: string | null
   waveformData: number[] | null
   projectId: string | null
   // Set when this sample was materialized from a project chop (trimmed to a real file).
   // Doubles as the idempotency key for the one-time chop materialization migration.
   sourceChopId: string | null
+  // True only for files the app rendered/copied into its own storage (userData/samples). Deleting
+  // such a row deletes its file; import-in-place originals and shared cache files (stems) are
+  // owned=false and are never unlinked. See F1/T1 in the adversarial audit.
+  owned: boolean
   createdAt: number
 }
 
@@ -35,8 +43,6 @@ export type PackSlot = {
   end: number | null
   displayName: string
   sourceChopUpdatedAt: number | null
-  pitchShiftSemitones: number | null
-  timeStretchRatio: number | null
   // Owned trimmed WAV captured at assignment, so the pad exports independently of its source.
   audioPath: string | null
 }
@@ -47,8 +53,21 @@ export type Project = {
   sourcePath: string | null
   sourceName: string | null
   source: 'local' | 'freesound'
+  // Freesound attribution for the source, propagated to materialized chop samples so packs can be
+  // credited on export (F24).
+  freesoundId: string | null
+  license: string | null
+  author: string | null
   regions: ProjectRegion[]
   createdAt: number
+}
+
+// Freesound attribution captured when a preview is opened, carried through project save into
+// materialized samples.
+export type FreesoundAttribution = {
+  freesoundId: string
+  license: string
+  author: string
 }
 
 export type ProjectRegion = {
@@ -84,13 +103,6 @@ export type PackSourceItem = {
   musicalKey: string | null
   tags: string[]
   sourceChopUpdatedAt: number | null
-}
-
-export type ExportRegionsParams = {
-  regions: ProjectRegion[]
-  sourceFilePath: string
-  outputDir: string
-  profileId: string
 }
 
 export type TrimSourceParams = {

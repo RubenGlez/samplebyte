@@ -5,15 +5,17 @@ import * as samples from '../db/queries/samples'
 
 const AUDIO_EXTS = new Set(['wav', 'mp3', 'flac', 'aiff', 'aif', 'ogg', 'm4a'])
 
-function scanAudioFiles(dir: string): string[] {
-  let found: string[] = []
+// Async recursive scan so importing a large/NAS folder doesn't block the event loop (and every
+// window + all IPC) the way the old synchronous walk did (F16).
+async function scanAudioFiles(dir: string): Promise<string[]> {
   let entries: fs.Dirent[]
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return found }
+  try { entries = await fs.promises.readdir(dir, { withFileTypes: true }) } catch { return [] }
+  const found: string[] = []
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
-      found = found.concat(scanAudioFiles(full))
+      found.push(...await scanAudioFiles(full))
     } else if (entry.isFile() && AUDIO_EXTS.has(path.extname(entry.name).slice(1).toLowerCase())) {
       found.push(full)
     }
@@ -21,7 +23,7 @@ function scanAudioFiles(dir: string): string[] {
   return found
 }
 import * as projects from '../db/queries/projects'
-import { syncProjectChopsToLibrary, renderLibrarySample } from '../services/materializeChops'
+import { syncProjectChopsToLibrary } from '../services/materializeChops'
 import type { Sample, Project, ProjectRegion } from '../../types'
 
 export function registerLibraryHandlers(): void {
@@ -37,15 +39,12 @@ export function registerLibraryHandlers(): void {
     samples.updateSample(id, data)
   })
 
-  handle('library:importFolder', (_, folderPath: string) => {
-    const existing = new Set(samples.getAllSamples().map((s) => s.filePath))
-    const allFiles = scanAudioFiles(folderPath)
-    const newFiles = allFiles.filter((f) => !existing.has(f))
-    for (const filePath of newFiles) {
-      const name = path.basename(filePath, path.extname(filePath))
-      samples.addSample({ name, filePath, source: 'local' })
-    }
-    return { imported: newFiles.length, skipped: allFiles.length - newFiles.length }
+  handle('library:importFolder', async (_, folderPath: string) => {
+    const allFiles = await scanAudioFiles(folderPath)
+    // Dedup + insert happen in one transaction; INSERT OR IGNORE drops paths already in the library.
+    const candidates = allFiles.map((filePath) => ({ name: path.basename(filePath, path.extname(filePath)), filePath }))
+    const imported = samples.importLocalFiles(candidates)
+    return { imported, skipped: allFiles.length - imported }
   })
 
   handle('library:deleteSample', (_, id: string) => {
@@ -53,35 +52,6 @@ export function registerLibraryHandlers(): void {
     if (filePath) {
       try { fs.unlinkSync(filePath) } catch { /* file already gone, ignore */ }
     }
-  })
-
-  handle('library:saveChops', async (_, params: {
-    sourceFilePath: string
-    regions: Array<{ start: number; end: number; name: string }>
-    projectId?: string
-  }) => {
-    const saved: Sample[] = []
-
-    for (const [index, region] of params.regions.entries()) {
-      const { filePath, duration, waveformData } = await renderLibrarySample(
-        params.sourceFilePath,
-        region.start,
-        region.end
-      )
-
-      const sample = samples.addSample({
-        name: region.name || `Sample ${index + 1}`,
-        filePath,
-        duration,
-        source: 'local',
-        projectId: params.projectId ?? null,
-        waveformData,
-      })
-
-      saved.push(sample)
-    }
-
-    return saved
   })
 
   handle('projects:getAll', () => {
@@ -92,7 +62,7 @@ export function registerLibraryHandlers(): void {
     return projects.getProject(id)
   })
 
-  handle('projects:save', async (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }) => {
+  handle('projects:save', async (_, data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; freesoundId?: string | null; license?: string | null; author?: string | null; regions: ProjectRegion[] }) => {
     const project = projects.saveProject(data)
     await syncProjectChopsToLibrary(project.id)
     return project

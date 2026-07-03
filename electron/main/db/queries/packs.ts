@@ -25,8 +25,6 @@ function deserializeSlot(row: Record<string, unknown>): PackSlot {
     end: row.end as number | null,
     displayName: row.display_name as string,
     sourceChopUpdatedAt: row.source_chop_updated_at as number | null,
-    pitchShiftSemitones: row.pitch_shift_semitones as number | null,
-    timeStretchRatio: row.time_stretch_ratio as number | null,
     audioPath: row.audio_path as string | null,
   }
 }
@@ -92,10 +90,8 @@ export function upsertSlot(packId: string, slotNumber: number, source: PackSourc
         end,
         display_name,
         source_chop_updated_at,
-        pitch_shift_semitones,
-        time_stretch_ratio,
         audio_path
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       packId,
@@ -109,8 +105,6 @@ export function upsertSlot(packId: string, slotNumber: number, source: PackSourc
       source.end,
       source.displayName,
       source.sourceChopUpdatedAt,
-      null,
-      null,
       audioPath
     )
 }
