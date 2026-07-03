@@ -3,7 +3,9 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { handle } from './handle'
 import * as packsDb from '../db/queries/packs'
-import { addSample } from '../db/queries/samples'
+import { addSample, getSample, getSampleBySourceChopId as samplesBySourceChopId } from '../db/queries/samples'
+import { logMain } from '../services/log'
+import type { PackSlot } from '../../types'
 import { extractWaveformData } from '../audio/waveform'
 import { getProfile, profiles } from '../hardware/profiles'
 import type { Pack, PackSourceItem } from '../../types'
@@ -23,6 +25,42 @@ async function materializeSlotAudio(source: PackSourceItem): Promise<string> {
 function unlinkQuietly(filePath: string | null): void {
   if (filePath) {
     try { fs.unlinkSync(filePath) } catch { /* already gone */ }
+  }
+}
+
+// Write a credits.txt next to the exported audio listing attribution for any Creative Commons
+// sources in the pack, so the user can comply with Freesound licenses when sharing the pack (F24).
+// Resolves each pad to its sample (library-sample pads by id, chop pads by source chop id) and
+// dedupes by Freesound id. No-op when nothing needs crediting.
+function writeCreditsFile(outputDir: string, packName: string, slots: PackSlot[]): void {
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const slot of slots) {
+    const sample = slot.sampleId
+      ? getSample(slot.sampleId)
+      : slot.projectChopId
+        ? samplesBySourceChopId(slot.projectChopId)
+        : null
+    if (!sample || (!sample.license && !sample.author)) continue
+    const key = sample.freesoundId ?? sample.id
+    if (seen.has(key)) continue
+    seen.add(key)
+    const parts = [sample.name]
+    if (sample.author) parts.push(`by ${sample.author}`)
+    if (sample.license) parts.push(`(${sample.license})`)
+    if (sample.freesoundId) parts.push(`— https://freesound.org/s/${sample.freesoundId}/`)
+    lines.push(`- ${parts.join(' ')}`)
+  }
+  if (lines.length === 0) return
+
+  const body =
+    `Credits for "${packName}"\n\n` +
+    `This pack contains Creative Commons audio from Freesound. Most CC licenses require attribution — please keep these credits with the pack:\n\n` +
+    `${lines.join('\n')}\n`
+  try {
+    fs.writeFileSync(path.join(outputDir, 'credits.txt'), body)
+  } catch (error) {
+    logMain('writeCreditsFile:failed', error)
   }
 }
 
@@ -86,7 +124,9 @@ export function registerPacksHandlers(): void {
       end: slot.audioPath ? null : slot.end,
     }))
 
-    return exportClips(profile, clips, outputDir)
+    const result = await exportClips(profile, clips, outputDir)
+    writeCreditsFile(outputDir, pack.name, pack.slots)
+    return result
   })
 
   // Recover an orphaned chop pad (its origin chop was deleted, so its library sample is gone) by
@@ -106,6 +146,7 @@ export function registerPacksHandlers(): void {
       filePath,
       source: 'local',
       waveformData: extractWaveformData(filePath),
+      owned: true,
     })
     packsDb.relinkSlotToSample(packId, slotNumber, sample)
     return sample

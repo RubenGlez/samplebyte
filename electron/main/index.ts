@@ -3,9 +3,12 @@ import { release } from 'node:os'
 import { dirname, join } from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { update } from './update'
+import { registerUpdateHandlers } from './update'
 import { initDatabase } from './db/index'
 import { materializeProjectChops } from './services/materializeChops'
+import { isLocalFileAllowed } from './services/localFileAccess'
+import { gcOrphanedFiles } from './services/gc'
+import { isFfmpegAvailable } from './services/ffmpeg'
 import { handle } from './ipc/handle'
 import { registerLibraryHandlers } from './ipc/library'
 import { registerAudioHandlers } from './ipc/audio'
@@ -96,7 +99,9 @@ protocol.registerSchemesAsPrivileged([
   },
 ])
 
-if (release().startsWith('6.1')) app.disableHardwareAcceleration()
+// Windows 7 (NT 6.1) needs hardware acceleration disabled. Guard on win32 too: the bare version
+// check also matched the Linux 6.1.x LTS kernel and needlessly disabled acceleration there (F23).
+if (process.platform === 'win32' && release().startsWith('6.1')) app.disableHardwareAcceleration()
 
 // In dev mode the Electron binary runs without a bundle, so app.getName() returns
 // "Electron" instead of "samplebyte", which puts userData in the wrong directory.
@@ -176,16 +181,30 @@ async function createWindow() {
     return { action: 'deny' }
   })
 
-  update(win)
+  registerUpdateHandlers(win)
 }
 
 app.whenReady().then(async () => {
   // Serve local audio files to the renderer without cross-origin restrictions
   protocol.handle('local-file', async (request) => {
     const url = new URL(request.url)
-    const filePath = decodeURIComponent(
+    let filePath = decodeURIComponent(
       url.hostname ? `/${url.hostname}${url.pathname}` : url.pathname
     )
+    // toLocalFileUrl encodes Windows paths with an empty authority as /C:/Users/...; strip the
+    // leading slash before the drive letter so it's a real Windows path (F34). No-op on POSIX.
+    if (/^\/[A-Za-z]:\//.test(filePath)) filePath = filePath.slice(1)
+    // Deny anything the app has no legitimate reason to serve — this protocol is CORS-open and
+    // CSP-bypassing, so an unscoped handler is an arbitrary-file-read primitive (F32).
+    if (!isLocalFileAllowed(filePath)) {
+      return new Response('Forbidden', {
+        status: 403,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        },
+      })
+    }
     // pathToFileURL properly percent-encodes spaces and special chars (e.g. paths under
     // "Application Support"). Plain `file://${filePath}` breaks on macOS userData paths.
     if (!existsSync(filePath)) {
@@ -246,10 +265,32 @@ app.whenReady().then(async () => {
     if (url.startsWith('https:')) shell.openExternal(url)
   })
 
-  initDatabase()
-  // One-time: materialize existing project chops into real library samples before the window
-  // loads, so Browse shows them as files. No-op (one COUNT query) on every later launch.
-  await materializeProjectChops().catch((error) => logMain('materializeProjectChops:failed', error))
+  // Preflight the database: a corrupt/locked file or a WAL left by a half-alive second instance
+  // surfaces here. Without a library there is nothing to run, so fail with a recovery hint (F17).
+  try {
+    initDatabase()
+  } catch (error) {
+    showFatalError(
+      'SampleByte could not open its library',
+      `${serializeError(error)}\n\nThe library database may be damaged or locked by another copy of SampleByte. ` +
+        `Quit any other instances and relaunch. Your audio files are safe under:\n${app.getPath('userData')}`
+    )
+    app.quit()
+    return
+  }
+
+  // ffmpeg drives every render/export; if the bundled binary is missing (unsupported arch) say so
+  // once rather than letting each operation fail cryptically later (F17).
+  if (!isFfmpegAvailable()) {
+    logMain('ffmpeg:missing')
+    try {
+      dialog.showErrorBox(
+        'Audio processing unavailable',
+        'The bundled ffmpeg binary was not found for this platform, so chopping, export, and stem saving will not work. Reinstall SampleByte for your platform.'
+      )
+    } catch { /* headless */ }
+  }
+
   registerLibraryHandlers()
   registerAudioHandlers()
   registerFilesystemHandlers()
@@ -258,7 +299,27 @@ app.whenReady().then(async () => {
   registerFreesoundHandlers()
   registerStemsHandlers()
   createWindow()
+
+  // Run startup maintenance AFTER the window exists so a large one-time chop backfill can't block
+  // first paint (F14). A user upgrading with hundreds of legacy chops now sees the splash and UI
+  // immediately; the library refreshes itself when the backfill finishes.
+  void runStartupMaintenance()
 })
+
+async function runStartupMaintenance(): Promise<void> {
+  try {
+    const { removed } = gcOrphanedFiles()
+    if (removed > 0) logMain('gc:removed', String(removed))
+  } catch (error) {
+    logMain('gc:failed', error)
+  }
+  try {
+    const materialized = await materializeProjectChops()
+    if (materialized > 0) win?.webContents.send('library:changed')
+  } catch (error) {
+    logMain('materializeProjectChops:failed', error)
+  }
+}
 
 app.on('window-all-closed', () => {
   win = null

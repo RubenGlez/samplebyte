@@ -228,6 +228,8 @@ function LibraryContent() {
           ? `Imported ${imported} sample${imported !== 1 ? 's' : ''} (${skipped} skipped)`
           : `Imported ${imported} sample${imported !== 1 ? 's' : ''}`
       toast(msg, imported === 0 ? 'info' : 'success')
+    } catch (err) {
+      toast(`Import failed: ${err instanceof Error ? err.message : 'unknown error'}`, 'error')
     } finally {
       setImporting(false)
     }

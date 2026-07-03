@@ -1,15 +1,22 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
-import type { Api } from '../ipc-contract'
+import type { Api, ApiEvents } from '../ipc-contract'
+
+// Subscribe to a main->renderer channel, returning an unsubscribe. Args are forwarded straight to
+// the callback; the sender event object is stripped so the renderer never touches ipc internals.
+function subscribe(channel: string, cb: (...args: unknown[]) => void): () => void {
+  const listener = (_e: Electron.IpcRendererEvent, ...args: unknown[]) => cb(...args)
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
+}
 
 // Typed against the shared contract: each method just forwards to its `group:method` channel, and
 // the contract guarantees the args/return match what main registers. Drift is a compile error.
-const api: Api = {
+const api: Api & { events: ApiEvents } = {
   library: {
     getSamples: (filters) => ipcRenderer.invoke('library:getSamples', filters),
     addSample: (data) => ipcRenderer.invoke('library:addSample', data),
     updateSample: (id, data) => ipcRenderer.invoke('library:updateSample', id, data),
     deleteSample: (id) => ipcRenderer.invoke('library:deleteSample', id),
-    saveChops: (params) => ipcRenderer.invoke('library:saveChops', params),
     importFolder: (folderPath) => ipcRenderer.invoke('library:importFolder', folderPath),
     getPackSlotRefCount: (id) => ipcRenderer.invoke('library:getPackSlotRefCount', id),
     getOrphans: () => ipcRenderer.invoke('library:getOrphans'),
@@ -29,7 +36,6 @@ const api: Api = {
   },
 
   audio: {
-    exportRegions: (params) => ipcRenderer.invoke('audio:exportRegions', params),
     trimSource: (params) => ipcRenderer.invoke('audio:trimSource', params),
   },
 
@@ -41,6 +47,7 @@ const api: Api = {
 
   fs: {
     getPathForFile: (file) => webUtils.getPathForFile(file),
+    allowPath: (filePath) => ipcRenderer.invoke('fs:allowPath', filePath),
     pickFile: () => ipcRenderer.invoke('fs:pickFile'),
     pickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
   },
@@ -70,6 +77,20 @@ const api: Api = {
     delete: (id) => ipcRenderer.invoke('packs:delete', id),
     export: (packId, outputDir) => ipcRenderer.invoke('packs:export', packId, outputDir),
     regenerateSlotToLibrary: (packId, slotNumber) => ipcRenderer.invoke('packs:regenerateSlotToLibrary', packId, slotNumber),
+  },
+
+  updates: {
+    check: () => ipcRenderer.invoke('updates:check'),
+    download: () => ipcRenderer.invoke('updates:download'),
+    install: () => ipcRenderer.invoke('updates:install'),
+  },
+
+  events: {
+    onLibraryChanged: (cb) => subscribe('library:changed', () => cb()),
+    onUpdateAvailable: (cb) => subscribe('update:available', (info) => cb(info as { version: string; newVersion?: string })),
+    onUpdateProgress: (cb) => subscribe('update:progress', (percent) => cb(percent as number)),
+    onUpdateDownloaded: (cb) => subscribe('update:downloaded', () => cb()),
+    onUpdateError: (cb) => subscribe('update:error', (message) => cb(message as string)),
   },
 }
 

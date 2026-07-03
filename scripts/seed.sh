@@ -8,11 +8,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SEED_AUDIO_DIR="$SCRIPT_DIR/seed-audio"
 
 # ── 1. Locate userData ──────────────────────────────────────────────────────
-if [ -d "$HOME/Library/Application Support/samplebyte" ]; then
-  USERDATA="$HOME/Library/Application Support/samplebyte"
-elif [ -d "$HOME/Library/Application Support/Electron" ]; then
-  USERDATA="$HOME/Library/Application Support/Electron"
-else
+# Electron's userData path is per-platform: macOS uses ~/Library/Application Support, Linux uses
+# $XDG_CONFIG_HOME (~/.config), Windows uses %APPDATA% (reachable from git-bash/WSL). Try each.
+CANDIDATES=(
+  "$HOME/Library/Application Support/samplebyte"
+  "$HOME/Library/Application Support/Electron"
+  "${XDG_CONFIG_HOME:-$HOME/.config}/samplebyte"
+  "${APPDATA:-$HOME/AppData/Roaming}/samplebyte"
+)
+USERDATA=""
+for candidate in "${CANDIDATES[@]}"; do
+  if [ -d "$candidate" ]; then USERDATA="$candidate"; break; fi
+done
+if [ -z "$USERDATA" ]; then
   echo "Error: userData directory not found." >&2
   echo "Run 'pnpm dev' at least once first." >&2
   exit 1
@@ -91,15 +99,19 @@ sqlite3 "$DB" "
   );
 "
 
-# ── 4. Wipe existing data and insert seed ───────────────────────────────────
-echo "Clearing existing data..."
+# ── 4. Clear only previously-seeded data, then insert seed ──────────────────
+# Non-destructive: remove only rows this script created (id prefix 'seed-'/'seed-proj-'/etc.) plus
+# the library samples materialized from seed chops, so re-seeding doesn't wipe the developer's own
+# projects, packs, and imported samples. Orphaned WAVs left behind are reclaimed by the app's
+# startup GC sweep. (F36)
+echo "Clearing previously-seeded data..."
 sqlite3 "$DB" "
   PRAGMA foreign_keys = OFF;
-  DELETE FROM pack_slots;
-  DELETE FROM packs;
-  DELETE FROM project_chops;
-  DELETE FROM projects;
-  DELETE FROM samples;
+  DELETE FROM pack_slots WHERE pack_id LIKE 'seed-%';
+  DELETE FROM packs WHERE id LIKE 'seed-%';
+  DELETE FROM samples WHERE source_chop_id LIKE 'seed-%';
+  DELETE FROM project_chops WHERE id LIKE 'seed-%';
+  DELETE FROM projects WHERE id LIKE 'seed-%';
   PRAGMA foreign_keys = ON;
 "
 
@@ -153,35 +165,35 @@ sqlite3 "$DB" "
   VALUES ('seed-pack-hiphop-0000000001', 'Hip Hop Kit Vol.1', 'sp404-mkii', 1735862400000);
 
   INSERT INTO pack_slots (pack_id, slot_number, source_type, source_path, project_id, project_chop_id, sample_id, start, end, display_name, source_chop_updated_at, pitch_shift_semitones, time_stretch_ratio) VALUES
-    ('seed-pack-hiphop-0000000001', 1,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-01', NULL, 0.000, 0.550, 'Kick',           1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 2,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-02', NULL, 0.550, 1.100, 'Snare 1',        1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 3,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-03', NULL, 1.100, 1.660, 'Hi-Hat Closed',  1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 4,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-04', NULL, 1.660, 2.210, 'Open Hat',       1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 5,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-05', NULL, 2.210, 2.760, 'Kick + Snare',   1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 6,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-06', NULL, 2.760, 3.310, 'Ghost Snare',    1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 7,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-07', NULL, 3.310, 3.870, 'Snare 2',        1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 8,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-08', NULL, 3.870, 4.420, 'Crash + Kick',   1735689600000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 9,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-01', NULL, 0.000, 0.860, 'Kick (Think)',   1735776000000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 10, 'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-02', NULL, 0.860, 1.790, 'Snare (Think)',  1735776000000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 11, 'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-04', NULL, 2.560, 3.590, 'Hi-Hat (Think)', 1735776000000, NULL, NULL),
-    ('seed-pack-hiphop-0000000001', 12, 'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-06', NULL, 4.780, 5.970, 'Floor Tom',      1735776000000, NULL, NULL);
+    ('seed-pack-hiphop-0000000001', 0,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-01', NULL, 0.000, 0.550, 'Kick',           1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 1,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-02', NULL, 0.550, 1.100, 'Snare 1',        1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 2,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-03', NULL, 1.100, 1.660, 'Hi-Hat Closed',  1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 3,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-04', NULL, 1.660, 2.210, 'Open Hat',       1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 4,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-05', NULL, 2.210, 2.760, 'Kick + Snare',   1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 5,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-06', NULL, 2.760, 3.310, 'Ghost Snare',    1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 6,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-07', NULL, 3.310, 3.870, 'Snare 2',        1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 7,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-08', NULL, 3.870, 4.420, 'Crash + Kick',   1735689600000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 8,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-01', NULL, 0.000, 0.860, 'Kick (Think)',   1735776000000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 8, 'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-02', NULL, 0.860, 1.790, 'Snare (Think)',  1735776000000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 9, 'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-04', NULL, 2.560, 3.590, 'Hi-Hat (Think)', 1735776000000, NULL, NULL),
+    ('seed-pack-hiphop-0000000001', 10, 'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-06', NULL, 4.780, 5.970, 'Floor Tom',      1735776000000, NULL, NULL);
 
   -- Pack 2: Golden Era Drums (Maschine MK3)
   INSERT INTO packs (id, name, hardware_profile, created_at)
   VALUES ('seed-pack-golden-000000002', 'Golden Era Drums', 'maschine-mk3', 1735948800000);
 
   INSERT INTO pack_slots (pack_id, slot_number, source_type, source_path, project_id, project_chop_id, sample_id, start, end, display_name, source_chop_updated_at, pitch_shift_semitones, time_stretch_ratio) VALUES
-    ('seed-pack-golden-000000002', 1,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-01', NULL, 0.000, 0.860, 'Kick',               1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 2,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-02', NULL, 0.860, 1.790, 'Snare',              1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 3,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-03', NULL, 1.790, 2.560, 'Rim Shot',           1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 4,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-04', NULL, 2.560, 3.590, 'Hi-Hat',             1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 5,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-05', NULL, 3.590, 4.780, 'Open Hat',           1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 6,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-06', NULL, 4.780, 5.970, 'Floor Tom',          1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 7,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-07', NULL, 5.970, 7.180, 'Full Bar',           1735776000000, NULL, NULL),
-    ('seed-pack-golden-000000002', 8,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-01', NULL, 0.000, 0.550, 'Kick (Amen)',        1735689600000, NULL, NULL),
-    ('seed-pack-golden-000000002', 9,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-02', NULL, 0.550, 1.100, 'Snare (Amen)',       1735689600000, NULL, NULL),
-    ('seed-pack-golden-000000002', 10, 'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-04', NULL, 1.660, 2.210, 'Open Hat (Amen)',    1735689600000, NULL, NULL),
-    ('seed-pack-golden-000000002', 11, 'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-06', NULL, 2.760, 3.310, 'Ghost Snare (Amen)', 1735689600000, NULL, NULL);
+    ('seed-pack-golden-000000002', 0,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-01', NULL, 0.000, 0.860, 'Kick',               1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 1,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-02', NULL, 0.860, 1.790, 'Snare',              1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 2,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-03', NULL, 1.790, 2.560, 'Rim Shot',           1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 3,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-04', NULL, 2.560, 3.590, 'Hi-Hat',             1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 4,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-05', NULL, 3.590, 4.780, 'Open Hat',           1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 5,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-06', NULL, 4.780, 5.970, 'Floor Tom',          1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 6,  'project-chop', '$THINK_PATH', 'seed-proj-think-00000000002', 'seed-chop-think-07', NULL, 5.970, 7.180, 'Full Bar',           1735776000000, NULL, NULL),
+    ('seed-pack-golden-000000002', 7,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-01', NULL, 0.000, 0.550, 'Kick (Amen)',        1735689600000, NULL, NULL),
+    ('seed-pack-golden-000000002', 8,  'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-02', NULL, 0.550, 1.100, 'Snare (Amen)',       1735689600000, NULL, NULL),
+    ('seed-pack-golden-000000002', 8, 'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-04', NULL, 1.660, 2.210, 'Open Hat (Amen)',    1735689600000, NULL, NULL),
+    ('seed-pack-golden-000000002', 9, 'project-chop', '$AMEN_PATH', 'seed-proj-amen-000000000001', 'seed-chop-amen-06', NULL, 2.760, 3.310, 'Ghost Snare (Amen)', 1735689600000, NULL, NULL);
 "
 
 echo ""

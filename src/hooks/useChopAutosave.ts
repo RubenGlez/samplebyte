@@ -14,9 +14,11 @@ interface UseChopAutosaveProps {
   projectName: string
   audioName: string
   source: 'local' | 'freesound'
+  // Freesound attribution for the current source, persisted onto the project on first save (F24).
+  attribution?: { id: string; license: string; author: string } | null
   autosaveActiveRegions: (
     regions: ProjectRegion[],
-    fallback: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound' }
+    fallback: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; freesoundId?: string | null; license?: string | null; author?: string | null }
   ) => Promise<Project | null>
 }
 
@@ -32,9 +34,10 @@ export function useChopAutosave({
   projectName,
   audioName,
   source,
+  attribution,
   autosaveActiveRegions,
 }: UseChopAutosaveProps) {
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const autosaveTimer = useRef<number | null>(null)
   const saveStatusTimer = useRef<number | null>(null)
   const lastSavedAt = useRef<number>(0)
@@ -42,8 +45,14 @@ export function useChopAutosave({
 
   const markSaved = useCallback(() => { lastSavedAt.current = Date.now() }, [])
 
+  // Undefined means the regions plugin isn't mounted yet; an empty array is a real, saveable state.
+  const regionsReady = regions !== undefined
+
   useEffect(() => {
-    if (!filePath || !regions?.length) return
+    // Only bail when the regions plugin isn't ready yet. An empty array is a real, saveable state —
+    // deleting the last chop or "Clear all" must persist, not be dropped (F5). `revision` re-runs
+    // this effect on every region edit, including the transition to zero regions.
+    if (!filePath || !regionsReady) return
     if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
 
     const isFirst = isFirstAutosave.current
@@ -60,6 +69,9 @@ export function useChopAutosave({
         sourcePath: filePath,
         sourceName: audioName,
         source,
+        freesoundId: attribution?.id ?? null,
+        license: attribution?.license ?? null,
+        author: attribution?.author ?? null,
       }).then(() => {
         lastSavedAt.current = Date.now()
         if (!isFirst) {
@@ -67,13 +79,17 @@ export function useChopAutosave({
           if (saveStatusTimer.current !== null) window.clearTimeout(saveStatusTimer.current)
           saveStatusTimer.current = window.setTimeout(() => setSaveStatus('idle'), 2000)
         }
-      }).catch(() => setSaveStatus('idle'))
+      }).catch(() => {
+        // Surface failures instead of masking them as idle: a failed save (DB error, ffmpeg
+        // missing) left edits unpersisted, and the header must not keep implying "Saved" (F12).
+        setSaveStatus('error')
+      })
     }, delay)
 
     return () => {
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
     }
-  }, [audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regions?.length, revision, source])
+  }, [attribution, audioName, autosaveActiveRegions, currentRegions, filePath, projectName, regionsReady, revision, source])
 
   return { saveStatus, markSaved }
 }

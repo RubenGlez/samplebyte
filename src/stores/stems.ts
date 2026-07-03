@@ -42,12 +42,22 @@ let worker: Worker | null = null
 let readyPromise: Promise<void> | null = null
 let onProgress: ((v: number) => void) | null = null
 let pendingResult: { resolve: (s: StemSet) => void; reject: (e: Error) => void } | null = null
+// Monotonic run token. Each separate() run claims one; a superseding run or cancel() bumps it so a
+// stale run's post-await steps no-op instead of clobbering shared state or the UI (F8).
+let activeRunId = 0
+
+// The demucs build is a 32-bit-heap Emscripten module; a very long track (in + 4 stems out + model)
+// overruns it and aborts with no useful message. Cap up front with a clear error instead.
+const MAX_STEM_SECONDS = 10 * 60
 
 function disposeWorker() {
   worker?.terminate()
   worker = null
   readyPromise = null
+  // Never leave an awaiting separate() hanging on a promise that can no longer settle (F8).
+  pendingResult?.reject(new Error('stem separation cancelled'))
   pendingResult = null
+  onProgress = null
 }
 
 function toArrayBuffer(u: Uint8Array): ArrayBuffer {
@@ -125,13 +135,21 @@ export const useStemsStore = create<StemsState>((set, get) => ({
   originalSource: null,
 
   separate: async (source) => {
+    // Claim a run token. Any earlier in-flight run is superseded: reset the worker so its late
+    // result can't cross-wire into this run, which also rejects that run's pending promise.
+    const runId = ++activeRunId
+    if (pendingResult || worker) disposeWorker()
+    const superseded = () => activeRunId !== runId
+
     set({ status: 'decoding', progress: 0, error: null, stems: null, selected: null, originalSource: source })
     try {
       const bytes = await (await fetch(source.path)).arrayBuffer()
       const sourceHash = await sha256Hex(bytes)
+      if (superseded()) return
       set({ sourceHash })
 
       const cached = await window.api.stems.getCached(sourceHash)
+      if (superseded()) return
       if (cached) {
         set({ status: 'done', progress: 1, stems: cached })
         return
@@ -139,18 +157,25 @@ export const useStemsStore = create<StemsState>((set, get) => ({
 
       set({ status: 'loading-model' })
       const w = await ensureWorker()
+      if (superseded()) return
 
       set({ status: 'decoding' })
       const { left, right } = await decodeToStereo(bytes)
+      if (superseded()) return
+
+      if (left.length / 44100 > MAX_STEM_SECONDS) {
+        throw new Error(`Track is too long to separate (max ${MAX_STEM_SECONDS / 60} minutes)`)
+      }
 
       set({ status: 'separating', progress: 0.02 })
-      onProgress = (v) => set({ progress: Math.max(0.02, v) })
+      onProgress = (v) => { if (!superseded()) set({ progress: Math.max(0.02, v) }) }
       const stemSet = await new Promise<StemSet>((resolve, reject) => {
         pendingResult = { resolve, reject }
         w.postMessage({ type: 'separate', left, right }, [left.buffer, right.buffer])
       })
       onProgress = null
       pendingResult = null
+      if (superseded()) return
 
       set({ status: 'persisting', progress: 1 })
       const pcm = STEM_ORDER.map((name) => ({
@@ -163,9 +188,12 @@ export const useStemsStore = create<StemsState>((set, get) => ({
         sourceHash,
         pcm,
       )
+      if (superseded()) return
       set({ status: 'done', stems: files })
     } catch (err) {
-      set({ status: 'error', error: err instanceof Error ? err.message : String(err) })
+      // A superseded/cancelled run rejecting is expected — don't surface it as an error over the
+      // run that replaced it.
+      if (!superseded()) set({ status: 'error', error: err instanceof Error ? err.message : String(err) })
     }
   },
 
@@ -193,8 +221,10 @@ export const useStemsStore = create<StemsState>((set, get) => ({
   },
 
   cancel: () => {
+    // Invalidate the in-flight run first so its rejected promise is treated as cancellation, then
+    // tear down the worker (which rejects the pending result so separate() stops awaiting).
+    activeRunId++
     disposeWorker()
-    onProgress = null
     set({ status: 'idle', progress: 0, error: null })
   },
 

@@ -19,9 +19,14 @@ function makeStems(): StemPcm[] {
   })
 }
 
+// Valid SHA-256-shaped hashes (64 lowercase hex chars); the service rejects anything else (F31).
+const HASH_A = 'a'.repeat(64)
+const HASH_B = 'b'.repeat(64)
+const HASH_C = 'c'.repeat(64)
+
 describe('stems service', () => {
   it('persists each stem as a normalized LIBRARY_FORMAT WAV', async () => {
-    const files = await persistStems('hash-persist', makeStems())
+    const files = await persistStems(HASH_A, makeStems())
     expect(files.map((f) => f.name).sort()).toEqual([...STEM_NAMES].sort())
     for (const f of files) {
       expect(fs.existsSync(f.filePath)).toBe(true)
@@ -35,11 +40,17 @@ describe('stems service', () => {
   })
 
   it('returns the full cached set after persisting, and null otherwise', async () => {
-    await persistStems('hash-cache', makeStems())
-    const cached = getCachedStems('hash-cache')
+    await persistStems(HASH_B, makeStems())
+    const cached = getCachedStems(HASH_B)
     expect(cached).not.toBeNull()
     expect(cached!.map((f) => f.name).sort()).toEqual([...STEM_NAMES].sort())
-    expect(getCachedStems('never-separated')).toBeNull()
+    expect(getCachedStems(HASH_C)).toBeNull()
+  })
+
+  it('rejects a source hash that could escape the stems directory (F31)', async () => {
+    expect(() => getCachedStems('../../etc')).toThrow(/invalid stem source hash/)
+    await expect(persistStems('../../../etc/passwd', makeStems())).rejects.toThrow(/invalid stem source hash/)
+    expect(() => getCachedStems('NOTHEX'.padEnd(64, 'g'))).toThrow(/invalid stem source hash/)
   })
 
   it('rejects unknown model file names', () => {

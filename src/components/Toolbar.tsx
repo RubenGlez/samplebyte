@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useUiStore } from '@/stores/ui'
 import { Segmented } from '@/components/ui/Segmented'
+import { modLabel } from '@/utils'
 
 type View = 'chop' | 'library' | 'packs'
 
@@ -61,10 +62,10 @@ export default function Toolbar() {
       >
         <button
           onClick={() => window.dispatchEvent(new Event('samplebyte:open-command-palette'))}
-          title="Commands (⌘K)"
+          title={`Commands (${modLabel('K')})`}
           className="flex items-center gap-1 px-2 h-[26px] rounded-[5px] text-faint/70 hover:text-muted hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer select-none"
         >
-          <span className="text-[11px] font-readout leading-none">⌘K</span>
+          <span className="text-[11px] font-readout leading-none">{modLabel('K')}</span>
         </button>
       </div>
 

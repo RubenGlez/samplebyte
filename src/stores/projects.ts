@@ -2,6 +2,12 @@ import { create } from 'zustand'
 import { withLoading } from './utils'
 import type { Project, ProjectRegion } from '@/types'
 
+// Create-once latch for autosave. The first save is slow (projects.save renders every chop through
+// ffmpeg before resolving) and activeProject stays null until it settles, so a second fast edit used
+// to fire a second projects.save and duplicate the project (F3). Concurrent autosaves now await the
+// same in-flight create, then fall through to a cheap upsert of their newer regions.
+let creatingProject: Promise<Project | null> | null = null
+
 interface ProjectsState {
   projects: Project[]
   activeProject: Project | null
@@ -12,7 +18,7 @@ interface ProjectsState {
   saveProject: (data: { name: string; sourcePath: string; sourceName?: string | null; regions: ProjectRegion[] }) => Promise<Project>
   updateActiveProject: () => Promise<void>
   updateActiveRegions: (regions: ProjectRegion[]) => Promise<void>
-  autosaveActiveRegions: (regions: ProjectRegion[], fallback: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound' }) => Promise<Project | null>
+  autosaveActiveRegions: (regions: ProjectRegion[], fallback: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; freesoundId?: string | null; license?: string | null; author?: string | null }) => Promise<Project | null>
   applyLocalTrim: (data: { sourcePath: string; regions: ProjectRegion[] }) => void
   renameProject: (id: string, name: string) => Promise<void>
   duplicateProject: (id: string) => Promise<Project | null>
@@ -76,19 +82,34 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     let { activeProject } = get()
     if (!activeProject) {
       if (!fallback.sourcePath) return null
-      activeProject = await window.api.projects.save({
-        name: fallback.name.trim() || 'Untitled Project',
-        sourcePath: fallback.sourcePath,
-        sourceName: fallback.sourceName ?? null,
-        source: fallback.source ?? 'local',
-        regions,
-      })
-      set((s) => ({
-        projects: [activeProject!, ...s.projects],
-        activeProject,
-        isProjectDirty: false,
-      }))
-      return activeProject
+      // Nothing to persist yet, and creating an empty project just from opening a file is wrong.
+      if (regions.length === 0) return null
+
+      if (creatingProject) {
+        // A create is already in flight for this session; wait for it, then persist our (newer)
+        // regions through the upsert path below instead of racing a second projects.save.
+        activeProject = await creatingProject
+        if (!activeProject) return null
+      } else {
+        const create = window.api.projects
+          .save({
+            name: fallback.name.trim() || 'Untitled Project',
+            sourcePath: fallback.sourcePath,
+            sourceName: fallback.sourceName ?? null,
+            source: fallback.source ?? 'local',
+            freesoundId: fallback.freesoundId ?? null,
+            license: fallback.license ?? null,
+            author: fallback.author ?? null,
+            regions,
+          })
+          .then((saved) => {
+            set((s) => ({ projects: [saved, ...s.projects], activeProject: saved, isProjectDirty: false }))
+            return saved as Project | null
+          })
+        creatingProject = create
+        create.finally(() => { if (creatingProject === create) creatingProject = null })
+        return await create
+      }
     }
 
     const saved = await window.api.projects.upsertChops(activeProject.id, regions)

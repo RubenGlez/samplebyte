@@ -78,10 +78,29 @@ function runMigrations(): void {
   if (!sampleCols.includes('source_chop_id')) {
     db.exec('ALTER TABLE samples ADD COLUMN source_chop_id TEXT')
   }
+  // File ownership: 1 only for files the app rendered/copied into userData/samples, which deleting
+  // the row is allowed to unlink. Import-in-place originals and shared stem-cache files stay 0 so
+  // deleteSample never destroys a user's own file (F1/T1). Backfill by path prefix: everything the
+  // app has ever exclusively owned lives under userData/samples.
+  if (!sampleCols.includes('owned')) {
+    db.exec('ALTER TABLE samples ADD COLUMN owned INTEGER NOT NULL DEFAULT 0')
+    const samplesDir = path.join(app.getPath('userData'), 'samples') + path.sep
+    db.prepare('UPDATE samples SET owned = 1 WHERE file_path LIKE ?').run(`${samplesDir}%`)
+  }
+  // Freesound attribution carried onto materialized samples so exported packs can credit CC sources (F24).
+  if (!sampleCols.includes('license')) db.exec('ALTER TABLE samples ADD COLUMN license TEXT')
+  if (!sampleCols.includes('author')) db.exec('ALTER TABLE samples ADD COLUMN author TEXT')
   // Null out references to projects that no longer exist. project_id is a soft link with no FK,
   // so deleted projects (and seed artifacts) leave samples pointing at ghost ids; the library
   // reads these as "—". Project deletion now nulls these itself, so this is a one-time cleanup.
   db.exec('UPDATE samples SET project_id = NULL WHERE project_id IS NOT NULL AND project_id NOT IN (SELECT id FROM projects)')
+
+  // Mark chops whose source can't be materialized (missing/unreadable file) so the one-time backfill
+  // stops retrying them on every launch forever (F14).
+  const chopCols = (db.prepare('PRAGMA table_info(project_chops)').all() as { name: string }[]).map((c) => c.name)
+  if (!chopCols.includes('materialize_failed')) {
+    db.exec('ALTER TABLE project_chops ADD COLUMN materialize_failed INTEGER NOT NULL DEFAULT 0')
+  }
 
   const projectCols = (db.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).map((c) => c.name)
   if (!projectCols.includes('source_name')) {
@@ -90,6 +109,19 @@ function runMigrations(): void {
   if (!projectCols.includes('source')) {
     db.exec("ALTER TABLE projects ADD COLUMN source TEXT NOT NULL DEFAULT 'local'")
   }
+  // Freesound attribution for the project source (F24).
+  if (!projectCols.includes('freesound_id')) db.exec('ALTER TABLE projects ADD COLUMN freesound_id TEXT')
+  if (!projectCols.includes('license')) db.exec('ALTER TABLE projects ADD COLUMN license TEXT')
+  if (!projectCols.includes('author')) db.exec('ALTER TABLE projects ADD COLUMN author TEXT')
+
+  // Collapse any duplicate chop-sample rows left by the pre-serialization sync race (F4): keep the
+  // most recent row per source_chop_id and drop the rest. Their now-orphaned WAVs are reclaimed by
+  // the startup GC sweep. Must run before the UNIQUE index below can be created.
+  db.exec(`
+    DELETE FROM samples
+    WHERE source_chop_id IS NOT NULL
+      AND rowid NOT IN (SELECT MAX(rowid) FROM samples WHERE source_chop_id IS NOT NULL GROUP BY source_chop_id)
+  `)
 
   migrateProjectRegionsToChops()
   migratePackSlotsToSnapshots()
@@ -111,6 +143,10 @@ function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_pack_slots_sample_id ON pack_slots(sample_id);
     CREATE INDEX IF NOT EXISTS idx_samples_project_id ON samples(project_id);
     CREATE INDEX IF NOT EXISTS idx_samples_source_chop_id ON samples(source_chop_id);
+    -- One materialized sample per source chop. Partial so the many source_chop_id=NULL rows
+    -- (imported/freesound/local samples) are unconstrained; enforces the projection invariant that
+    -- serialization already upholds (F4).
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_samples_source_chop_id_unique ON samples(source_chop_id) WHERE source_chop_id IS NOT NULL;
   `)
 }
 

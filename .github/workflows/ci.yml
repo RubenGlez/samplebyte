@@ -22,4 +22,7 @@ jobs:
       - run: pnpm tsc
       - run: pnpm lint
       - run: pnpm test
+      # Build the renderer so a broken import/asset fails CI instead of shipping to a release tag
+      # (F37). electron-builder is skipped here — it only runs in the release workflow.
+      - run: pnpm exec vite build
       - run: pnpm audit --audit-level=high --prod

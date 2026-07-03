@@ -27,13 +27,9 @@ export const useShortcuts = ({
   onUndo,
   onRedo,
 }: UseShortcutsProps) => {
-  // const regionsPlugin = getRegionsPlugin(wavesurfer);
-
-  const handlePressTab = useCallback(() => {}, []);
   const handlePressBackspace = useCallback(() => {
     selectedRegion?.remove();
   }, [selectedRegion]);
-  const handlePressEscape = useCallback(() => {}, []);
   const handlePressSpace = useCallback(() => {
     if (wavesurfer?.isPlaying()) {
       wavesurfer.pause();
@@ -93,9 +89,7 @@ export const useShortcuts = ({
         return;
       }
       if (key === " ") { event.preventDefault(); handlePressSpace(); }
-      if (key === "Escape") handlePressEscape();
       if (key === "Backspace") handlePressBackspace();
-      if (key === "Tab") handlePressTab();
       if (key === "ArrowUp") {
         event.preventDefault();
         handleSelectAdjacentRegion(-1);
@@ -112,10 +106,8 @@ export const useShortcuts = ({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [
-    handlePressEscape,
     handlePressSpace,
     handlePressBackspace,
-    handlePressTab,
     handleSelectAdjacentRegion,
     onRedo,
     onUndo,

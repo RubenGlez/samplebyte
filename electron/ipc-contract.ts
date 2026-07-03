@@ -11,7 +11,6 @@ import type {
   ProjectRegion,
   ProjectChop,
   PackSourceItem,
-  ExportRegionsParams,
   FreesoundPage,
   StemPcm,
   StemFile,
@@ -23,11 +22,6 @@ export type Api = {
     addSample: (data: { name: string; filePath: string; duration?: number }) => Promise<Sample>
     updateSample: (id: string, data: Partial<Pick<Sample, 'name' | 'bpm' | 'musicalKey' | 'tags' | 'waveformData'>>) => Promise<void>
     deleteSample: (id: string) => Promise<void>
-    saveChops: (params: {
-      sourceFilePath: string
-      regions: Array<{ start: number; end: number; name: string }>
-      projectId?: string
-    }) => Promise<Sample[]>
     importFolder: (folderPath: string) => Promise<{ imported: number; skipped: number }>
     getPackSlotRefCount: (id: string) => Promise<number>
     getOrphans: () => Promise<Sample[]>
@@ -36,7 +30,7 @@ export type Api = {
   projects: {
     getAll: () => Promise<Project[]>
     get: (id: string) => Promise<Project | null>
-    save: (data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }) => Promise<Project>
+    save: (data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; freesoundId?: string | null; license?: string | null; author?: string | null; regions: ProjectRegion[] }) => Promise<Project>
     update: (id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>) => Promise<void>
     getChops: (projectId: string) => Promise<ProjectChop[]>
     getAllChops: () => Promise<Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound' }>>
@@ -45,7 +39,6 @@ export type Api = {
     duplicate: (id: string) => Promise<Project | null>
   }
   audio: {
-    exportRegions: (params: ExportRegionsParams) => Promise<{ filesWritten: number }>
     trimSource: (params: { sourceFilePath: string; start: number; end: number }) => Promise<{ filePath: string; duration: number }>
   }
   stems: {
@@ -58,6 +51,8 @@ export type Api = {
   }
   fs: {
     getPathForFile: (file: File) => string
+    // Broker a renderer-obtained path (drag-drop) so local-file:// will serve it. See F32.
+    allowPath: (filePath: string) => Promise<void>
     pickFile: () => Promise<string | null>
     pickFolder: () => Promise<string | null>
   }
@@ -81,11 +76,36 @@ export type Api = {
     removeSlot: (packId: string, slotNumber: number) => Promise<void>
     rename: (id: string, name: string) => Promise<void>
     delete: (id: string) => Promise<void>
-    export: (packId: string, outputDir: string) => Promise<{ filesWritten: number }>
+    export: (packId: string, outputDir: string) => Promise<{ filesWritten: number; failed: number }>
     // Rebuild an orphaned chop pad's audio back into the library (from the pad's owned WAV) and
     // relink the pad to the new sample. Returns the created sample.
     regenerateSlotToLibrary: (packId: string, slotNumber: number) => Promise<Sample>
   }
+  updates: {
+    check: () => Promise<UpdateCheckResult>
+    download: () => Promise<void>
+    install: () => Promise<void>
+  }
+}
+
+// Result of an update check. `available` is false in dev (nothing to update); `error` carries a
+// network/check failure message.
+export type UpdateCheckResult =
+  | { available: boolean; version: string; newVersion?: string }
+  | { error: string }
+
+// Main -> renderer push events. Kept separate from the invoke groups above so it stays out of the
+// ApiChannels flattening (these are ipcRenderer.on subscriptions, not invoke handlers). Each method
+// registers a listener and returns an unsubscribe function.
+export type ApiEvents = {
+  // Fired after a background startup task (chop backfill) changes the library so the UI can refetch.
+  onLibraryChanged: (cb: () => void) => () => void
+  // Auto-update lifecycle (F18): a newer version is available, download progress (0..100), the
+  // download finished (ready to install), or the updater errored.
+  onUpdateAvailable: (cb: (info: { version: string; newVersion?: string }) => void) => () => void
+  onUpdateProgress: (cb: (percent: number) => void) => () => void
+  onUpdateDownloaded: (cb: () => void) => () => void
+  onUpdateError: (cb: (message: string) => void) => () => void
 }
 
 type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never

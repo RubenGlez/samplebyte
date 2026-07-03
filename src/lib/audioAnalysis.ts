@@ -72,14 +72,6 @@ export function analyzeAudioUrl(url: string): Promise<AnalysisResult> {
   return result
 }
 
-export async function detectTransientsFromUrl(
-  url: string,
-  preset: 'coarse' | 'medium' | 'fine'
-): Promise<number[]> {
-  const buffer = await getAudioBuffer(url)
-  return runOnWorker<number[]>({ kind: 'transients', sampleRate: buffer.sampleRate, preset }, copyChannels(buffer))
-}
-
 export async function rankTransientsFromUrl(url: string, minGap = 0.12): Promise<RankedPeak[]> {
   const buffer = await getAudioBuffer(url)
   return runOnWorker<RankedPeak[]>({ kind: 'rank', sampleRate: buffer.sampleRate, minGap }, copyChannels(buffer))

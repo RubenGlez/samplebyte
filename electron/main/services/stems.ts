@@ -21,7 +21,15 @@ export function getModelFile(name: string): Uint8Array {
   return fs.readFileSync(full)
 }
 
+// The sourceHash is a renderer-supplied string used as a directory name. Constrain it to a real
+// SHA-256 hex digest so it can't contain path separators or `..` and escape userData/stems to read
+// or clobber arbitrary files (F31).
+function assertValidHash(sourceHash: string): void {
+  if (!/^[0-9a-f]{64}$/.test(sourceHash)) throw new Error('invalid stem source hash')
+}
+
 function stemsDir(sourceHash: string): string {
+  assertValidHash(sourceHash)
   return path.join(app.getPath('userData'), 'stems', sourceHash)
 }
 

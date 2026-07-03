@@ -9,6 +9,9 @@ function deserialize(row: Record<string, unknown>, chops?: ProjectChop[]): Proje
     sourcePath: row.source_path as string | null,
     sourceName: row.source_name as string | null,
     source: (row.source as 'local' | 'freesound') || 'local',
+    freesoundId: row.freesound_id as string | null,
+    license: row.license as string | null,
+    author: row.author as string | null,
     regions: chops ?? getProjectChops(id),
     createdAt: row.created_at as number,
   }
@@ -49,11 +52,14 @@ export function getProject(id: string): Project | null {
   return row ? deserialize(row) : null
 }
 
-export function saveProject(data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; regions: ProjectRegion[] }): Project {
+export function saveProject(data: { name: string; sourcePath: string | null; sourceName?: string | null; source?: 'local' | 'freesound'; freesoundId?: string | null; license?: string | null; author?: string | null; regions: ProjectRegion[] }): Project {
   const db = getDb()
   const id = crypto.randomUUID()
   const createdAt = Date.now()
   const source = data.source ?? 'local'
+  const freesoundId = data.freesoundId ?? null
+  const license = data.license ?? null
+  const author = data.author ?? null
   const regions = data.regions.map((region, index) => ({
     ...region,
     id: region.id ?? crypto.randomUUID(),
@@ -63,13 +69,18 @@ export function saveProject(data: { name: string; sourcePath: string | null; sou
     updatedAt: createdAt,
   }))
 
-  db.prepare('INSERT INTO projects (id, name, source_path, source_name, source, regions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+  // The canonical chop store is project_chops (below); the legacy `regions` JSON column is only ever
+  // read by the one-time migrateProjectRegionsToChops backfill, so new rows leave it at its '[]'
+  // default rather than maintaining a second, drift-prone copy of the same data (F19c).
+  db.prepare('INSERT INTO projects (id, name, source_path, source_name, source, freesound_id, license, author, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     id,
     data.name,
     data.sourcePath ?? null,
     data.sourceName ?? null,
     source,
-    JSON.stringify(regions.map(({ id, start, end, name }) => ({ id, start, end, name }))),
+    freesoundId,
+    license,
+    author,
     createdAt
   )
 
@@ -84,7 +95,7 @@ export function saveProject(data: { name: string; sourcePath: string | null; sou
   })
   tx()
 
-  return { id, name: data.name, sourcePath: data.sourcePath, sourceName: data.sourceName ?? null, source, regions, createdAt }
+  return { id, name: data.name, sourcePath: data.sourcePath, sourceName: data.sourceName ?? null, source, freesoundId, license, author, regions, createdAt }
 }
 
 export function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'sourcePath' | 'regions'>>): void {
@@ -96,16 +107,9 @@ export function updateProject(id: string, data: Partial<Pick<Project, 'name' | '
   if (data.sourcePath !== undefined) { fields.push('source_path = ?'); values.push(data.sourcePath) }
   if ('sourceName' in data) { fields.push('source_name = ?'); values.push(data.sourceName) }
   if (data.regions !== undefined) {
-    const now = Date.now()
+    // project_chops is the source of truth; the legacy `regions` JSON column is no longer written
+    // (F19c). upsertProjectChops persists the chops themselves.
     upsertProjectChops(id, data.regions)
-    fields.push('regions = ?')
-    values.push(JSON.stringify(data.regions.map((region, index) => ({
-      id: region.id,
-      start: region.start,
-      end: region.end,
-      name: region.name || `Chop ${index + 1}`,
-      updatedAt: 'updatedAt' in region ? region.updatedAt : now,
-    }))))
   }
 
   if (fields.length === 0) return
@@ -132,6 +136,9 @@ export function duplicateProject(id: string): Project | null {
     sourcePath: original.sourcePath,
     sourceName: original.sourceName,
     source: original.source,
+    freesoundId: original.freesoundId,
+    license: original.license,
+    author: original.author,
     // Drop the source chop ids so the copy gets fresh ones — reusing them violates the
     // project_chops primary key (the originals still exist).
     regions: original.regions.map((r) => ({ start: r.start, end: r.end, name: r.name })),
@@ -144,10 +151,11 @@ export function getProjectChops(projectId: string): ProjectChop[] {
     .all(projectId) as Record<string, unknown>[]).map(deserializeChop)
 }
 
-export function getAllProjectChops(): Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound' }> {
+export function getAllProjectChops(): Array<ProjectChop & { projectName: string; sourcePath: string | null; source: 'local' | 'freesound'; materializeFailed: boolean; freesoundId: string | null; license: string | null; author: string | null }> {
   return (getDb()
     .prepare(`
-      SELECT project_chops.*, projects.name as project_name, projects.source_path, projects.source
+      SELECT project_chops.*, projects.name as project_name, projects.source_path, projects.source,
+             projects.freesound_id, projects.license, projects.author
       FROM project_chops
       JOIN projects ON projects.id = project_chops.project_id
       ORDER BY projects.created_at DESC, project_chops.start ASC
@@ -157,7 +165,17 @@ export function getAllProjectChops(): Array<ProjectChop & { projectName: string;
       projectName: row.project_name as string,
       sourcePath: row.source_path as string | null,
       source: (row.source as 'local' | 'freesound') || 'local',
+      materializeFailed: (row.materialize_failed as number) === 1,
+      freesoundId: row.freesound_id as string | null,
+      license: row.license as string | null,
+      author: row.author as string | null,
     }))
+}
+
+// Record that a chop's source could not be materialized so the one-time backfill skips it next time
+// instead of re-attempting a doomed ffmpeg render on every launch (F14).
+export function markChopMaterializeFailed(id: string): void {
+  getDb().prepare('UPDATE project_chops SET materialize_failed = 1 WHERE id = ?').run(id)
 }
 
 export function upsertProjectChops(projectId: string, regions: ProjectRegion[]): ProjectChop[] {
