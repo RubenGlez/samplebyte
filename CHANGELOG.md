@@ -3,6 +3,31 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.26] - 2026-07-03
+
+A hardening pass from a full adversarial code audit — correctness, safety, and a couple of features that were half-wired.
+
+### Added
+
+- **Automatic updates** — SampleByte now checks for new versions and offers to download and install them, instead of relying on manual downloads
+- **Freesound attribution** — the license and author of Creative Commons sounds you keep are saved with them (shown as a `CC` chip in Browse), and a `credits.txt` is written next to your exported pack so you can honour attribution
+
+### Fixed
+
+- **Deleting a library entry no longer deletes your original file** — only audio SampleByte created (chops, rendered samples) is removed from disk; files you imported in place are left untouched
+- **24-bit exports now work** — the Akai MPC and Generic WAV profiles were silently failing to render; they export correctly now
+- **Export is honest and safe** — it reports how many files were actually written (and any failures) instead of always claiming success, de-duplicates pads that would share a filename, and can no longer hang on a corrupt file
+- **Autosave** no longer creates duplicate projects or duplicate library samples during fast editing, and deleting your last chop (or "Clear all") now persists; a failed save now shows an error instead of a false "Saved"
+- **Stem separation** no longer hangs when cancelled or run twice, and refuses over-long tracks with a clear message instead of crashing
+- **Freesound search** shows an error when you're offline or your API key is wrong, instead of silently showing nothing
+- **Pack pads** keep working after their source is deleted — deleting a library sample now leaves the pad recoverable instead of removing it, and pads audition from their own saved audio
+- **Windows** file paths and keyboard-shortcut labels are handled correctly
+
+### Changed
+
+- Startup no longer stalls on the one-time chop migration (it runs in the background), and orphaned cache files are swept automatically
+- Security hardening: the internal file server and the stem/download paths are now scoped and validated
+
 ## [0.0.25] - 2026-06-28
 
 ### Added
