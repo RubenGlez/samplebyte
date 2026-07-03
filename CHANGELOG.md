@@ -3,7 +3,7 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.0.27] - 2026-07-04
+## [0.0.28] - 2026-07-04
 
 ### Changed
 

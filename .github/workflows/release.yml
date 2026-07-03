@@ -20,14 +20,20 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm fetch:stem-model
+      # @electron/notarize passes APPLE_API_KEY to `notarytool --key` as a FILE PATH, not
+      # base64 content, so decode the base64 secret to a .p8 on disk and point the env var
+      # at that path in the build step below.
+      - name: Write App Store Connect API key to a file
+        run: printf '%s' "${{ secrets.APPLE_API_KEY }}" | base64 -d > "$RUNNER_TEMP/authkey.p8"
       - run: pnpm build:publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Developer ID Application cert (base64 .p12) + its export password.
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          # App Store Connect API key for notarization (base64 .p8 + identifiers).
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          # App Store Connect API key for notarization: path to the .p8 written above,
+          # plus its Key ID and Issuer ID.
+          APPLE_API_KEY: ${{ runner.temp }}/authkey.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
