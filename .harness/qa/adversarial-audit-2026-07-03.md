@@ -1,500 +1,744 @@
-# SampleByte — Adversarial Codebase Audit (2026-07-03)
-
-Auditor: senior-staff-engineer pass over the full repository (every source file under
-`electron/`, `src/`, `scripts/`, `test/`, `.github/`, plus configs and docs). No loyalty to the
-current design. Findings are marked **CONFIRMED** (traced end-to-end in code, or provable from
-tool semantics) or **PLAUSIBLE** (strong reasoning, needs a live run to prove — this environment
-has no node_modules/ffmpeg/display, and the `.harness/` ADRs are age-encrypted, so ADR references
-below are by title only).
-
----
-
-## 1. System map
-
-### Processes and boundaries
-
-- **Main process** (`electron/main/index.ts`): window + splash, custom `local-file://` protocol
-  (CORS-open file server for the renderer), production CSP injection, DB init
-  (`electron/main/db/index.ts`, better-sqlite3, WAL, migrations run inline at startup), one-time
-  chop materialization pass, then registration of all IPC handlers. Security posture is good at
-  the window level: `contextIsolation: true`, `nodeIntegration: false`, window-open handler only
-  allows `https:` via `shell.openExternal`, single-instance lock.
-- **Preload** (`electron/preload/index.ts`): exposes a typed `window.api` bridge. The
-  contract (`electron/ipc-contract.ts`) is genuinely a single source of truth for
-  preload/main/renderer signatures — a strong point. It does **not** validate values, only types
-  at compile time; at runtime every channel trusts renderer-supplied paths, hashes, and numbers.
-- **Renderer** (`src/`): React 19 + Zustand stores (`projects`, `library`, `packs`, `player`,
-  `stems`, `freesound`, `ui`, `toast`), three views (Chop / Library / Packs), WaveSurfer for the
-  chop editor, a DSP worker pool for BPM/key/transient/loop analysis, and a demucs WASM worker
-  for stem separation (loaded via `(0, eval)(jsText)` — the reason for the `'unsafe-eval'` CSP).
-
-### Real execution paths (traced)
-
-1. **Open → chop → autosave**: `Loader` sets `player.audio` → `AudioWaveform` mounts (keyed by
-   URL) → `useRegions` drives the WaveSurfer regions plugin → every region change bumps
-   `revision` → `useChopAutosave` debounces (1.5 s, max-wait 5 s) →
-   `projects.autosaveActiveRegions` → first save `projects:save` (creates project + chops, then
-   `syncProjectChopsToLibrary` renders **every chop through ffmpeg** before the IPC promise
-   resolves); later saves `projects:upsertChops` + the same sync. The library is a projection:
-   each chop becomes a real WAV under `userData/samples/` with `source='chop'` and
-   `source_chop_id` provenance.
-2. **Trim**: `audio:trimSource` → `trimSourceToCache` renders a new WAV under `userData/sources/`
-   → renderer remaps regions to the new 0-based timeline (`remapRegionsForTrim`, dropping region
-   ids) → autosave persists → `setAudio` remounts the editor on the trimmed file.
-3. **Pack**: drag a library sample onto a pad → `packs:upsertSlot` → `materializeSlotAudio`
-   renders a pad-owned WAV under `userData/pack-slots/` (fallback: null owned path, export trims
-   from source). Export: `packs:export` → `exportClips` renders every slot **in parallel** to the
-   picked folder using the hardware profile's format + filename convention.
-4. **Freesound**: `freesound:search` (key read from `settings.json` per call) →
-   `freesound:download` fetches the **HQ preview MP3** (not the original) into
-   `userData/staging/<uuid>.mp3` → loaded straight into the chop editor.
-5. **Stems**: renderer fetches source bytes, SHA-256 hash → `stems:getCached` → else load
-   model bytes over IPC, eval in worker, separate, `stems:persist` writes 4 WAVs under
-   `userData/stems/<hash>/` through the shared render funnel.
-6. **Startup**: `materializeProjectChops()` is awaited **before** `createWindow()` — a one-time
-   backfill that runs one ffmpeg render per legacy chop.
-
-### Key invariants (as designed, per ADR titles + code comments)
-
-- Chops autosave; there is no explicit save (ADR-0004).
-- The library is a materialized, live projection of project chops (ADR-0006); removing a chop
-  removes its library sample; packs are **not** touched by that.
-- Packs are independent snapshots: pads own their trimmed audio (`audio_path`), so export must
-  never depend on the source chop/sample/file still existing (ADR-0003).
-- Pad audition is preview-only (ADR-0005).
-
-Where those invariants are enforced vs. assumed is the core of the findings below: most are
-enforced only by the happy-path call sequence, not by the data layer, and several break under
-concurrency or deletion.
-
----
-
-## 2. Findings
-
-Severity scale: **P0** data loss / broken headline feature · **P1** correctness or UX failure
-users will hit · **P2** debt, drift, leaks · **P3** minor.
-
-### 2.1 Correctness
-
-**F1 · P0 · Deleting a library sample deletes the user's original file on disk.**
-`electron/main/ipc/library.ts:51-56` — `library:deleteSample` unconditionally
-`fs.unlinkSync(filePath)` after removing the row. `library:importFolder` (`library.ts:40-49`)
-registers files **in place** — `filePath` is the user's own file in their own folder; nothing is
-copied into app storage. Scenario: user imports `~/Music/Breaks/` (500 files), later prunes a few
-rows from the Library ("This sample will be permanently deleted from your library", says the
-dialog — `src/views/Library/index.tsx:280-282`) → their original files are destroyed. The same
-unlink also hits stems-cache WAVs added via "Save stem to Library"
-(`AudioWaveform.tsx:516-528` stores `filePath` pointing into `userData/stems/<hash>/`), silently
-corrupting the stem cache contract that `getCachedStems` checks (all-4-present → now 3).
-**CONFIRMED.** Direction: track file ownership per row (`owned: bool`, true only for files the
-app rendered/downloaded into userData) and only unlink owned files; or copy-on-import.
-
-**F2 · P0 · 24-bit export profiles pass an invalid ffmpeg sample format — MPC and Generic WAV
-exports fail.** `electron/main/hardware/profiles.ts:26,40` set `sampleFmt: 's24'`;
-`electron/main/services/render.ts:41` passes it as `-sample_fmt s24`. ffmpeg has **no `s24`
-sample format** (valid: `u8 s16 s32 flt dbl s64` + planar); `-sample_fmt` with an unparseable
-value is a fatal option error, so every clip render for `mpc-generic` and `generic` rejects.
-Combined with F7 (silent export failure) the user clicks Export on an MPC pack and gets an empty
-folder with no error. The test suite (`render.test.ts`) only ever exercises `s16`, so CI cannot
-catch this; the README advertises both profiles as supported hardware. **CONFIRMED** by ffmpeg
-semantics (unrunnable in this sandbox — flagging honestly: if fluent-ffmpeg or a future ffmpeg
-build aliased `s24`, this would downgrade, but no released ffmpeg does). Direction: use
-`-c:a pcm_s24le` for 24-bit WAV (drop `-sample_fmt`), and add a render test per profile format.
-
-**F3 · P1 · Autosave race creates duplicate projects.**
-`src/hooks/useChopAutosave.ts:52-71` + `src/stores/projects.ts:75-91` +
-`electron/main/ipc/library.ts:95-99`. The first save is slow by design: `projects:save` awaits
-`syncProjectChopsToLibrary`, i.e. one ffmpeg render per chop, before resolving. Meanwhile
-`lastSavedAt` is still 0, so the next region edit computes `elapsed >= MAX_WAIT_MS` → fires a
-second `autosaveActiveRegions` with **delay 0**; `activeProject` is still null (set only when
-save #1 resolves) → a second `projects:save` → two projects (and two full library
-materializations) for one session. Scenario: drop a file, drag out 8 chops quickly — very likely
-on any non-trivial file. **CONFIRMED** by trace. Direction: an in-flight guard/promise latch in
-`autosaveActiveRegions` (create-once semantics keyed by sourcePath), or make `projects:save`
-return before materialization.
-
-**F4 · P1 · Concurrent library syncs double-materialize chops.**
-`electron/main/services/materializeChops.ts:75-102` reads `existing` samples, then awaits ffmpeg
-per chop before inserting. IPC handlers interleave on the main-process event loop, and three
-renderer paths call sync-triggering channels independently (autosave `upsertChops`, Send-to-Pack's
-own `autosaveActiveRegions`, trim's save): two overlapping syncs both see "no sample for chop X"
-and both `addSample` → duplicate `source_chop_id` rows + duplicate WAVs. The dedup map
-(`existingByChopId`, last-wins) never removes the extra row while the chop lives. **CONFIRMED**
-by trace (no serialization anywhere in main). Direction: serialize per-project sync (simple
-promise chain keyed by projectId) and/or a UNIQUE index on `samples(source_chop_id)`.
-
-**F5 · P1 · Deleting the last chop — and "Clear all" — are never persisted.**
-`src/hooks/useChopAutosave.ts:46`: `if (!filePath || !regions?.length) return` — a transition to
-zero regions cancels the pending timer (effect cleanup) and schedules nothing. Scenario: user
-deletes their only chop (or confirms the "Clear all chops?" dialog, `SampleList.tsx:60-75`),
-quits, reopens → all chops are back, library samples included. The confirmation dialog promises
-"This will remove all chops from this audio file". **CONFIRMED** by trace. Direction: allow the
-empty-regions save (only skip when `regions === undefined`, i.e. plugin not ready).
-
-**F6 · P1 · Export filename collisions silently overwrite pads.**
-`profiles.ts:51-53` `sanitize()` maps to `[a-z0-9_-]` and lowercases; `mpc-generic` and `generic`
-filenames are name-only (`profiles.ts:27,41`). Pads "Kick!" and "Kick?" → both `kick_.wav`;
-`exportClips` (`export.ts:28-35`) renders all clips **in parallel to the same path** and reports
-`filesWritten: clips.length`. User exports 16 pads, gets 14 files and a "16 files exported" toast.
-Empty display names produce `.wav`. **CONFIRMED.** Direction: de-duplicate filenames (suffix
-`_2`), always include the slot number, and count actual files written.
-
-**F7 · P1 · Pack export / send-to-pack failures are swallowed — no error UI.**
-`src/views/Packs/index.tsx:58-69` `handleExport` is `try { … } finally { … }` with **no catch**:
-a rejected `exportClips` (missing legacy source file, F2, unwritable folder) resets the button
-and surfaces nothing but an unhandled rejection in the console. Same pattern:
-`handleSendToPack` (`AudioWaveform.tsx:235-271`), `regenerateSlot`/`updateSlotFromSource`
-(`Packs/index.tsx:153-175`), `handleImportFolder` (`AppSidebar.tsx:219-234`). Also
-`exportClips`'s `Promise.all` aborts on first rejection while sibling renders keep writing —
-partial exports are left in the output folder with no cleanup or report. **CONFIRMED.**
-Direction: catch → toast in every user-triggered async action; per-clip `allSettled` with a
-written/failed summary.
-
-**F8 · P1 · Stems: concurrent/cancelled separations hang or cross wires.**
-`src/stores/stems.ts:41-51,148-153,195-199`: `pendingResult` and `onProgress` are module-level
-singletons. A second `separate()` while one is in flight (select stem → restore → run again, or
-switch source fast) clobbers `pendingResult` — the first `await` never settles (leaked promise,
-status machine now lies). `cancel()` terminates the worker but never rejects `pendingResult`, so
-the in-flight `separate()` also hangs forever at `stems.ts:148`; only the `set({status:'idle'})`
-masks it. There is also no input-length guard: a 10-minute track is ~2×53 MB in, 8×53 MB out,
-plus an 85 MB model in a 32-bit-heap Emscripten build — an OOM/abort path with no message.
-**CONFIRMED** (hang paths traced); OOM PLAUSIBLE. Direction: per-run token + reject-on-cancel,
-disable Run while running, cap duration with a clear toast.
-
-**F9 · P2 · `renderLibrarySample` records the *requested* duration, not the real one.**
-`materializeChops.ts:34` returns `duration: end - start`. A chop whose end overshoots the decoded
-source (drag to the edge, ffmpeg mp3 duration jitter) yields a shorter file with a longer claimed
-duration — Library shows it, pad grid shows it, and pad audition's region-stop logic
-(`useAudioPlayer.ts:25-31`) waits for a timestamp that never arrives. **CONFIRMED** (mismatch),
-impact minor. Direction: probe the output (the WAV header is already being read for the waveform).
-
-**F10 · P2 · `extractWaveformData` mis-parses non-canonical WAVs.**
-`electron/main/audio/waveform.ts:8-14`: the chunk walk ignores odd-size chunk padding (the test
-helper `test/wav.ts:33` gets this right — two divergent WAV parsers in one repo), and if no
-`data` chunk is found it silently treats trailing garbage as samples. Fine for ffmpeg-produced
-files today; wrong the day someone points it at an arbitrary WAV (e.g.
-`packs:regenerateSlotToLibrary` runs it on any `audioPath`). **CONFIRMED** (logic), low impact.
-
-**F11 · P2 · Freesound store swallows offline/API errors.** `src/stores/freesound.ts:43-82` —
-`search`/`loadMore` let rejections escape `withLoading`; callers (`Loader.tsx:224-232`,
-`setSort`, `setDurationFilter`) never catch. Offline or 401 (bad key) → spinner stops, empty
-results, zero feedback. **CONFIRMED.** Direction: catch → toast, and detect 401 → "check your
-API key".
-
-**F12 · P2 · `useChopAutosave` failure path lies.** `useChopAutosave.ts:70` —
-`.catch(() => setSaveStatus('idle'))`: a failed save (DB error, ffmpeg missing) shows the same
-idle state as success; edits are silently unsaved. The header can even show "Saved" from a prior
-run. **CONFIRMED.** Direction: `saveStatus: 'error'` + retry.
-
-**F13 · P2 · Pad audition plays the live source, not the pad's snapshot.**
-`Packs/index.tsx:508-510` — `useAudioPlayer(toLocalFileUrl(slot.sourcePath), region)`. The pad
-*owns* `audio_path` precisely so it survives source deletion, but preview reads the original
-file: delete/move the source and the pad still exports fine yet auditions as silence (and the
-region-bounds stop uses `ontimeupdate`, overshooting by up to ~250 ms). ADR-0005's
-"preview-only" promise is kept; the snapshot promise is not. **CONFIRMED.** Direction: prefer
-`slot.audioPath` for audition.
-
-### 2.2 Alternative / unintended paths
-
-**F14 · P1 · Startup is blocked by the materialization backfill.**
-`electron/main/index.ts:249-260` awaits `materializeProjectChops()` **before** `createWindow()`.
-The comment says it "runs off the sync migration path", but it still gates the first window: a
-user upgrading with 300 legacy chops waits for 300 sequential ffmpeg renders staring at nothing
-(the splash is created in `createWindow`, which hasn't run). A missing source makes each chop
-retry **on every launch** forever (catch-and-skip, `materializeChops.ts:63-66`). **CONFIRMED.**
-Direction: create the window first, run the backfill after `ready-to-show`, and record permanent
-failures.
-
-**F15 · P2 · Second-call / crash edges in slot upsert.** `packs.ts:47-55`: two rapid
-`upsertSlot`s for the same pad both read `previous`, both materialize; the loser's freshly
-rendered WAV is orphaned on disk forever (nothing references it, nothing deletes it). A crash
-between `materializeSlotAudio` and the DB write leaks the same way. **CONFIRMED** (unbounded but
-slow leak). Direction: write-then-diff inside a transaction, or a startup sweep of
-`pack-slots/` against `pack_slots.audio_path`.
-
-**F16 · P2 · `library:importFolder` blocks the main process and dedups only by exact path.**
-`library.ts:8-22,40-49`: synchronous recursive scan + N synchronous inserts on the UI/event-loop
-thread — a big NAS folder freezes every window and all IPC. Re-importing the same file from a
-renamed/moved folder duplicates rows (dedup is `Set` of exact `file_path`). **CONFIRMED.**
-Direction: async scan, chunked inserts, content-hash or (dev,inode) dedup if desired.
-
-**F17 · P2 · Corrupted/locked DB and missing ffmpeg have no user-facing story.** `initDatabase`
-throws → caught only by the global `uncaughtException` dialog (good), but WAL + a second
-half-alive instance, or a corrupt file, yields a raw better-sqlite3 message with no recovery
-hint. Missing ffmpeg binary (unsupported arch — `optionalDependencies` pins only darwin/win32;
-Linux resolves transitively, `package.json:82-86`) surfaces as per-render rejections that F7
-then swallows entirely. **PLAUSIBLE** (not traced on a real broken install). Direction: probe
-ffmpeg once at startup; preflight DB open with a "your library is damaged, backup at…" path.
-
-### 2.3 Incoherences (names that lie, duplicated truth, dead code)
-
-**F18 · P2 · The auto-update system is dead code — users never get updates.**
-`electron/main/update.ts` registers `check-update` / `start-download` / `quit-and-install` and
-sends `update-can-available` to the renderer, but the preload bridge exposes **none** of it
-(`ipc-contract.ts` has no update surface) and with `contextIsolation` the renderer cannot invoke
-those channels; nothing anywhere calls `checkForUpdates`. `electron-updater` ships in every build
-(and `autoDownload=false` means even a stray check downloads nothing). Also `startDownload`
-(`update.ts:68-76`) re-registers listeners per call — would multiply progress events if it were
-ever wired. **CONFIRMED.** Direction: either expose it in the contract + UI, or delete the module
-and the dependency; the current state quietly strands old versions (relevant given 0.0.x weekly
-cadence).
-
-**F19 · P2 · Duplicated sources of truth.** (a) Hardware profiles exist twice: main
-(`hardware/profiles.ts`) and a hardcoded copy in the renderer (`Packs/index.tsx:27-32`) while
-the purpose-built `packs:getProfiles` channel has **zero callers**; the two disagree with
-README's table ("Akai MPC (generic)" vs UI "Akai MPC One"). (b) `padCount` exists per profile
-(128 for generic) but the grid, `filledSlots/16` label, recovery scan, and Send-to-Pack's
-`.slice(0, 16)` (`AudioWaveform.tsx:247`) all hardcode 16. (c) `projects.regions` JSON column is
-still written on every save (`projects.ts:66-74,98-109`) with **two different shapes**
-(save omits `updatedAt`, update includes it) but is never read — `deserialize` reads
-`project_chops`. (d) `bitDepth` in profile formats is dead; only `sampleFmt` matters (see F2).
-(e) `pack_slots.pitch_shift_semitones` / `time_stretch_ratio` are created, migrated, seeded, and
-always NULL — a feature that exists only in the schema. **CONFIRMED.**
-
-**F20 · P3 · Dead code inventory.** `src/components/Nav.tsx` and `Card/CardRoot.tsx` (no
-importers), `audio:exportRegions` channel + `exportClips` region path (no renderer caller —
-the "export chops directly" feature is gone but its IPC and types remain), `library:saveChops` +
-`useLibraryStore.saveChops` (no caller), `packs.exportProgress` (never set — promises progress
-that doesn't exist), `detectTransientsFromUrl` (worker `transients` kind unreachable from UI),
-`convertBlobUrlToArrayBuffer`, `useShortcuts`'s empty Tab/Escape handlers. **CONFIRMED.**
-Direction: delete; every dead channel is attack/maintenance surface.
-
-**F21 · P2 · "staging", "sources", "cache" are permanent directories pretending to be
-temporary.** Freesound downloads land in `userData/staging/` and become the **canonical
-long-term source** of any project chopped from them; `trimSourceToCache` (`trim.ts:7-18`) says
-"cached" but every trim mints a new UUID WAV that is never reused nor deleted, and the old
-trimmed source of a re-trimmed project is orphaned. Nothing ever cleans `staging/`, `sources/`,
-`stems/`, or orphaned `pack-slots/` audio (F15) — and `deleteSample` (`samples.ts:126-132`)
-deletes pack_slot **rows** without unlinking their `audio_path` files. Unbounded disk growth
-with misleading names. **CONFIRMED.** Direction: rename honestly, add a startup GC that sweeps
-files unreferenced by any project/sample/slot row.
-
-**F22 · P2 · Deletion semantics contradict the snapshot ADR.** `samples.deleteSample`
-(`samples.ts:126-132`) removes `pack_slots` rows referencing the sample — the pad dies even
-though it owns its audio (`audio_path` would keep export working) — while
-`deleteChopSampleRow` (`samples.ts:153-158`) deliberately leaves slots alive for the same
-situation, and `packs:regenerateSlotToLibrary` exists precisely to resurrect orphaned pads. The
-UI warns ("Deleting it will remove those slots permanently"), so users aren't ambushed, but the
-data layer implements two opposite philosophies for the same event. Note the migrated
-`pack_slots` table has **no FK on sample_id** (`db/index.ts:164-216` recreates it without
-REFERENCES), so keeping the slots is entirely feasible. **CONFIRMED.** Direction: pick one —
-orphan the pad into the existing recovery flow instead of deleting it.
-
-**F23 · P3 · Misc incoherences.** `if (release().startsWith('6.1')) app.disableHardwareAcceleration()`
-(`main/index.ts:99`) targets Windows 7 but also matches Linux kernel 6.1.x LTS.
-`electron-builder.json5` declares Linux targets that no workflow builds and the README doesn't
-mention. `handle('shell:openExternal', …)` is registered inline in `main/index.ts:245` instead of
-an `ipc/` module. Seed slots are **1-based** while the pad grid is 0-based
-(`seed.sh:156-167` vs `Packs/index.tsx:309-313`) — seeded pads render shifted one pad down, and a
-seeded slot 16 would be invisible. **CONFIRMED.**
-
-### 2.4 Affordance mismatches
-
-**F24 · P1 · Freesound "Import to Library" neither imports to the library nor downloads the
-sound.** The download button's tooltip is "Import to Library" (`Loader.tsx:400`), but
-`handleDownload` only stages a file and opens it in Chop — nothing is added to the library unless
-chops are later made. And `freesound:download` (`freesound.ts:36-44`) fetches
-`previews['preview-hq-mp3']` — a lossy ~128 kbps **preview**, not the original file (originals
-need OAuth2) — while the README sells "search 650,000+ Creative Commons sounds". No license or
-attribution is stored anywhere (`FreesoundResult.license` is fetched, shown nowhere, persisted
-nowhere) even though most CC licenses on Freesound require attribution; users exporting packs
-have no way to comply. **CONFIRMED.** Direction: fix the tooltip, persist
-license/author/freesound_id on the sample row, state the preview-quality limitation in UI+README.
-
-**F25 · P2 · Send to Pack silently truncates and mislabels.** `AudioWaveform.tsx:246-268`
-slices to 16 chops with no warning when there are more, always creates a **new** pack (repeat
-sends create "X Pack" clones), and stamps every slot with the source-level `bpm`/`musicalKey`.
-
-**F26 · P3 · UI promises macOS keys on Windows.** README and the Chop footer/tooltips show
-`⌘Z`/`⇧⌘Z`/`⌘K` only; the handlers do accept Ctrl (`useShortcuts.ts:88`,
-`CommandPalette.tsx:35`), so the *labels* are wrong on the shipped Windows build.
-
-### 2.5 Missing functionality
-
-**F27 · P1 · No cancellation or timeout for any long operation.** ffmpeg renders (per-chop sync,
-pack export — 16 parallel spawns, or up to 128 for the generic profile), folder import, bulk
-re-analyze, stem persist. A hung ffmpeg (corrupt input) leaves promises pending forever; the
-only "cancel" in the app (stems) leaks its promise (F8). Direction: kill-on-timeout in
-`renderClip`, concurrency cap in `exportClips`, AbortController plumbing.
-
-**F28 · P2 · No input validation in main for region math.** `start`/`end` are trusted
-everywhere (`audio:trimSource`, `saveChops`, `upsertChops`, slot bounds): `end <= start`,
-negative, NaN, or Infinity flow straight into `setDuration(end - start)` → ffmpeg fatal error →
-generic rejection (often swallowed, F7). The renderer mostly prevents this; main assumes it.
-Direction: clamp/validate at the IPC boundary — it's ~10 lines.
-
-**F29 · P2 · No observability.** `logMain` exists but only startup/fatal paths use it; every
-`catch { /* ignore */ }` (12+ sites: unlinks, sync failures, materialization skips) is
-invisible. A user reporting "my library lost samples" leaves nothing to inspect. Direction:
-route swallowed errors through `logMain` at minimum.
-
-**F30 · P3 · Settings writes are not atomic** (`settings.ts:18-20`) — a crash mid-write
-truncates `settings.json`; `read()` then silently returns `{}` and the Freesound key vanishes
-with no message. Write-temp-then-rename is one line.
-
-### 2.6 Boundary & safety (Electron posture)
-
-Overall posture is decent for a local-first app: context isolation on, node integration off,
-no remote content in the window, `openExternal` restricted to `https:`, model files whitelisted
-(`stems.ts:9,15-22` — tested against traversal in `stems.test.ts:45-48`). Remaining real items:
-
-**F31 · P1 · `stems:persist` / `stems:getCached` path traversal via `sourceHash`.**
-`stems.ts:24-30`: `path.join(userData, 'stems', sourceHash)` with a renderer-supplied string —
-`'../../../../Users/x/.ssh'` escapes userData; `persistStems` then `mkdirSync`s and writes
-attacker-shaped WAV bytes at the joined path (and `renderClip` output lands there too). Renderer
-compromise is required, but this app's CSP deliberately allows `'unsafe-eval'` renderer-wide
-(`main/index.ts:233` — `script-src 'self' 'unsafe-eval'`, not scoped to the worker), and the
-renderer regularly renders strings from a remote API (Freesound names/tags — React escapes
-them today). Defense-in-depth says validate: `/^[0-9a-f]{64}$/`. **CONFIRMED** (traversal is
-real; exploitability gated on renderer compromise). Same class, lower stakes:
-`freesound:download` fetches **any** renderer-supplied URL with Electron's net stack (SSRF /
-arbitrary-content file write into staging), and `packs:export` / `audio:exportRegions` /
-`library:importFolder` accept arbitrary absolute paths (write-anywhere / read-tree-anywhere
-primitives). Direction: URL host allowlist (`freesound.org`, `cdn.freesound.org`); paths from
-dialogs could be brokered by main instead of round-tripping through the renderer.
-
-**F32 · P2 · The `local-file://` protocol serves the entire filesystem to the renderer, CORS
-open.** `main/index.ts:184-222`: any path, no scoping to userData or user-picked roots, plus
-`Access-Control-Allow-Origin: *` and `bypassCSP: true`. That is the app's design (library rows
-point at arbitrary user files), but combined with F31's threat model it means any renderer-side
-script can read any file on disk via `fetch('local-file:///etc/passwd')`. Direction: maintain an
-allowed-roots set (userData + imported folders), 403 otherwise.
-
-**F33 · P2 · Freesound API key handling is as documented but weak.** Plaintext in
-`settings.json` (fine, documented in AGENTS.md), but it is re-read from disk on **every search**
-(`freesound.ts:8-15`) and sent as a `token` query param (that's Freesound's API design). The
-key never leaves the main process — good. Low risk; note only.
-
-**F34 · P2 · Windows path correctness across the URL bridge.** `toLocalFileUrl`
-(`src/utils/index.ts:40-43`) splits on `/` only; a Windows path `C:\Users\me\track.mp3` becomes
-`local-file://C%3A%5CUsers%5Cme%5Ctrack.mp3` whose "hostname" the protocol handler
-(`main/index.ts:185-190`) reassembles as `/C:\Users\me\track.mp3` — `existsSync` on that form is
-at best accidental. `fileNameFromPath` has the same `/`-only assumption. The app ships a Windows
-NSIS build; if this breaks, **no local file plays or renders a waveform on Windows** — yet
-nothing in CI runs the renderer at all. **PLAUSIBLE** (needs a Windows run; possibly masked if
-Chromium normalizes back-slashes in URLs). Direction: normalize `\` → `/` in `toLocalFileUrl`
-and add a Windows smoke test.
-
-### 2.7 Documentation & DX
-
-**F35 · P2 · README has no build-from-source/contributing section.** `pnpm install` → postinstall
-`electron-rebuild` (needs toolchain) → `pnpm dev`; none of it is in the README (only download
-links). AGENTS.md covers it implicitly, but that's agent-facing. The
-`NODE_MODULE_VERSION` footgun **is** well documented in AGENTS.md (accurate: tests stub electron
-and avoid the DB), which is genuinely good.
-
-**F36 · P2 · Seed script is macOS-only and destructive, and AGENTS.md bakes in the macOS
-assumption.** `seed.sh:11-19` only knows `~/Library/Application Support/...`; on Linux
-(`~/.config/samplebyte`) and Windows it exits "userData directory not found" even after
-`pnpm dev`. AGENTS.md states "userData is always at ~/Library/Application Support/samplebyte/ in
-both dev and production builds" — true only on macOS. The seed also `DELETE FROM samples` (the
-user's whole dev library) without unlinking materialized WAVs (orphans), and its 1-based
-`slot_number`s render shifted (F23). Docs claims vs reality otherwise check out: `pnpm dev`,
-`pnpm test`, `pnpm release` flows match `package.json`/`tag.mjs`/workflows exactly, including
-the fetch-stem-model-before-build requirement (present in `release.yml:22,40`).
-
-**F37 · P3 · CI gap: nothing builds or launches the app.** `ci.yml` runs tsc/lint/vitest/audit —
-solid — but no `vite build`, no electron-builder dry-run, no renderer test at all (all tests are
-main-process services). A broken renderer import ships to a tag before anyone notices;
-`release.yml` would then publish it (draft → undrafted automatically).
-
----
-
-## 3. Design tensions (deepest structural issues)
-
-**T1 — Three lifetimes, one `file_path` column.** Library rows point at (a) user-owned files
-imported in place, (b) app-rendered WAVs in `userData/samples`, (c) cache artifacts
-(`stems/`, `staging/`). The schema cannot distinguish them, so every consumer guesses:
-`deleteSample` unlinks all three (F1), the stems cache gets corrupted, "staging" becomes
-permanent (F21). *Alternative:* an `owned` flag (or path-prefix rule) enforced in one
-`deleteSampleFiles()` helper; or copy-on-import so everything under the library is app-owned —
-simpler invariant, more disk.
-
-**T2 — Projection consistency by call-sequence, not by the data layer.** ADR-0006's "library is
-a live projection" is implemented as "every writer remembers to call
-`syncProjectChopsToLibrary` and no two calls overlap". Neither holds (F3, F4), and staleness is
-decided by comparing wall-clock timestamps across tables (`isChopSampleStale`). *Alternative:*
-serialize sync per project behind a queue in main, add UNIQUE(source_chop_id), and derive
-staleness from a monotonic per-chop revision instead of `Date.now()` pairs.
-
-**T3 — Durable state lives in the waveform widget.** Chop identity is the WaveSurfer region id;
-names live in a React state map keyed by those ids; a trim rebuilds regions **without ids**
-(`remapRegionsForTrim` drops them) so every trim rewrites all chop rows, re-renders all library
-WAVs, and orphans every pack-slot chop reference — maximal churn for a metadata-preserving
-operation. Zero-region states are indistinguishable from "editor not ready" (F5).
-*Alternative:* the DB row is the chop; the region is a view of it (id round-trips through
-trim; empty is a valid saved state).
-
-**T4 — The hardware-profile abstraction is half real.** README: "adding a new hardware target is
-just one config object". In reality a profile's `bitDepth` is ignored, its `sampleFmt` is passed
-unvalidated into ffmpeg (F2), its `padCount` is ignored by the grid/UI (F19b), its filename
-convention can self-collide (F6), and the renderer keeps its own profile list (F19a). A new
-target added "as one config object" today would silently inherit all of this. *Alternative:*
-make profiles the single source (serve via the existing dead `packs:getProfiles`), map
-bit depth → codec in one place, test each profile's render.
-
-**T5 — Trusted-renderer IPC in an unsafe-eval renderer.** The bridge is beautifully typed but
-validates nothing at runtime; simultaneously the CSP grants `'unsafe-eval'` to the whole
-renderer for the sake of one worker, and `local-file://` serves the disk CORS-open (F31, F32).
-Each choice is individually defensible; together they mean one renderer bug = full disk
-read/write. *Alternative:* validate at the boundary (hash regex, URL allowlist, path roots) —
-cheap — and scope eval to the worker (serve the worker script with its own CSP header, or ship
-demucs as a real module).
-
----
-
-## 4. Expectation gaps ("I expected X, found Y")
-
-- Expected deleting a library entry to remove a row; found it deletes the user's original file
-  on disk (F1).
-- Expected the advertised MPC/Generic 24-bit profiles to export; found an invalid ffmpeg flag
-  that fails every render (F2) — and a UI that reports failure as success (F7).
-- Expected autosave to be crash-safe and idempotent; found duplicate projects under fast editing
-  (F3), duplicate samples under overlapping syncs (F4), and delete-all edits that never persist
-  (F5).
-- Expected "packs are independent snapshots" to mean pads survive library deletion; found
-  deleteSample kills the pads (dialog does warn) while a sibling code path keeps them (F22), and
-  pad audition depends on the live source anyway (F13).
-- Expected the auto-updater to update; found an unreachable IPC surface — no user ever gets an
-  update prompt (F18).
-- Expected "Import to Library" on Freesound to import the sound; found it stages a 128 kbps
-  preview and opens the editor, storing no license/attribution (F24).
-- Expected `userData/sources`, `staging` and "cache" to be reclaimable; found they are permanent,
-  growing, and load-bearing (F21).
-- Expected the typed IPC contract to imply validated inputs; found path traversal in
-  `stems:persist` and fetch-any-URL in `freesound:download` (F31).
-- Expected `pnpm seed` (per AGENTS.md) to work after `pnpm dev`; found it is macOS-only and
-  wipes the dev library (F36).
-- Expected the test suite ("audio-rendering modules covered against real ffmpeg") to cover the
-  shipped profiles; found only `s16` is ever rendered (F2, F37).
-
----
-
-## 5. Open questions
-
-1. Is in-place import (no copy) a deliberate product decision? It drives F1/T1; a one-line answer
-   changes the right fix.
-2. Is the Freesound preview-only download understood/accepted (vs. OAuth2 for originals), and is
-   license attribution intentionally out of scope for exported packs?
-3. Was the auto-update UI removed deliberately (0.0.x cadence via manual downloads), or lost in
-   the refactor? `electron-updater` is still shipped either way.
-4. Windows: has anyone run the packaged build end-to-end? (F34 would be immediately visible; the
-   README documents the SmartScreen flow, which suggests Windows is a real target.)
-5. `pitch_shift_semitones` / `time_stretch_ratio` — roadmap items or abandoned? They shape the
-   slot schema and seed script today.
-6. Generic profile `padCount: 128` — is >16-pad export intended soon? It determines whether the
-   hardcoded 16s (grid, send-to-pack slice, recovery scan) are bugs or ceiling.
-7. The `.harness/` ADRs are encrypted in-repo; should QA artifacts like this one be committed
-   through the doctier filter (this environment has no filter configured, so this file is stored
-   as written)?
-
----
-
-## Appendix — strengths worth keeping
-
-Not everything is adversarial: the typed IPC contract (`ipc-contract.ts`) with compile-time
-channel/signature agreement is excellent; the render funnel (`renderClip` as the single ffmpeg
-choke point) is the right shape (it just needs profile validation); the pad-owned-audio snapshot
-model is a genuinely good design (enforce it in deletion and audition paths); virtualized
-library/source lists, the analysis worker pool with transfer semantics, the electron test stub
-approach, and the honest, current AGENTS.md are all above average for a solo side project.
+-----BEGIN AGE ENCRYPTED FILE-----
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNzaC1lZDI1NTE5IExRMGNCZyBVWm9O
+Zy9XSUtmL2Vsb0hIUkEvQlMzQUZGT1ZxcjQ0WUFCNnlXTW1SV3pFClBNbVMyRmwr
+OGd3TmlJVUw4bnJLOE8zTEFBTUdZVjVXZE42WnFJOVlsMVEKLS0tIGRpYWFSWDJh
+S3lsYmlQUUxFUHhWN3o0NUNXZnhqdzRDV210eGVGckV1amMKfM/Pybh2lm4AkU2j
+ejM7iCMd0xR6BN+1GvLYmqPv2tXyhzRWnHAjnzfpCH/habKwqb1EWwikTslK2ay1
+KDeDepP7z/kZasC/EAmhTDd28GscclUeSOBU4ntjSFQ3Cs8ciDISL9bUhhffbNXN
+ln9+4c3jVZbSjzxpRpBZ86sDz1ArrJUdakXR/euKJy1/MMwLBoigA/mg8bC5w8r6
+uQpMuBGm8Rnk/cjAoX90B6jqAJs3poTUbBED3DoyR6LKncdVd1W75Kq/rLSDwT3H
+lOom0T/oVuJA0Y1nYzCtFEXg/m/2fW2pwH4mWW3nZiitzY1zLBEJQDWJzy3BK/m5
+WvBzZzGvmPvcdgI52rehtJ1fftpiP/gkBK00ubwx9z4Nh5z9jp5VUXQz/T9gBMuC
+GGGfuVaXBQaLOL4Oxy1syUBYfMHSBeuNMP3gq2Fl9C+1ocGDM0nL8hJ6y4eelIbQ
+yt99IktZyNKh2O0qiSTVvVhhg+IoZZMJzmE1KSxa9RZUALy1vTUSfiScEfe3tz66
+Dl18ND5t9H9UDkIPkxoWg1sgvZI/lh2Sh8ExRo1N2AqZze2m0rAkGvBqG1ffRpRV
+msxTGkrs7vjM6tcPA4K9ryJ11B1CCOqtHUA56RHUd2p3IkPmMVh7P+vFmWalcP47
+Xc1HTuUUBR3ao5YS+3Pcy/QQlprkMncf+uomW4MiCEOl+bEACIcmV6aZoqQWQ3em
+LxHsAzpioQu/14kQbPjqyI43qTXsZAjJLRHW//Qn+X5MEh7pTS5XTUSj+3bPwfpB
+1xNROEP9r6v1AVw4+FYM2AHGWR2m0wYY9PgOSTJuWkQcDRv6m46lQoHKZSTp57cO
+QS6C7dBCUoBbSKT/M694qDrppb3WkYD85UFJfcKH/Bet8LrKMgRhccDXZXGAvLjV
+AKIRZ1f4OQ4qy10iPG6xK+aymgqf+xTfUiA575n14He4mfZphU/PiIuBJLGEPYLy
+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
+-----END AGE ENCRYPTED FILE-----
