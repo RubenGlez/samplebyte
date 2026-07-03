@@ -15,6 +15,14 @@
   mac: {
     artifactName: "${productName}_${version}.${ext}",
     target: ["dmg", "zip"],
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
+    entitlements: "build/entitlements.mac.plist",
+    entitlementsInherit: "build/entitlements.mac.plist",
+    // Notarization runs on CI at release time; credentials come from the APPLE_API_* /
+    // APPLE_TEAM_ID env vars set in .github/workflows/release.yml. For a quick unsigned
+    // local package build, run: CSC_IDENTITY_AUTO_DISCOVERY=false pnpm build
+    notarize: true,
   },
   win: {
     target: [

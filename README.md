@@ -68,20 +68,13 @@ Pre-built installers are on the [Releases](https://github.com/RubenGlez/sampleby
 | macOS | `.dmg` |
 | Windows | `.exe` (NSIS installer) |
 
-### macOS: "Apple could not verify" warning
+### macOS
 
-SampleByte is not notarized, so macOS Sequoia (15+) will block it on first launch.
+SampleByte is signed with a Developer ID certificate and notarized by Apple, so it opens
+by double-clicking with no Gatekeeper warning.
 
-**Option A - Terminal (easiest):**
-```bash
-xattr -cr /Applications/SampleByte.app
-```
-Then double-click the app normally.
-
-**Option B - System Settings:**
-1. Try to open the app and click OK on the warning dialog
-2. Go to System Settings > Privacy & Security
-3. Scroll down and click Open Anyway
+> Older releases (v0.0.26 and earlier) were unsigned. If you have one of those and macOS
+> blocks it, either upgrade to the latest release or run `xattr -cr /Applications/SampleByte.app`.
 
 ### macOS: startup diagnostics
 

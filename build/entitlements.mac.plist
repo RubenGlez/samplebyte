@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- allow-jit / allow-unsigned-executable-memory: the stem-separation worker loads the
+       vendored demucs Emscripten build from text and instantiates WebAssembly (see the
+       'unsafe-eval' CSP in electron/main/index.ts). Under Hardened Runtime, WASM compilation
+       needs these or the renderer crashes on first Stems use. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- disable-library-validation: bundled third-party native binaries (better-sqlite3,
+       @ffmpeg-installer ffmpeg) are not signed by our Team ID; Hardened Runtime would
+       otherwise refuse to load them. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+</dict>
+</plist>
