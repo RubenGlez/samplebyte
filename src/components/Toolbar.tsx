@@ -1,6 +1,8 @@
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useState } from 'react'
+import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
 import { useUiStore } from '@/stores/ui'
 import { Segmented } from '@/components/ui/Segmented'
+import { SettingsDialog } from '@/components/SettingsDialog'
 import { modLabel } from '@/utils'
 
 type View = 'chop' | 'library' | 'packs'
@@ -16,6 +18,7 @@ type ElectronStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag
 
 export default function Toolbar() {
   const { currentView, setView, sidebarOpen, toggleSidebar } = useUiStore()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div
@@ -67,6 +70,21 @@ export default function Toolbar() {
         >
           <span className="text-[11px] font-readout leading-none">{modLabel('K')}</span>
         </button>
+      </div>
+
+      {/* Settings */}
+      <div
+        className="shrink-0 flex items-center pr-2"
+        style={{ WebkitAppRegion: 'no-drag' } as ElectronStyle}
+      >
+        <button
+          onClick={() => setSettingsOpen(true)}
+          title="Settings"
+          className="w-7 h-7 flex items-center justify-center rounded-md text-faint hover:text-ink hover:bg-raised transition-colors bg-transparent border-0 cursor-pointer"
+        >
+          <Settings size={15} strokeWidth={1.5} />
+        </button>
+        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       </div>
 
       {/* Ko-fi */}

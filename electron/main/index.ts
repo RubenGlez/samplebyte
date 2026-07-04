@@ -17,6 +17,7 @@ import { registerPacksHandlers } from './ipc/packs'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerFreesoundHandlers } from './ipc/freesound'
 import { registerStemsHandlers } from './ipc/stems'
+import { initTelemetry, captureMainException, flushTelemetry } from './services/telemetry'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -71,10 +72,12 @@ function showFatalError(title: string, error: unknown): void {
 }
 
 process.on('uncaughtException', (error) => {
+  captureMainException(error, { fatal: true })
   showFatalError('SampleByte main process uncaught exception', error)
 })
 
 process.on('unhandledRejection', (reason) => {
+  captureMainException(reason, { kind: 'unhandledRejection' })
   showFatalError('SampleByte main process unhandled rejection', reason)
 })
 
@@ -181,6 +184,17 @@ async function createWindow() {
     return { action: 'deny' }
   })
 
+  // A renderer crash (OOM, GPU fault, killed process) can't report itself via posthog-js, so surface
+  // it from main instead.
+  win.webContents.on('render-process-gone', (_event, details) => {
+    logMain('renderer:gone', `${details.reason} exit=${details.exitCode}`)
+    captureMainException(new Error(`Renderer process gone: ${details.reason}`), {
+      kind: 'render-process-gone',
+      reason: details.reason,
+      exitCode: details.exitCode,
+    })
+  })
+
   registerUpdateHandlers(win)
 }
 
@@ -249,7 +263,7 @@ app.whenReady().then(async () => {
           // 'unsafe-eval' is required by the stem-separation worker: the vendored demucs Emscripten
           // build is loaded from text (a UMD factory) and instantiates WebAssembly, both of which
           // need eval. It only ever evaluates the bundled local model, never remote code.
-          'Content-Security-Policy': ["default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' local-file: blob: https://freesound.org https://cdn.freesound.org; media-src 'self' file: local-file: blob: https://cdn.freesound.org; img-src 'self' data:"],
+          'Content-Security-Policy': ["default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' local-file: blob: https://freesound.org https://cdn.freesound.org https://us.i.posthog.com; media-src 'self' file: local-file: blob: https://cdn.freesound.org; img-src 'self' data:"],
           // Cross-origin isolation so threaded WASM (stem separation) can use SharedArrayBuffer.
           // The dev server sets the same headers via server.headers in vite.config.ts.
           // `credentialless` (not `require-corp`) keeps no-cors cross-origin media working —
@@ -298,6 +312,9 @@ app.whenReady().then(async () => {
   registerSettingsHandlers()
   registerFreesoundHandlers()
   registerStemsHandlers()
+  // Start the anonymous crash/usage reporter before the window loads so the renderer can read the
+  // shared analytics id (persisted here) and both processes report as the same person.
+  initTelemetry()
   createWindow()
 
   // Run startup maintenance AFTER the window exists so a large one-time chop backfill can't block
@@ -320,6 +337,10 @@ async function runStartupMaintenance(): Promise<void> {
     logMain('materializeProjectChops:failed', error)
   }
 }
+
+app.on('before-quit', () => {
+  void flushTelemetry()
+})
 
 app.on('window-all-closed', () => {
   win = null

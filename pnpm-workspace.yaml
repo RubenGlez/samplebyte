@@ -19,3 +19,8 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+  core-js: false
+  '@ffmpeg-installer/darwin-x64': false
+  '@ffmpeg-installer/linux-arm': false
+  '@ffmpeg-installer/linux-arm64': false
+  '@ffmpeg-installer/linux-ia32': false

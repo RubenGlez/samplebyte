@@ -92,6 +92,20 @@ Click "More info" then "Run anyway" to get past the unsigned-app warning.
 
 ---
 
+## Privacy
+
+SampleByte reports anonymous usage data to [PostHog](https://posthog.com) so I can see roughly how many people use it and fix crashes I can't reproduce locally. It is **on by default** and limited to:
+
+- a randomly generated, anonymous install ID (no account, no name, no email)
+- an `app_opened` event
+- unhandled errors and crashes, including their error message and stack trace
+
+Your audio, file names, sample library, and Freesound key never leave your machine. Note that a crash's stack trace can contain file paths.
+
+To turn it off, open **Settings** (the gear in the toolbar) and switch off **Share anonymous usage data**. The choice is saved to `settings.json` (`telemetry_enabled`) and takes effect immediately.
+
+---
+
 ## Keyboard Shortcuts
 
 | Key | Action |
