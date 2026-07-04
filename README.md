@@ -8,8 +8,6 @@
 
 [![latest release](https://img.shields.io/github/v/release/RubenGlez/samplebyte)](https://github.com/RubenGlez/samplebyte/releases/latest)
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubenglez)
-
 SampleByte is an open-source desktop app built to handle the full workflow from finding audio to loading a finished sample pack onto your hardware. No more jumping between tools.
 
 ---
@@ -132,4 +130,4 @@ The Chop tab's Stems tool needs a vendored model that is not in git; run `pnpm f
 
 ---
 
-MIT, see [LICENSE](LICENSE). Built by [@RubenGlez](https://github.com/RubenGlez). [ko-fi.com/rubenglez](https://ko-fi.com/rubenglez)
+MIT, see [LICENSE](LICENSE). Built by [@RubenGlez](https://github.com/RubenGlez).
