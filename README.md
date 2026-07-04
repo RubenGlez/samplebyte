@@ -6,6 +6,8 @@
 
 > A producer's sample workstation for hardware instruments.
 
+[![latest release](https://img.shields.io/github/v/release/RubenGlez/samplebyte)](https://github.com/RubenGlez/samplebyte/releases/latest)
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubenglez)
 
 SampleByte is an open-source desktop app built to handle the full workflow from finding audio to loading a finished sample pack onto your hardware. No more jumping between tools.
