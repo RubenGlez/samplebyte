@@ -3,6 +3,12 @@
 All notable changes to SampleByte are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.0] - 2026-07-04
+
+### Added
+
+- **Anonymous usage analytics and crash reporting** — SampleByte now reports anonymous usage data and crash reports to help improve the app, on by default with an opt-out toggle in Settings
+
 ## [0.0.28] - 2026-07-04
 
 ### Changed
