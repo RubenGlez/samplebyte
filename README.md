@@ -8,8 +8,6 @@
 
 [![latest release](https://img.shields.io/github/v/release/RubenGlez/samplebyte)](https://github.com/RubenGlez/samplebyte/releases/latest)
 
-**Project page:** [rubenglez.dev/samplebyte](https://rubenglez.dev/samplebyte)
-
 SampleByte is an open-source desktop app built to handle the full workflow from finding audio to loading a finished sample pack onto your hardware. No more jumping between tools.
 
 ---
