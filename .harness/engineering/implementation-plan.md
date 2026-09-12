@@ -1,371 +1,263 @@
------BEGIN AGE ENCRYPTED FILE-----
-YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNzaC1lZDI1NTE5IExRMGNCZyBkYWk1
-WE5Nc0g3dy9GRjZaSGxnVHVJRERvZlZwV1VuendBWnNrWkFzUkE4CkRwVW5hL0NZ
-ZHRzMjFtM0liZ1IrYnNSUnNRY1pEaXV4NzJ1MU9KdmFWelEKLS0tIHM5aTk4Nkti
-aEVRZFlTN1IrbHBWTURKYitXeXdhRUpqelhwTm0rMnh1V0EKljDxsktX48Fo30VM
-Rxnvc7oflHb3oESG4aW6y2E596LN6Cg+9qKBNvAqexqLRupXGEw2ESCzEecobFa+
-ajJd/5WdtidJ6CwidT0+2ZdR014liX5KxCwtu+NlN1nX5xSV4LmGROX6pq1xcQK0
-hmJzmh+N+W9Ek6g7HLxK/oUcfqnCJgxVxvTqjL5JxPPbCf61jyjvIYEfV0e0agOA
-qzhHztHhw/2PARdaUfGqmV2wJ4reO6srB8N46aMAUd+MaOo+/Y+WSZCTdDoi64LV
-3PozF7IjL5hG5ZkOzMMna1aWwpPo97xAUIW1YnC8AmINF7Gk2a8FhjsbBNLbfhmx
-1Nnxwrc+mNMsCXMVg0dkups07zNbNdX7iNlkoBXRXusVXPJnQ+ZJGzdlGdxLcdOP
-bi5o0oUu724HBB0yBHt09Hk+UC9bGaEkFFN0AZa8pjtoumDoJDX3mrlJ6eQlFqKZ
-NFaGHrkc44HyiSfpjAEqqnywGOI3A0W3HrGUWT7YKdvAAnI30y+wHuu/jT9mO2Cn
-79VCfJWpjRy+c60bDTfODd6J5LlWa16xB6rIhjgvHoJ7N6EywVBix36WxwDDOkdj
-CE0P46jTY71gvrifrhNmMmdbmTdzI+X+LAiV5F4qDYD2dtqcHI0JqOecysZWId2L
-aj1Fswtd+WbdKPk1Z2wZWXsENbEPVMwvfv66oXgHFXuw1uBelbH/r34fQ/k/fivH
-aiFrhA0ePoHwrwCY2iZBKije9bz1Hz+RMS/6Cs4NOWJe1lixGV+TQx6wuHK2ZvSM
-X5QLnhPTyk5F04M0XM7m3VqqwLGC5RI/nizyolu3QFpsCO0tJyM75rmd21b/EvZq
-uo5nPmUEpBnyyRcmA0UiY5OcpOdcBnDjqpRFExO7/LaU1jWBn8RjB5QjgP83DmJo
-6bjxpkqz+Eu1ObdEliF+RNPsA3+EO3mMnVZMSxd7hRczdZ/3kv1ixcpnFrbqEQ2u
-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
-WbEXrGyEAHE1vsTqduqV/YJ9tXZlGVDyeXfV
------END AGE ENCRYPTED FILE-----
+# Implementation Plan
+
+SampleByte remains a local-first Electron desktop app: Electron main owns SQLite, filesystem, ffmpeg, export, Freesound, and future recording persistence; preload stays a typed `contextBridge`; React owns the renderer UI and calls domain stores. This is an incremental refactor of the existing Electron 41, React 19, TypeScript, Vite, Zustand, `better-sqlite3`, WaveSurfer.js, `fluent-ffmpeg`, Tailwind v4, shadcn, Radix, and lucide stack.
+
+Baseline verification for each code task is `pnpm tsc` plus `pnpm test`. A vitest runner now exists and covers the audio-rendering modules against real ffmpeg. DB-dependent tests (migration/query/export snapshots) are still absent: `better-sqlite3` is built for Electron's ABI and can't construct a Database under plain Node.
+
+## Phase 1: Data Model Foundation
+
+### Task 1.1 — Add project chop shared types
+
+**Goal**: Introduce stable project chop concepts shared by Electron main, preload, and the renderer.
+
+**Scope**: Update `electron/types.ts` and renderer type imports so projects expose `ProjectChop` with `id`, `name`, `start`, `end`, `createdAt`, and `updatedAt`. Keep compatibility with existing `ProjectRegion` shape during migration.
+
+**Acceptance criteria**: `ProjectChop` is available to main and renderer code; existing callers that still use anonymous regions continue to type-check; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. `ProjectChop` (`id`, `name`, `start`, `end`, `createdAt`, `updatedAt`) is a shared type in `electron/types.ts`, used by main and renderer.
+
+**Depends on**: None.
+
+### Task 1.2 — Add normalized project_chops persistence
+
+**Goal**: Store project chops as addressable rows so Pack Builder can browse chops from the current project and other projects.
+
+**Scope**: Update `electron/main/db/index.ts` migrations to create `project_chops` with stable chop IDs, `project_id`, `name`, `start`, `end`, `created_at`, and `updated_at`. Add a compatibility migration from existing `projects.regions` JSON into normalized rows.
+
+**Acceptance criteria**: Existing databases with `projects.regions` migrate without losing regions; new databases create `project_chops`; repeated app starts do not duplicate migrated chops; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. The `project_chops` table (stable chop IDs, `project_id`, `name`, `start`, `end`, `created_at`, `updated_at`) is live in `electron/main/db/index.ts`, with a compatibility migration from `projects.regions` that does not duplicate on repeated startups.
+
+**Depends on**: Task 1.1.
+
+### Task 1.3 — Add project chop queries and IPC typing
+
+**Goal**: Make project chops readable and writable through the existing main -> preload -> renderer boundary.
+
+**Scope**: Add query functions under `electron/main/db/queries/` for listing by project, listing across projects, upserting, deleting, and touching `updatedAt`. Wire IPC handlers, preload bridge methods, and `src/types/global.d.ts` declarations following the existing `domain:operation` invoke/handle pattern.
+
+**Acceptance criteria**: Renderer code can fetch current-project and cross-project chops without direct DB access; chop edits persist with updated timestamps; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. Query functions live under `electron/main/db/queries/`, wired through IPC handlers, the preload bridge, and `src/types/global.d.ts` following the `domain:operation` pattern.
+
+**Depends on**: Task 1.2.
+
+### Task 1.4 — Add pack slot snapshot schema
+
+**Goal**: Replace sample-only pack slots with metadata-first snapshots that remain stable when source chops change.
+
+**Scope**: Extend `pack_slots` storage and `PackSlot` types to include source type/path, optional `projectId`, optional `projectChopId`, optional `sampleId`, region `start`/`end`, display name, stored `sourceChopUpdatedAt`, and placeholder export settings. Add migration compatibility for existing `sample_id` slots.
+
+**Acceptance criteria**: Existing sample-based pack slots remain loadable; new slot rows can represent project chops or library samples; no audio file is copied or rendered when a slot is assigned; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. `pack_slots` stores metadata-first snapshots — source type/path, optional project/chop/sample references, region bounds, display name, and `sourceChopUpdatedAt` — with migration compatibility for legacy `sample_id`-only slots.
+
+**Depends on**: Task 1.1.
+
+## Phase 2: Project Autosave and Chop Workflow
+
+### Task 2.1 — Persist region edits as project chops automatically
+
+**Goal**: Remove manual Save to Library as the required checkpoint for keeping chop work.
+
+**Scope**: Update `src/stores/projects.ts` and the Chop view integration so region create, rename, resize, and delete operations persist to project chops automatically.
+
+**Acceptance criteria**: Editing chops updates persisted project chop rows without requiring Save to Library; reloading a project restores the same chop IDs and names; `pnpm tsc` passes.
+
+**Current implementation**: Region edits auto-save with a 1500ms debounce and a 5s maximum wait. A "Saving…" / "✓ Saved" status indicator appears in the Chop header. The explicit Save Project / Update Project buttons have been removed.
+
+**Depends on**: Task 1.3.
+
+### Task 2.2 — Remove Save to Library from the main path
+
+**Goal**: Clarify that the library is an optional reusable archive, not the required transition between Chop and Pack.
+
+**Scope**: Remove Save to Library from the Chop workflow. Project chops are persisted automatically and indexed by the Library/source browser.
+
+**Acceptance criteria**: A user can chop source audio and proceed toward pack building without saving or exporting samples to the library; the Library automatically includes project regions; `pnpm tsc` passes.
+
+**Current implementation**: Save to Library has been removed from the primary Chop workflow.
+
+**Depends on**: Task 2.1.
+
+### Task 2.3 — Add create/send chops to pack shortcut
+
+**Goal**: Let users create a draft pack from the current project without leaving live chop data behind.
+
+**Scope**: Add a `Create pack from chops` or `Send chops to pack` action that creates a pack, assigns selected or all current project chops as slot snapshots, and routes the user to Pack Builder.
+
+**Acceptance criteria**: The shortcut creates a draft pack from current project chops; slots contain snapshot payloads, not only `sample_id`; Pack Builder opens with the new pack selected; `pnpm tsc` passes.
+
+**Current implementation**: Shipped.
+
+**Depends on**: Task 1.4, Task 2.1.
+
+## Phase 3: Pack Builder Source Browser
+
+### Task 3.1 — Model Pack Builder source items
+
+**Goal**: Give Pack Builder one typed source model for current project chops, other project chops, and library samples.
+
+**Scope**: Add renderer types and selector/store helpers that normalize project chops and samples into source browser items with source type, display name, source path, duration/region, project metadata, and IDs.
+
+**Acceptance criteria**: Source items can be built from current project chops, cross-project chops, and library samples; source items contain enough metadata to build a pack slot snapshot; `pnpm tsc` passes.
+
+**Depends on**: Task 1.3, Task 1.4.
+
+### Task 3.2 — Build unified Pack Builder source browser
+
+**Goal**: Let users browse and search all valid pack sources from the Pack Builder without duplicating the Library model.
+
+**Scope**: Update Packs/Pack Builder UI to show one source list backed by project chops and loose library samples. Do not split into Current Project, Other Projects, and Library sections; use search and filters instead.
+
+**Acceptance criteria**: Current project chops appear immediately; other project chops and library samples are discoverable in the same list; search/filter works across the source browser; `pnpm tsc` passes.
+
+**Depends on**: Task 3.1.
+
+### Task 3.3 — Assign any source item to a pad slot snapshot
+
+**Goal**: Make pad assignment source-agnostic and snapshot-based.
+
+**Scope**: Update `src/stores/packs.ts`, pack slot queries, and drag/drop handlers so `setSlot` accepts a normalized source item and writes the full snapshot payload.
+
+**Acceptance criteria**: Dragging a current project chop, other project chop, or library sample into a pad creates a stable slot snapshot; no assignment path writes only `sample_id`; `pnpm tsc` passes.
+
+**Depends on**: Task 3.1, Task 1.4.
+
+### Phase 3 shipped additions (outside original task scope)
+
+**Improved auto-chop algorithms** (commit 42f9048): Spectral flux analysis, beat-snap, and grid modes were added to the auto-chop engine in addition to the original transient-based detection.
+
+**Auto-loop detection** (commit 6fc869a): Auto-chop can now identify and select loop candidates within long audio files.
+
+**Current implementation**: Shipped.
+
+## Phase 4: Export and Source-Change Correctness
+
+### Task 4.1 — Export packs from slot snapshots
+
+**Goal**: Render exported files from slot metadata and target export profiles.
+
+**Scope**: Update pack export IPC/main logic to resolve each slot snapshot's source path and region, then call ffmpeg with the selected hardware/profile formatting.
+
+**Acceptance criteria**: Export does not depend on a live project chop lookup unless the user explicitly refreshes a slot; migrated older packs export; exported files follow the selected profile naming and format; `pnpm tsc` passes.
+
+**Current implementation**: Shipped.
+
+**Depends on**: Task 1.4, Task 3.3.
+
+### Task 4.2 — Detect changed source chops
+
+**Goal**: Surface when a pack slot's original project chop has changed without silently mutating the slot.
+
+**Scope**: Compare stored `sourceChopUpdatedAt` against the current project chop `updatedAt`. Expose status in Pack Builder and add actions to update from source or keep the snapshot.
+
+**Acceptance criteria**: Changed project chop sources are detected; users can intentionally refresh the slot snapshot; keeping the snapshot leaves export behavior unchanged; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. Changed slots show a `Source changed` status and expose a refresh button.
+
+**Depends on**: Task 4.1.
+
+### Task 4.3 — Verify migration and export edge cases
+
+**Goal**: Protect older user data and snapshot export behavior during the refactor.
+
+**Scope**: Manually exercise migrated projects, migrated packs, library sample slots, project chop slots, missing source files, and changed source chops.
+
+**Acceptance criteria**: Documented manual checks pass; `pnpm tsc` passes; known missing-file behavior is explicit in UI or error handling.
+
+**Current implementation**: Shipped. See `.harness/qa/report.md` for the verified matrix and expected behavior.
+
+**Depends on**: Task 4.1, Task 4.2.
+
+## Phase 5: Import, Library, and Recording
+
+### Task 5.1 — Improve batch folder import
+
+**Goal**: Make existing sample folders easy to ingest as loose/reusable library assets.
+
+**Scope**: Add or improve folder import flow, metadata extraction, duplicate handling, and library indexing for local audio files.
+
+**Acceptance criteria**: Users can import a folder of supported audio files; imported assets appear in Library and Pack Builder; duplicates are handled predictably; `pnpm tsc` passes.
+
+**Current implementation**: Shipped. An "Import folder" button in the Library sidebar recursively scans a selected folder, skips duplicates, and runs BPM/key analysis in the background.
+
+**Depends on**: Phase 4.
+
+### Task 5.2 — Improve library metadata management
+
+**Goal**: Keep the library useful as a searchable asset archive.
+
+**Scope**: Add focused metadata editing, tagging, cleanup, auditioning, and filters for reusable library samples without making library save mandatory for pack creation.
+
+**Acceptance criteria**: Users can search/filter and maintain library assets; metadata edits do not affect stable pack slot snapshots unless refreshed intentionally; `pnpm tsc` passes.
+
+**Current implementation**: Mostly shipped. Inline rename, delete with pack-reference count warnings, "Clean library" orphan-removal button, and lazy waveform loading in Browse rows are all live. Remaining: tagging and full metadata editing.
+
+**Depends on**: Phase 4.
+
+### Task 5.3 — Add direct recording into projects
+
+**Goal**: Support recording from interfaces, turntables, keyboards, and phones after the data model refactor is stable.
+
+**Scope**: Add recording capture, persistence, project source creation, and initial chop workflow integration through Electron main and typed preload APIs.
+
+**Acceptance criteria**: A recorded source can be saved as project audio, chopped, assigned to pack slots as snapshots, and exported through profiles; `pnpm tsc` passes.
+
+**Depends on**: Phase 4.
+
+## Phase 6: Audio Intelligence and Melodic Sampling
+
+### Task 6.1 — Smart chop suggestions
+
+**Goal**: Surface a ranked list of candidate chop points so producers do not have to scan long sources manually.
+
+**Scope**: Extend `src/lib/audioAnalysis.ts` to score candidate points by transient density, energy level, and musical phrasing. Expose the ranked list as a UI affordance in the Chop view that the user can accept, reject, or adjust. Do not auto-apply — suggestions are proposals, not decisions. The reference is Serato Sample's "Auto-Sample" (up to 25 ranked candidates).
+
+**Acceptance criteria**: Chop view shows proposed points ranked by musical interest; user can accept individual suggestions or dismiss all; accepted suggestions become normal editable regions; `pnpm tsc` passes.
+
+**Depends on**: Phase 5.
+
+### Task 6.2 — Pitch shift and time stretch on export
+
+**Goal**: Let producers tune or tempo-match samples without opening a DAW.
+
+**Scope**: Add pitch shift and time stretch parameters to pack slot export settings. Implement via ffmpeg's `rubberband` or `atempo`/`asetrate` filters, or evaluate a higher-quality native library. Quality is the key constraint — the market benchmark is Serato Pitch 'n Time.
+
+**Acceptance criteria**: Pack slot export settings accept semitone pitch offset and BPM ratio; exported files are audibly correct at moderate shifts (±4 semitones, 80–130% tempo); quality is acceptable for production use; `pnpm tsc` passes.
+
+**Depends on**: Phase 4.
+
+### Task 6.3 — Stem separation before chopping
+
+**Goal**: Let producers isolate drums, bass, melody, or vocals from a mixed source before marking chop points.
+
+**Scope**: Integrate a stem separation library (e.g. Demucs via a child process in Electron main, or a WebAssembly port) and expose it as a source pre-processing step in the Chop view. Serato Sample v2.0 proved producer demand — this is a first-class feature, not a fringe utility.
+
+**Acceptance criteria**: User can separate a source into stems from the Chop view; each stem opens as a separate source for chopping; separation runs locally with no external service dependency; `pnpm tsc` passes.
+
+**Current implementation**: Shipped (unreleased). A "Stems" tool runs a bundled MIT demucs 4-source WASM model (Drums/Bass/Other/Vocals) in a renderer web worker; selecting a stem swaps the active source so the existing Chop/Loop/Trim tools operate on it, and `restoreOriginal` returns to the full source. Results are cached by source-file hash under `userData/stems/<sourceHash>/` and normalized through the render funnel. The model is fetched out-of-band via `pnpm fetch:stem-model` (gitignored), not committed. Delivers the 4-stem variant rather than the originally-specced 6; piano/guitar/strings fold into "Other". See ADR 0007 and `features.md#stem-separation-engine` / `features.md#stem-picker-chop-integration`.
+
+**Depends on**: Phase 5.
+
+### Task 6.4 — Keyboard / melodic sampling mode
+
+**Goal**: Allow a chop or sample to be played chromatically across a keyboard range.
+
+**Scope**: Add a keyboard mode to the Chop view or Pack Builder that maps a selected region to a pitch range. In the renderer, use Web Audio API pitch shifting to preview pitched versions. On export, generate one file per semitone step (or a multi-sample format) through the target profile.
+
+**Acceptance criteria**: User can assign a chop to a keyboard range; previewing plays the correct pitch; export writes correctly named files per the selected target profile; `pnpm tsc` passes.
+
+**Depends on**: Task 6.2.
+
+## Phase 7: Pack Audition
+
+### Task 7.1 — Pad audition playback mode (One-Shot vs Gate)
+
+**Goal**: Let producers audition pads in One-Shot as well as Gate, so they aren't surprised by how a pad sounds before export.
+
+**Scope**: Add a global One-Shot/Gate toggle to the Pack screen, held in the `ui` store (session-only, default Gate). Extend `useAudioPlayer` with a `mode` argument: in Gate (default), the pad's `onPointerUp` stops playback (current behavior); in One-Shot, release is ignored and playback continues until the existing `ontimeupdate` handler stops it at `region.end`. Audition-only — no change to `pack_slots`, persistence, IPC, or export. Not a full ADSR envelope.
+
+**Acceptance criteria**: A global toggle appears in the Pack screen, defaulting to Gate. In Gate, releasing a held pad stops playback; in One-Shot, releasing does not stop it and the chop plays through to its end and no further. The setting survives navigating away from Packs and back within a session, and resets to Gate on app restart. No pack-slot, database, or export behavior changes. `pnpm tsc` passes.
+
+**Depends on**: Phase 4 (pack slots and the Pack screen).

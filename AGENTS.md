@@ -15,27 +15,17 @@
 
 Managed by doctier — do not edit between the markers.
 
-Read these for project context:
+Entry points (read these first):
 
-- `.harness/adr/0001-local-first-electron-refactor.md`
-- `.harness/adr/0002-stable-project-chops.md`
-- `.harness/adr/0003-metadata-first-pack-slot-snapshots.md`
-- `.harness/adr/0004-autosave-replaces-explicit-save.md`
-- `.harness/adr/0005-pad-audition-mode-is-preview-only.md`
-- `.harness/adr/0006-library-is-a-materialized-live-projection.md`
-- `.harness/adr/0007-stem-separation-engine.md`
 - `.harness/engineering/architecture.md`
-- `.harness/engineering/features/auto-sample-suggestions.md`
-- `.harness/engineering/features/pad-audition-mode.md`
-- `.harness/engineering/features/stem-picker-chop-integration.md`
-- `.harness/engineering/features/stem-separation-engine.md`
 - `.harness/engineering/implementation-plan.md`
-- `.harness/product/CONTEXT.md`
-- `.harness/product/competitors.md`
-- `.harness/product/idea.md`
 - `.harness/product/product.md`
-- `.harness/product/roadmap.md`
-- `.harness/product/ux.md`
-- `.harness/qa/adversarial-audit-2026-07-03.md`
-- `.harness/qa/report.md`
+
+Further docs, by directory:
+
+- `.harness/adr/` (7 docs)
+- `.harness/engineering/` (1 docs)
+- `.harness/engineering/features/` (4 docs)
+- `.harness/product/` (5 docs)
+- `.harness/qa/` (2 docs)
 <!-- doctier:end -->
