@@ -63,7 +63,7 @@
     "@typescript-eslint/parser": "^8.59.4",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.4.16",
-    "electron": "41.6.1",
+    "electron": "41.10.6",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1",
     "eslint": "^10.4.0",
@@ -76,7 +76,7 @@
     "react-dom": "^19.2.6",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
+    "vite": "^8.1.6",
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.5",
     "vitest": "^4.1.9"
