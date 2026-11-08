@@ -166,7 +166,7 @@ Baseline verification for each code task is `pnpm tsc` plus `pnpm test`. A vites
 
 **Acceptance criteria**: Documented manual checks pass; `pnpm tsc` passes; known missing-file behavior is explicit in UI or error handling.
 
-**Current implementation**: Shipped. See `.harness/qa/report.md` for the verified matrix and expected behavior.
+**Current implementation**: Shipped. See `.rubstack/qa/report.md` for the verified matrix and expected behavior.
 
 **Depends on**: Task 4.1, Task 4.2.
 
